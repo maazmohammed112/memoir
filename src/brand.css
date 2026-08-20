@@ -1063,3 +1063,187 @@ body.auth-locked { overflow: hidden; }
   .top-actions { justify-content: space-between; gap: 6px; }
   .top-actions .round-btn { width: 38px; height: 38px; }
 }
+
+/* Strict mobile viewport containment for vault rows and financial cards. */
+@media (max-width: 620px) {
+  html,
+  body,
+  #app,
+  .shell,
+  .content,
+  .view,
+  .vault-list,
+  .finance-memory,
+  .vault-row {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  html,
+  body,
+  #app,
+  .shell,
+  .content,
+  .view {
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  .toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 9px;
+    width: 100%;
+    min-width: 0;
+  }
+  .toolbar > * { min-width: 0; }
+  .toolbar .search-input { width: 100%; }
+  .toolbar #bulk-import {
+    max-width: 145px;
+    padding-inline: 13px;
+    white-space: nowrap;
+  }
+  .toolbar .primary {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .vault-list { gap: 10px; }
+  .vault-row {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    align-items: center;
+    gap: 11px 12px;
+    padding: 14px;
+    overflow: hidden;
+  }
+  .vault-row > .icon-wrap {
+    width: 44px;
+    height: 44px;
+    margin: 0;
+  }
+  .vault-info { width: 100%; min-width: 0; }
+  .vault-info h3 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .vault-info p {
+    display: -webkit-box;
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.45;
+  }
+  .vault-row > .row-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .finance-memory {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 13px;
+    padding: 10px;
+    overflow: hidden;
+  }
+  .finance-memory .payment-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+  .finance-memory-foot {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 9px;
+    padding: 2px 4px 5px;
+  }
+  .finance-memory-foot > div:first-child { min-width: 0; }
+  .finance-memory-foot h3 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+  }
+  .finance-memory-foot p {
+    display: -webkit-box;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.45;
+  }
+  .finance-memory-foot > .chip { align-self: center; width: max-content; max-width: 100%; }
+  .finance-memory-foot > .row-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .payment-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 0;
+    aspect-ratio: 1.586 / 1;
+    padding: 16px;
+    border-radius: 20px;
+  }
+  .payment-card-head { min-width: 0; gap: 10px; font-size: 11px; }
+  .payment-card-head > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .payment-card-head small {
+    max-width: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 7px;
+  }
+  .payment-card-chip { width: 34px; height: 25px; margin-top: 17px; border-radius: 7px; }
+  .payment-card-number { min-width: 0; gap: 7px; margin-top: 12px; }
+  .payment-card-number > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: clamp(11px, 3.8vw, 14px);
+    letter-spacing: .075em;
+  }
+  .payment-card-number button { width: 30px; height: 30px; border-radius: 9px; }
+  .payment-card-meta { min-width: 0; gap: 8px; padding-top: 11px; }
+  .payment-card-meta > div:first-child { min-width: 0; }
+  .payment-card-meta small { font-size: 5.5px; letter-spacing: .075em; }
+  .payment-card-meta strong { max-width: 88px; margin-top: 2px; font-size: 7px; }
+
+  .detail,
+  .detail > .payment-card,
+  .detail-fields,
+  .detail-field { width: 100%; max-width: 100%; min-width: 0; }
+  .detail-head { min-width: 0; }
+  .detail-head > div { min-width: 0; }
+  .detail-head h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 360px) {
+  .toolbar #bulk-import { max-width: 126px; padding-inline: 10px; font-size: 10px; }
+  .payment-card { padding: 14px; border-radius: 18px; }
+  .payment-card-chip { width: 31px; height: 23px; margin-top: 14px; }
+  .payment-card-number { margin-top: 10px; }
+  .payment-card-number button { width: 28px; height: 28px; }
+  .payment-card-meta { gap: 6px; padding-top: 8px; }
+  .payment-card-meta strong { max-width: 76px; font-size: 6.5px; }
+}
