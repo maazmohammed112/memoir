@@ -103,10 +103,43 @@ export async function routeQuery({ provider = 'gemini', query, catalog, history,
   const cleanCatalog = safeCatalog(catalog);
   if (isClearlyOffTopic(query)) return { kind: 'refusal', title: 'Rhinous is vault-only', markdown: 'I’m your private vault assistant. I can help with saved memories, credentials, clipboard items, birthdays, and vault changes—not unrelated general trivia.', matches: [], actions: [], provider, model: 'scope-guard' };
   const cleanHistory = safeHistory(history);
-  const prompt = `USER LOCAL TIME CONTEXT:\nCurrent instant: ${String(now).slice(0, 40)}\nTimezone: ${String(timezone).slice(0, 80)}\n\nPRIVACY-SAFE CONVERSATION LOG:\n${JSON.stringify(cleanHistory)}\n\nCURRENT USER REQUEST:\n${String(query || '').slice(0, 4000)}\n\nREDACTED VAULT CATALOG:\n${JSON.stringify(cleanCatalog)}`;
+
+  const userTz = timezone || 'Asia/Calcutta';
+  const nowObj = new Date(now || Date.now());
+  const localDateString = nowObj.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: userTz,
+  });
+  const localTimeString = nowObj.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: userTz,
+  });
+  const localIsoDate = nowObj.toLocaleDateString('en-CA', { timeZone: userTz });
+
+  const prompt = `USER LOCAL TIME CONTEXT:
+Today's Date: ${localDateString} (${localIsoDate})
+Current Time: ${localTimeString}
+User Timezone: ${userTz}
+UTC Instant: ${nowObj.toISOString()}
+
+PRIVACY-SAFE CONVERSATION LOG:
+${JSON.stringify(cleanHistory)}
+
+CURRENT USER REQUEST:
+${String(query || '').slice(0, 4000)}
+
+REDACTED VAULT CATALOG:
+${JSON.stringify(cleanCatalog)}`;
+
   const response = provider === 'mistral' ? await callMistral(prompt) : await callGemini(prompt);
   return { ...normalize(parseJson(response.result), cleanCatalog), provider, model: response.model };
 }
+
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });

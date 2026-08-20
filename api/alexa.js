@@ -256,12 +256,48 @@ function parseSpokenReminder(rawText, explicitDue) {
     }
   }
 
-  if (isTonight && !foundTime) { hours = 20; minutes = 0; }
-  targetDate.setHours(hours, minutes, 0, 0);
+  const tz = getAppTimezone();
+  const localNow = getNowInTimezone(tz);
+  const d = new Date(Date.UTC(localNow.year, localNow.month - 1, localNow.day));
+  if (isTomorrow) d.setUTCDate(d.getUTCDate() + 1);
+  if (isDayAfter) d.setUTCDate(d.getUTCDate() + 2);
 
-  return { title: cleanSpokenTitle(text), timestamp: targetDate.getTime() };
+  if (isTonight && !foundTime) { hours = 20; minutes = 0; }
+
+  const pad = n => String(n).padStart(2, '0');
+  const yearStr = d.getUTCFullYear();
+  const monthStr = pad(d.getUTCMonth() + 1);
+  const dayStr = pad(d.getUTCDate());
+  const hourStr = pad(hours);
+  const minuteStr = pad(minutes);
+  const localIso = `${yearStr}-${monthStr}-${dayStr}T${hourStr}:${minuteStr}`;
+
+  // Timezone offset for Asia/Calcutta is +05:30
+  const timestamp = new Date(`${localIso}:00+05:30`).getTime();
+
+  return { title: cleanSpokenTitle(text), timestamp, localIso };
 }
 
+function getNowInTimezone(tz = getAppTimezone()) {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const map = {};
+  for (const p of parts) map[p.type] = p.value;
+  return {
+    year: parseInt(map.year, 10),
+    month: parseInt(map.month, 10),
+    day: parseInt(map.day, 10),
+    hour: parseInt(map.hour, 10),
+    minute: parseInt(map.minute, 10),
+    second: parseInt(map.second, 10),
+  };
+}
 
 async function handleAddReminder(profile, { title, dueAt, note }) {
   if (!title) return 'Please specify what you would like to be reminded about.';
@@ -269,7 +305,7 @@ async function handleAddReminder(profile, { title, dueAt, note }) {
   const parsed = parseSpokenReminder(title, dueAt);
   const id = crypto.randomUUID();
   const timestamp = parsed.timestamp;
-  const isoDue = new Date(timestamp).toISOString();
+  const localDue = parsed.localIso || new Date(timestamp).toISOString().slice(0, 16);
 
   const reminderItem = {
     id,
@@ -277,7 +313,7 @@ async function handleAddReminder(profile, { title, dueAt, note }) {
     title: parsed.title,
     note: note ? String(note).trim() : '',
     fields: {
-      'Due at': isoDue,
+      'Due at': localDue,
       'Due timestamp': timestamp,
       Status: 'pending',
       Repeat: 'none',
@@ -295,6 +331,7 @@ async function handleAddReminder(profile, { title, dueAt, note }) {
 
   return `I have added a reminder to ${parsed.title} for ${dateStr} at ${timeStr}.`;
 }
+
 
 
 async function handleSnoozeReminder(profile, items, titleQuery) {
