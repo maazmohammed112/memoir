@@ -73,7 +73,23 @@ function icon(name, className = '') {
   return `<svg class="icon ${className}" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${nodes}</svg>`;
 }
 function escapeHtml(value = '') { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char])); }
-function toast(text) { toastNode.textContent = text; toastNode.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => toastNode.classList.remove('show'), 1900); }
+function toast(text, tone = '') { toastNode.textContent = text; toastNode.classList.toggle('success', tone === 'success'); toastNode.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => toastNode.classList.remove('show', 'success'), 2400); }
+function securityCountdown(timestamp) {
+  let remaining = Math.max(0, Number(timestamp || 0) - Date.now());
+  const hours = Math.floor(remaining / 3600000); remaining %= 3600000; const minutes = Math.floor(remaining / 60000); const seconds = Math.floor((remaining % 60000) / 1000);
+  return hours ? `${hours}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s` : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+function updateSecurityCountdowns() {
+  document.querySelectorAll('[data-security-countdown]').forEach(node => {
+    const remaining = Number(node.dataset.securityCountdown || 0) - Date.now();
+    node.textContent = remaining > 0 ? securityCountdown(node.dataset.securityCountdown) : (node.dataset.expiredLabel || 'Ready');
+  });
+  document.querySelectorAll('[data-enable-at]').forEach(node => {
+    if (node.dataset.permanentDisabled === 'true') { node.disabled = true; return; }
+    const waiting = Number(node.dataset.enableAt || 0) > Date.now(); node.disabled = waiting;
+    const label = node.querySelector('[data-wait-label]'); if (label) label.textContent = waiting ? `New code in ${securityCountdown(node.dataset.enableAt)}` : 'Send a new code';
+  });
+}
 let activityDepth = 0;
 async function withRhinoActivity(label, task) {
   const started = Date.now(); activityDepth += 1; let node = document.querySelector('#rhino-activity');
@@ -239,22 +255,31 @@ function shell() {
 function renderAuthGate() {
   if (modal.open) modal.close();
   document.body.classList.add('auth-locked');
-  const status = state.auth.status; const loading = ['checking', 'intro'].includes(status); const selecting = status === 'selectAccount'; const otp = ['otpPending', 'verifyingOtp'].includes(status); const profile = activeProfile();
+  const status = state.auth.status; const loading = ['checking', 'intro'].includes(status); const selecting = status === 'selectAccount'; const otp = ['otpPending', 'verifyingOtp', 'otpSuccess'].includes(status); const profile = activeProfile();
   const error = state.authError ? `<div class="auth-error" role="alert">${icon('Circle')}<span>${escapeHtml(state.authError)}</span></div>` : '';
   let content;
   if (loading) content = `<div class="auth-loader auth-intro"><span class="auth-pulse"><img src="/brand/memoir-rhino-ui.png" alt=""></span><strong>${status === 'intro' ? 'Memoir' : 'Securing your private vault…'}</strong><p>${status === 'intro' ? 'Your memory. Your control.' : 'Checking this device’s private session.'}</p></div>`;
-  else if (selecting) content = `<div class="auth-copy"><p class="eyebrow">Private account</p><h1>Enter your vault number.</h1><p>${escapeHtml(state.auth.message || 'Use the private 4-digit number assigned to your Memoir account.')}</p></div><form class="auth-form account-code-form" id="account-code-form"><label>4-digit account number<input id="account-code" class="account-code-input" type="password" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]{4}" required autofocus placeholder="••••"></label>${error}<button class="primary auth-submit">${icon('KeyRound')} Continue securely</button></form><div class="auth-trust">${icon('ShieldCheck')}<span>This number chooses the correct isolated account. Your Firebase password and Telegram code are still required.</span></div>`;
-  else if (otp) content = `<div class="auth-copy"><p class="eyebrow">Telegram verification</p><h1>Check Telegram, ${escapeHtml(profile.name)}.</h1><p>${escapeHtml(state.auth.message || 'Enter the 6-digit code sent to your private Telegram account.')}</p></div><form class="auth-form" id="otp-form"><label>6-digit security code<input id="auth-otp" class="otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required autofocus placeholder="000000"></label>${error}<button class="primary auth-submit" ${status === 'verifyingOtp' ? 'disabled' : ''}>${status === 'verifyingOtp' ? '<span class="button-spinner"></span> Verifying code…' : `${icon('ShieldCheck')} Verify and open Memoir`}</button></form><div class="auth-secondary-actions"><button type="button" id="resend-otp">Send a new code</button><button type="button" data-back-login>Back to password</button><button type="button" data-switch-account>Switch account</button></div><div class="auth-trust">${icon('ShieldCheck')}<span>The code expires in 5 minutes. This verified session automatically ends after 12 hours.</span></div>`;
+  else if (selecting) {
+    const lockedUntil = Number(state.auth.accountCodeLockedUntil || 0); const locked = lockedUntil > Date.now(); const remaining = state.auth.accountCodeAttemptsRemaining;
+    const lockNotice = locked ? `<div class="auth-lock-notice">${icon('LockKeyhole')}<span>Account selection locked. Try again in <strong data-security-countdown="${lockedUntil}"></strong>.</span></div>` : Number.isFinite(remaining) && remaining < 3 ? `<div class="auth-attempts">${remaining} secure attempt${remaining === 1 ? '' : 's'} remaining</div>` : '';
+    content = `<div class="auth-copy"><p class="eyebrow">Private account</p><h1>Enter your vault number.</h1><p>${escapeHtml(state.auth.message || 'Use the private 4-digit number assigned to your Memoir account.')}</p></div><form class="auth-form account-code-form ${locked ? 'is-locked' : ''}" id="account-code-form"><label>4-digit account number<input id="account-code" class="account-code-input" type="password" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]{4}" required autofocus placeholder="••••" ${locked ? `disabled data-enable-at="${lockedUntil}"` : ''}></label>${lockNotice}${error}<button class="primary auth-submit" ${locked ? `disabled data-enable-at="${lockedUntil}"` : ''}>${icon('KeyRound')} Continue securely</button></form><div class="auth-trust">${icon('ShieldCheck')}<span>Three incorrect account numbers lock selection for 4 hours. Your Firebase password and Telegram OTP are still required.</span></div>`;
+  }
+  else if (otp) {
+    const success = status === 'otpSuccess'; const denied = state.auth.verificationState === 'error'; const lockedUntil = Number(state.auth.otpVerifyLockedUntil || 0); const locked = lockedUntil > Date.now();
+    const resendAt = Number(state.auth.otpResendAt || 0); const resendWaiting = resendAt > Date.now(); const requestsRemaining = Number(state.auth.otpRequestsRemaining ?? 0); const attemptsRemaining = Number(state.auth.otpAttemptsRemaining ?? 3);
+    const verificationNotice = success ? `<div class="otp-result success">${icon('CircleCheckBig')}<div><strong>OTP verified</strong><span>Opening your encrypted vault securely…</span></div></div>` : locked ? `<div class="otp-result locked">${icon('LockKeyhole')}<div><strong>Verification locked</strong><span>Try again in <b data-security-countdown="${lockedUntil}"></b>.</span></div></div>` : denied ? `<div class="otp-result denied">${icon('X')}<div><strong>Incorrect security code</strong><span>${attemptsRemaining} attempt${attemptsRemaining === 1 ? '' : 's'} remaining before a 4-hour lock.</span></div></div>` : '';
+    content = `<div class="auth-copy"><p class="eyebrow">Telegram verification</p><h1>${success ? 'Identity confirmed.' : `Check Telegram, ${escapeHtml(profile.name)}.`}</h1><p>${escapeHtml(state.auth.message || 'Enter the 6-digit code sent to your private Telegram account.')}</p></div>${verificationNotice}<form class="auth-form otp-verification ${success ? 'is-success' : denied ? 'is-denied' : ''}" id="otp-form"><label>6-digit security code<input id="auth-otp" class="otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required autofocus placeholder="000000" ${success || locked ? `disabled${locked ? ` data-enable-at="${lockedUntil}"` : ''}` : ''}></label>${error}<button class="primary auth-submit" ${status === 'verifyingOtp' || success || locked ? `disabled${locked ? ` data-enable-at="${lockedUntil}"` : ''}` : ''}>${status === 'verifyingOtp' ? '<span class="button-spinner"></span> Verifying securely…' : success ? `${icon('CircleCheckBig')} Verified` : `${icon('ShieldCheck')} Verify and open Memoir`}</button></form><div class="otp-security-meta"><span>Code expires in <strong data-security-countdown="${Number(state.auth.otpExpiresAt || 0)}" data-expired-label="Expired"></strong></span><span>${requestsRemaining} of 3 OTP requests remaining</span></div><div class="auth-secondary-actions"><button type="button" id="resend-otp" data-enable-at="${resendAt}" ${success ? 'data-permanent-disabled="true"' : ''} ${resendWaiting || success ? 'disabled' : ''}><span data-wait-label>${resendWaiting ? `New code in ${securityCountdown(resendAt)}` : 'Send a new code'}</span></button><button type="button" data-back-login ${success ? 'disabled' : ''}>Back to password</button><button type="button" data-switch-account ${success ? 'disabled' : ''}>Switch account</button></div><div class="auth-trust">${icon('ShieldCheck')}<span>Resends require 2 minutes. Three OTP requests lock resends for 12 hours; three incorrect OTPs lock verification for 4 hours.</span></div>`;
+  }
   else content = `<div class="auth-copy"><p class="eyebrow">${escapeHtml(profile.name)} · private access</p><h1>Welcome back, ${escapeHtml(profile.name)}.</h1><p>${escapeHtml(state.auth.message || 'Enter your approved Firebase password. A private Telegram code will be required next.')}</p></div><form class="auth-form" id="auth-form"><label>Email address<input id="auth-email" type="email" autocomplete="username" readonly required value="${escapeHtml(profile.email)}" spellcheck="false"></label><label>Password<div class="password-control"><input id="auth-password" type="password" autocomplete="current-password" required autofocus><button type="button" id="toggle-auth-password" aria-label="Show password">${icon('Eye')}</button></div></label>${error}<button class="primary auth-submit" ${status === 'signingIn' ? 'disabled' : ''}>${status === 'signingIn' ? '<span class="button-spinner"></span> Sending Telegram code…' : `${icon('LockKeyhole')} Continue securely`}</button></form><div class="auth-secondary-actions"><button type="button" data-switch-account>${icon('ArrowLeft')} Switch account</button></div><div class="auth-trust">${icon('ShieldCheck')}<span>Email, password, and a user-specific Telegram OTP are required. Every session ends after 12 hours.</span></div>`;
-  app.innerHTML = `<main class="auth-shell"><section class="auth-card ${loading ? 'auth-checking' : ''}"><div class="auth-brand"><img src="/brand/memoir-rhino-ui.png" alt="Memoir rhino"><span>memoir</span></div>${content}</section><aside class="auth-visual"><img src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Private by design</p><h2>Your memory.<br>Your control.</h2><p>Each account has its own encrypted browser vault, Firebase collection, AI context, reminders, and Telegram channel.</p></aside></main>`;
-  if (!loading) bindAuthGate();
+  app.innerHTML = `<main class="auth-shell"><section class="auth-card ${loading ? 'auth-checking' : ''} ${status === 'otpSuccess' ? 'auth-verified' : state.auth.verificationState === 'error' ? 'auth-rejected' : ''}"><div class="auth-brand"><img src="/brand/memoir-rhino-ui.png" alt="Memoir rhino"><span>memoir</span></div>${content}</section><aside class="auth-visual"><img src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Private by design</p><h2>Your memory.<br>Your control.</h2><p>Each account has its own encrypted browser vault, Firebase collection, AI context, reminders, and Telegram channel.</p></aside></main>`;
+  if (!loading) { bindAuthGate(); updateSecurityCountdowns(); }
 }
 
 function bindAuthGate() {
   document.querySelector('#account-code-form')?.addEventListener('submit', async event => {
     event.preventDefault(); state.authError = '';
     try { await vaultStore.selectAccount(document.querySelector('#account-code').value); }
-    catch (error) { state.authError = error.message || 'That account number is not recognized.'; shell(); }
+    catch (error) { state.authError = `${error.message || 'That account number is not recognized.'}${Number.isFinite(error.remainingAttempts) && error.remainingAttempts > 0 ? ` ${error.remainingAttempts} attempt${error.remainingAttempts === 1 ? '' : 's'} remaining.` : ''}`; shell(); }
   });
   document.querySelector('#toggle-auth-password')?.addEventListener('click', event => { const input = document.querySelector('#auth-password'); const reveal = input.type === 'password'; input.type = reveal ? 'text' : 'password'; event.currentTarget.innerHTML = icon(reveal ? 'EyeOff' : 'Eye'); event.currentTarget.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password'); });
   document.querySelector('#auth-form')?.addEventListener('submit', async event => {
@@ -268,9 +293,13 @@ function bindAuthGate() {
   });
   document.querySelector('#otp-form')?.addEventListener('submit', async event => {
     event.preventDefault(); state.authError = '';
-    try { await vaultStore.verifyOtp(document.querySelector('#auth-otp').value); }
+    try { await vaultStore.verifyOtp(document.querySelector('#auth-otp').value); toast('OTP verified — Memoir unlocked', 'success'); }
     catch (error) { state.authError = error?.code === 'vault/key-unlock-failed' ? 'The Firebase password cannot unlock this account’s encrypted vault key. Sign in again with the correct password.' : error.message || 'The Telegram code could not be verified.'; shell(); }
   });
+  document.querySelector('#auth-otp')?.addEventListener('input', event => {
+    event.currentTarget.closest('.otp-verification')?.classList.remove('is-denied');
+    document.querySelector('.auth-card')?.classList.remove('auth-rejected'); document.querySelector('.otp-result.denied')?.remove(); document.querySelector('.auth-error')?.remove();
+  }, { once: true });
   document.querySelector('#resend-otp')?.addEventListener('click', async event => {
     event.currentTarget.disabled = true; state.authError = '';
     try { await vaultStore.resendOtp(); }
@@ -739,6 +768,7 @@ vaultStore.subscribe((items, status, session) => {
 shell(); vaultStore.init();
 setInterval(runBackgroundAutomation, 30000);
 setInterval(updateReminderCountdowns, 1000);
+setInterval(updateSecurityCountdowns, 1000);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 document.addEventListener('contextmenu', event => event.preventDefault());
 document.addEventListener('keydown', event => {

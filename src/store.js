@@ -10,8 +10,8 @@ const firebaseConfig = {
 
 const DB_VERSION = 1;
 export const ACCOUNT_PROFILES = [
-  { code: '2002', uid: 'uQE6xqhWhQWhOlGmfT2br5HnCEq2', email: 'maaz@memo.com', name: 'Maaz', initials: 'MM' },
-  { code: '2005', uid: 'GQ4lxeAWoPTlyJ4W1jxU8bxk6qS2', email: 'deepti@memo.com', name: 'Deepti', initials: 'DM' },
+  { uid: 'uQE6xqhWhQWhOlGmfT2br5HnCEq2', email: 'maaz@memo.com', name: 'Maaz', initials: 'MM' },
+  { uid: 'GQ4lxeAWoPTlyJ4W1jxU8bxk6qS2', email: 'deepti@memo.com', name: 'Deepti', initials: 'DM' },
 ];
 const MAAZ_UID = ACCOUNT_PROFILES[0].uid;
 const SESSION_LENGTH = 12 * 60 * 60 * 1000;
@@ -24,7 +24,6 @@ let activeProfileUid = null;
 const selectedProfileKey = 'memoir-selected-profile';
 const introSeenKey = 'memoir-intro-seen';
 const profileByUid = uid => ACCOUNT_PROFILES.find(profile => profile.uid === String(uid || '')) || null;
-const profileByCode = code => ACCOUNT_PROFILES.find(profile => profile.code === String(code || '').trim()) || null;
 const dbName = () => activeProfileUid === MAAZ_UID ? 'memoir-encrypted-vault' : `memoir-encrypted-vault-${activeProfileUid}`;
 const ownerKeyId = () => activeProfileUid === MAAZ_UID ? 'owner-vault-key-v2' : `owner-vault-key-v2-${activeProfileUid}`;
 const passwordGateKey = () => `memoir-password-gate-${activeProfileUid}`;
@@ -172,8 +171,16 @@ class VaultStore {
   }
 
   async selectAccount(code) {
-    const profile = profileByCode(code);
-    if (!profile) { const error = new Error('That private account number is not recognized.'); error.code = 'auth/invalid-account-code'; throw error; }
+    const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'select-account', code: String(code || '') }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(result.error || 'The private account could not be selected.'); error.code = result.code || 'auth/account-code-failed';
+      error.blockedUntil = Number(result.blockedUntil || 0); error.remainingAttempts = result.remainingAttempts;
+      this.session = { ...this.session, accountCodeLockedUntil: error.blockedUntil, accountCodeAttemptsRemaining: error.remainingAttempts }; this.emit();
+      throw error;
+    }
+    const profile = profileByUid(result.profile?.uid);
+    if (!profile || profile.email !== result.profile?.email) throw new Error('The selected private account is not approved on this device.');
     await this.prepareFirebase();
     if (this.auth.currentUser) await this.firebase.signOut(this.auth);
     this.listener?.(); this.listener = null; clearTimeout(this.expiryTimer);
@@ -252,7 +259,11 @@ class VaultStore {
       this.uid = credential.user.uid;
       this.pendingPassword = String(password || '');
       const result = await this.authRequest('request');
-      this.session = { status: 'otpPending', email: this.profile.email, message: `A 6-digit code was sent to ${this.profile.name}'s Telegram.`, otpExpiresAt: result.expiresAt, profile: this.profile }; this.emit();
+      this.session = {
+        status: 'otpPending', email: this.profile.email, message: `A 6-digit code was sent to ${this.profile.name}'s Telegram.`,
+        otpExpiresAt: Number(result.expiresAt || 0), otpResendAt: Number(result.nextRequestAt || 0), otpRequestsRemaining: Number(result.remainingRequests ?? 0),
+        otpAttemptsRemaining: 3, verificationState: 'idle', profile: this.profile,
+      }; this.emit();
       return credential.user;
     } catch (error) {
       this.pendingPassword = '';
@@ -269,26 +280,48 @@ class VaultStore {
     if (!token) throw new Error('Your Firebase sign-in is no longer available.');
     const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action, ...body }) });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) { const error = new Error(result.error || 'Secure verification could not be completed.'); error.code = response.status === 429 ? 'auth/otp-rate-limit' : 'auth/otp-failed'; error.retryAfter = result.retryAfter; throw error; }
+    if (!response.ok) {
+      const error = new Error(result.error || 'Secure verification could not be completed.');
+      error.code = result.code || (response.status === 429 ? 'auth/otp-rate-limit' : 'auth/otp-failed');
+      error.retryAfter = Number(result.retryAfter || 0); error.blockedUntil = Number(result.blockedUntil || 0);
+      error.remainingAttempts = result.remainingAttempts; error.remainingRequests = result.remainingRequests;
+      throw error;
+    }
     return result;
   }
 
   async verifyOtp(code) {
     if (!this.profile || !this.auth?.currentUser || !this.pendingPassword) throw new Error('Sign in with your password again before entering a code.');
-    this.session = { ...this.session, status: 'verifyingOtp', message: 'Verifying your secure code…' }; this.emit();
+    this.session = { ...this.session, status: 'verifyingOtp', message: 'Verifying your secure code…', verificationState: 'checking' }; this.emit();
     try {
       const result = await this.authRequest('verify', { code });
+      this.session = { ...this.session, status: 'otpSuccess', message: 'OTP verified. Unlocking your encrypted vault…', verificationState: 'success' }; this.emit();
+      await new Promise(resolve => setTimeout(resolve, 650));
       await this.prepareOwnerKey(this.pendingPassword);
       this.pendingPassword = ''; localStorage.setItem(passwordGateKey(), 'v1');
       await this.activateOwner(this.auth.currentUser, Number(result.expiresAt));
     } catch (error) {
-      this.session = { status: 'otpPending', email: this.profile.email, message: error.message, profile: this.profile }; this.emit(); throw error;
+      this.session = {
+        ...this.session, status: 'otpPending', email: this.profile.email, message: error.message, verificationState: 'error',
+        otpVerifyLockedUntil: error.code === 'auth/otp-verify-locked' ? Number(error.blockedUntil || 0) : Number(this.session.otpVerifyLockedUntil || 0),
+        otpAttemptsRemaining: error.remainingAttempts ?? this.session.otpAttemptsRemaining, profile: this.profile,
+      }; this.emit(); throw error;
     }
   }
 
   async resendOtp() {
-    const result = await this.authRequest('request');
-    this.session = { status: 'otpPending', email: this.profile.email, message: `A fresh code was sent to ${this.profile.name}'s Telegram.`, otpExpiresAt: result.expiresAt, profile: this.profile }; this.emit();
+    try {
+      const result = await this.authRequest('request');
+      this.session = {
+        ...this.session, status: 'otpPending', message: `A fresh code was sent to ${this.profile.name}'s Telegram.`,
+        otpExpiresAt: Number(result.expiresAt || 0), otpResendAt: Number(result.nextRequestAt || 0), otpRequestsRemaining: Number(result.remainingRequests ?? 0), verificationState: 'idle',
+      }; this.emit();
+    } catch (error) {
+      this.session = {
+        ...this.session, status: 'otpPending', message: error.message,
+        otpResendAt: Number(error.blockedUntil || this.session.otpResendAt || 0), otpRequestsRemaining: error.remainingRequests ?? this.session.otpRequestsRemaining,
+      }; this.emit(); throw error;
+    }
   }
 
   async prepareOwnerKey(password) {

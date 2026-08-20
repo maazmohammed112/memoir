@@ -254,6 +254,68 @@ body.auth-locked { overflow: hidden; }
 
 .auth-error .icon { width: 13px; height: 13px; margin-top: 1px; fill: currentColor; }
 
+.auth-card.auth-verified {
+  border-color: #32b87866;
+  box-shadow: 0 30px 90px rgba(50, 184, 120, .16), 0 0 0 5px #32b8780d;
+  animation: auth-verified .55s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.auth-card.auth-rejected { animation: auth-rejected .38s ease both; }
+@keyframes auth-verified { 45% { transform: scale(1.012); } }
+@keyframes auth-rejected { 25% { transform: translateX(-5px); } 55% { transform: translateX(4px); } 80% { transform: translateX(-2px); } }
+
+.otp-verification.is-success .otp-input {
+  border-color: #32b87888;
+  color: #167a4b;
+  background: #32b8780d;
+  box-shadow: 0 0 0 4px #32b87816;
+}
+
+.otp-verification.is-denied .otp-input {
+  border-color: #e33c557d;
+  color: var(--danger);
+  background: #e33c550a;
+  box-shadow: 0 0 0 4px #e33c5510;
+}
+
+.otp-result,
+.auth-lock-notice {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: -9px 0 13px;
+  padding: 12px 13px;
+  border: 1px solid;
+  border-radius: 14px;
+  animation: auth-status-in .32s ease both;
+}
+
+.otp-result .icon,
+.auth-lock-notice .icon { width: 21px; height: 21px; flex: none; }
+.otp-result > div { display: grid; gap: 2px; }
+.otp-result strong { font-size: 11px; }
+.otp-result span,
+.auth-lock-notice span { font-size: 9px; }
+.otp-result.success { color: #167a4b; border-color: #32b87842; background: #32b8780c; }
+.otp-result.denied { color: var(--danger); border-color: #e33c5540; background: #e33c5509; }
+.otp-result.locked,
+.auth-lock-notice { color: #a36312; border-color: #f3a33d45; background: #f3a33d0c; }
+@keyframes auth-status-in { from { opacity: 0; transform: translateY(5px) scale(.985); } }
+
+.otp-security-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.otp-security-meta strong { color: var(--text); }
+.auth-attempts { margin: 6px 0; color: var(--danger); font-size: 9px; font-weight: 700; text-align: center; }
+.toast.success { background: #167a4b; box-shadow: 0 12px 35px #167a4b45; }
+
 .auth-trust {
   display: flex;
   gap: 9px;
