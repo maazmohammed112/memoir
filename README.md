@@ -35,8 +35,9 @@ Without steps 1–3, Memoir remains fully usable offline but shows **Offline rea
 - The client inserts approved values only after the AI selects the requested record and fields.
 - Each Telegram bot is restricted to its assigned chat ID, validates its own webhook secret, and reads only that UID's separately encrypted server mirror through Firebase Admin.
 - Telegram never returns banking records, passwords, passcodes, PINs, CVVs, secrets, card numbers, account numbers, or IFSC values. It can still queue create, update, and delete requests for the signed-in app.
-- Firebase rules accept only the two explicit UID/email pairs and require a server-issued Telegram OTP session tied to the current password sign-in. Every session expires after 12 hours.
-- OTP challenges expire after five minutes, store only keyed hashes, reject cross-user verification, rate-limit resends, and allow at most five attempts.
+- Firebase rules accept only the two explicit UID/email pairs and require a server-issued Telegram OTP session tied to the current password sign-in and browser identity. Every session expires after 12 hours.
+- Each account permits two active devices. A correctly verified third device can explicitly replace both existing sessions; those sessions are revoked immediately and their apps return to sign-in on the next security heartbeat.
+- OTP challenges expire after five minutes, store only keyed hashes, reject cross-user verification, enforce a two-minute resend delay, allow three requests before a 12-hour resend lock, and allow three incorrect entries before a four-hour verification lock.
 
 ## Smart reminders
 

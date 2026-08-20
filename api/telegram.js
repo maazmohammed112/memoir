@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { getAdmin, verifyOwnerToken } from '../lib/firebaseAdmin.js';
+import { deviceIdFrom, getAdmin, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 import { serverDecrypt, serverEncrypt } from '../lib/serverCrypto.js';
 import { getUserByChatId, getUserByUid, listUserProfiles } from '../lib/users.js';
 import { telegramRequest } from '../lib/telegramClient.js';
@@ -184,7 +184,7 @@ export default async function handler(req, res) {
     if (['send', 'pull', 'ack'].includes(body.action)) {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!token) return res.status(401).json({ error: 'Missing identity token' });
-      const identity = await verifyOwnerToken(token);
+      const identity = await verifyOwnerToken(token, deviceIdFrom(req));
       const profile = getUserByUid(identity.uid); if (!profile) return res.status(403).json({ error: 'This user is not approved for Memoir' });
       if (body.action === 'send') {
         const claim = await claimMessageKey(profile, String(body.reminderKey || '')); if (!claim.claimed) return res.status(200).json({ ok: true, deduplicated: true });

@@ -1,4 +1,4 @@
-import { verifyOwnerToken } from '../lib/firebaseAdmin.js';
+import { deviceIdFrom, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 
 const coolingDown = new Map();
 const geminiModels = (process.env.GEMINI_MODELS || 'gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-2.5-flash-lite,gemini-3-flash').split(',');
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
   try {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     if (!token) return res.status(401).json({ error: 'Missing identity token' });
-    await verifyOwnerToken(token);
+    await verifyOwnerToken(token, deviceIdFrom(req));
     const body = req.body || {};
     if (!String(body.query || '').trim()) return res.status(400).json({ error: 'A query is required' });
     const answer = await routeQuery(body);

@@ -1,4 +1,4 @@
-import { getAdmin, verifyOwnerToken } from '../lib/firebaseAdmin.js';
+import { deviceIdFrom, getAdmin, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 import { serverDecrypt, serverEncrypt } from '../lib/serverCrypto.js';
 import { listRuntimeItems, markReminderDelivered, putRuntimeItem, queueRuntimeActions, reminderWasDelivered, replaceRuntimeItems } from '../lib/runtimeVault.js';
 import { getUserByUid, listUserProfiles } from '../lib/users.js';
@@ -131,7 +131,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'POST') {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''); if (!token) return res.status(401).json({ error: 'Missing identity token' });
-      const identity = await verifyOwnerToken(token); return res.status(200).json({ ok: true, ...(await runReminderSweep(Date.now(), identity.uid)) });
+      const identity = await verifyOwnerToken(token, deviceIdFrom(req)); return res.status(200).json({ ok: true, ...(await runReminderSweep(Date.now(), identity.uid)) });
     }
     if (req.method === 'GET') {
       const secret = String(process.env.CRON_SECRET || ''); const authorization = String(req.headers.authorization || '');

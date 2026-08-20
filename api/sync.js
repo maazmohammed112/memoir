@@ -1,4 +1,4 @@
-import { getAdmin, verifyOwnerToken } from '../lib/firebaseAdmin.js';
+import { deviceIdFrom, getAdmin, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 import { serverEncrypt } from '../lib/serverCrypto.js';
 import { putRuntimeItem, removeRuntimeItem, replaceRuntimeItems } from '../lib/runtimeVault.js';
 import { getUserByUid } from '../lib/users.js';
@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   try {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     if (!token) return res.status(401).json({ error: 'Missing identity token' });
-    const identity = await verifyOwnerToken(token); const body = req.body || {};
+    const identity = await verifyOwnerToken(token, deviceIdFrom(req)); const body = req.body || {};
     if (body.op === 'snapshot') {
       const items = (Array.isArray(body.items) ? body.items : []).slice(0, 1000);
       if (JSON.stringify(items).length > 1000000) return res.status(413).json({ error: 'Snapshot too large' });

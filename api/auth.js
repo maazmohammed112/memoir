@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { getAdmin, verifyApprovedToken, verifiedSessionFor } from '../lib/firebaseAdmin.js';
+import { deviceHash, deviceIdFrom, deviceNameFrom, getAdmin, verifyApprovedToken, verifiedSessionFor } from '../lib/firebaseAdmin.js';
 import { getUserByCode, getUserByUid, SESSION_LENGTH_MS } from '../lib/users.js';
 import { telegramRequest } from '../lib/telegramClient.js';
 
@@ -25,11 +25,12 @@ function safeEqual(left, right) {
   const a = Buffer.from(String(left || ''), 'hex'); const b = Buffer.from(String(right || ''), 'hex');
   return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
 }
-function rateError(message, { status = 429, code = 'auth/otp-rate-limit', blockedUntil = 0, retryAfter = 0, remainingAttempts, remainingRequests } = {}) {
+function rateError(message, { status = 429, code = 'auth/otp-rate-limit', blockedUntil = 0, retryAfter = 0, remainingAttempts, remainingRequests, activeDevices } = {}) {
   const error = new Error(message); error.status = status; error.code = code; error.blockedUntil = Number(blockedUntil || 0);
   error.retryAfter = Number(retryAfter || (error.blockedUntil ? Math.ceil((error.blockedUntil - Date.now()) / 1000) : 0));
   if (remainingAttempts !== undefined) error.remainingAttempts = remainingAttempts;
   if (remainingRequests !== undefined) error.remainingRequests = remainingRequests;
+  if (activeDevices !== undefined) error.activeDevices = activeDevices;
   return error;
 }
 function accountFingerprint(req) {
@@ -136,16 +137,17 @@ async function requestOtp(identity) {
   return { sent: true, expiresAt, nextRequestAt: reservation.nextRequestAt, remainingRequests: reservation.remainingRequests };
 }
 
-async function verifyOtp(identity, input) {
+async function verifyOtp(identity, input, { deviceId, deviceName, replaceDevices = false } = {}) {
   const code = String(input || '').replace(/\D/g, '');
   if (!/^\d{6}$/.test(code)) { const error = new Error('Enter the complete 6-digit code.'); error.status = 400; error.code = 'auth/otp-invalid-format'; throw error; }
   const firestore = (await getAdmin()).firestore(); const sessionId = String(identity.auth_time); const now = Date.now();
   const challengeRef = firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(sessionId);
-  const sessionRef = firestore.collection('verifiedSessions').doc(identity.uid).collection('sessions').doc(sessionId);
+  const sessionsRef = firestore.collection('verifiedSessions').doc(identity.uid).collection('sessions');
+  const sessionRef = sessionsRef.doc(sessionId); const currentDeviceHash = deviceHash(deviceId);
   const rateRef = firestore.collection('authRateLimits').doc(identity.uid);
   const expiresAt = Math.min(Number(identity.auth_time) * 1000 + SESSION_LENGTH_MS, now + SESSION_LENGTH_MS);
   const outcome = await firestore.runTransaction(async transaction => {
-    const [challengeSnapshot, rateSnapshot] = await Promise.all([transaction.get(challengeRef), transaction.get(rateRef)]);
+    const [challengeSnapshot, rateSnapshot, sessionsSnapshot] = await Promise.all([transaction.get(challengeRef), transaction.get(rateRef), transaction.get(sessionsRef)]);
     const data = challengeSnapshot.data() || {}; const rate = rateSnapshot.data() || {};
     const verifyLockedUntil = Number(rate.verifyLockedUntil || 0);
     if (verifyLockedUntil > now) return { error: 'OTP entry is locked for 4 hours after three incorrect attempts.', status: 423, code: 'auth/otp-verify-locked', blockedUntil: verifyLockedUntil, remainingAttempts: 0 };
@@ -164,8 +166,24 @@ async function verifyOtp(identity, input) {
         remainingAttempts: Math.max(0, OTP_VERIFY_LIMIT - failures),
       };
     }
+    const activeSessions = sessionsSnapshot.docs.filter(document => {
+      const session = document.data() || {}; const sessionExpires = typeof session.expiresAt?.toMillis === 'function' ? session.expiresAt.toMillis() : Number(session.expiresAt || 0);
+      return sessionExpires > now && session.deviceHash;
+    });
+    const sameDevice = activeSessions.filter(document => document.data()?.deviceHash === currentDeviceHash);
+    const otherDevices = activeSessions.filter(document => document.data()?.deviceHash !== currentDeviceHash);
+    if (otherDevices.length >= 2 && !replaceDevices) {
+      return {
+        error: 'You have reached the maximum of two active devices.', status: 409, code: 'auth/device-limit',
+        activeDevices: otherDevices.slice(0, 2).map(document => ({ name: String(document.data()?.deviceName || 'Memoir device').slice(0, 80), verifiedAt: Number(document.data()?.verifiedAtMs || 0) })),
+      };
+    }
+    sessionsSnapshot.docs.filter(document => {
+      const session = document.data() || {}; const sessionExpires = typeof session.expiresAt?.toMillis === 'function' ? session.expiresAt.toMillis() : Number(session.expiresAt || 0);
+      return document.id !== sessionId && (sessionExpires <= now || !session.deviceHash || sameDevice.some(current => current.id === document.id) || (replaceDevices && otherDevices.some(current => current.id === document.id)));
+    }).forEach(document => transaction.delete(document.ref));
     transaction.set(rateRef, { verifyFailureCount: 0, verifyLockedUntil: 0, verifiedAt: now, updatedAt: now }, { merge: true });
-    transaction.set(sessionRef, { authTime: Number(identity.auth_time), verifiedAt: new Date(), expiresAt: new Date(expiresAt) });
+    transaction.set(sessionRef, { authTime: Number(identity.auth_time), deviceHash: currentDeviceHash, deviceName, verifiedAt: new Date(), verifiedAtMs: now, expiresAt: new Date(expiresAt) });
     transaction.update(challengeRef, { status: 'used', usedAt: new Date(), hash: null });
     return { verified: true };
   });
@@ -178,13 +196,15 @@ export default async function handler(req, res) {
   try {
     const action = String(req.body?.action || 'status');
     if (action === 'select-account') return res.status(200).json(await selectAccount(req, req.body?.code));
+    const deviceId = deviceIdFrom(req); const deviceName = deviceNameFrom(req);
+    if (!deviceId) return res.status(400).json({ error: 'This browser could not create a secure device identity.', code: 'auth/device-required' });
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     if (!token) return res.status(401).json({ error: 'Missing identity token' });
     const identity = await verifyApprovedToken(token);
     if (action === 'request') return res.status(200).json(await requestOtp(identity));
-    if (action === 'verify') return res.status(200).json(await verifyOtp(identity, req.body?.code));
+    if (action === 'verify') return res.status(200).json(await verifyOtp(identity, req.body?.code, { deviceId, deviceName, replaceDevices: req.body?.replaceDevices === true }));
     if (action === 'status') {
-      const session = await verifiedSessionFor(identity);
+      const session = await verifiedSessionFor(identity, deviceId);
       return res.status(200).json({ verified: Boolean(session), expiresAt: session?.expiresAt || 0 });
     }
     if (action === 'revoke') {
@@ -201,7 +221,7 @@ export default async function handler(req, res) {
     return res.status(status).json({
       error: status >= 500 ? 'Secure sign-in is temporarily unavailable' : error.message,
       code: error?.code || '', retryAfter: error?.retryAfter || 0, blockedUntil: error?.blockedUntil || 0,
-      remainingAttempts: error?.remainingAttempts, remainingRequests: error?.remainingRequests,
+      remainingAttempts: error?.remainingAttempts, remainingRequests: error?.remainingRequests, activeDevices: error?.activeDevices,
     });
   }
 }

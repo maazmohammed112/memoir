@@ -23,10 +23,21 @@ let firebaseSdk;
 let activeProfileUid = null;
 const selectedProfileKey = 'memoir-selected-profile';
 const introSeenKey = 'memoir-intro-seen';
+const deviceIdKey = 'memoir-device-id-v1';
 const profileByUid = uid => ACCOUNT_PROFILES.find(profile => profile.uid === String(uid || '')) || null;
 const dbName = () => activeProfileUid === MAAZ_UID ? 'memoir-encrypted-vault' : `memoir-encrypted-vault-${activeProfileUid}`;
 const ownerKeyId = () => activeProfileUid === MAAZ_UID ? 'owner-vault-key-v2' : `owner-vault-key-v2-${activeProfileUid}`;
 const passwordGateKey = () => `memoir-password-gate-${activeProfileUid}`;
+function memoirDeviceId() {
+  let value = localStorage.getItem(deviceIdKey);
+  if (!/^[a-f0-9-]{20,80}$/i.test(String(value || ''))) { value = crypto.randomUUID(); localStorage.setItem(deviceIdKey, value); }
+  return value;
+}
+function memoirDeviceName() {
+  const agent = navigator.userAgent || ''; const platform = /iphone|ipad/i.test(agent) ? 'Apple mobile' : /android/i.test(agent) ? 'Android' : /windows/i.test(agent) ? 'Windows' : /macintosh|mac os/i.test(agent) ? 'Mac' : /linux/i.test(agent) ? 'Linux' : 'Web device';
+  const browser = /edg\//i.test(agent) ? 'Edge' : /firefox\//i.test(agent) ? 'Firefox' : /chrome|crios/i.test(agent) ? 'Chrome' : /safari/i.test(agent) ? 'Safari' : 'Browser';
+  return `${platform} - ${browser}`;
+}
 async function loadFirebase() {
   if (firebaseSdk) return firebaseSdk;
   const [app, auth, firestore] = await Promise.all([import('firebase/app'), import('firebase/auth'), import('firebase/firestore')]);
@@ -122,8 +133,13 @@ class VaultStore {
   connectionPromise = null;
   expiryTimer = null;
   pendingPassword = '';
+  pendingOtpCode = '';
   networkListenersAttached = false;
   subscribers = new Set();
+
+  apiHeaders(token = '', json = true) {
+    return { ...(json ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), 'X-Memoir-Device': memoirDeviceId(), 'X-Memoir-Device-Name': memoirDeviceName() };
+  }
 
   subscribe(callback) { this.subscribers.add(callback); return () => this.subscribers.delete(callback); }
   emit() { this.subscribers.forEach(callback => callback(this.items, this.status, this.session)); }
@@ -184,7 +200,7 @@ class VaultStore {
     await this.prepareFirebase();
     if (this.auth.currentUser) await this.firebase.signOut(this.auth);
     this.listener?.(); this.listener = null; clearTimeout(this.expiryTimer);
-    this.items = []; this.uid = null; this.pendingPassword = ''; this.setProfile(profile);
+    this.items = []; this.uid = null; this.pendingPassword = ''; this.pendingOtpCode = ''; this.setProfile(profile);
     localStorage.setItem(selectedProfileKey, profile.uid);
     this.lock(`Welcome, ${profile.name}. Enter your Firebase password to continue.`);
     return profile;
@@ -196,7 +212,7 @@ class VaultStore {
     try { if (this.auth?.currentUser) await this.authRequest('revoke'); } catch { /* local account switching still locks immediately */ }
     try { if (this.auth?.currentUser) await this.firebase.signOut(this.auth); } catch { /* selector still locks immediately */ }
     localStorage.removeItem(selectedProfileKey);
-    this.profile = null; activeProfileUid = null; this.uid = null; this.items = []; this.pendingPassword = ''; this.status = 'locked';
+    this.profile = null; activeProfileUid = null; this.uid = null; this.items = []; this.pendingPassword = ''; this.pendingOtpCode = ''; this.status = 'locked';
     this.session = { status: 'selectAccount', email: '', message: 'Enter your 4-digit private account number.', profile: null }; this.emit();
   }
 
@@ -216,7 +232,7 @@ class VaultStore {
     const authenticatedAt = new Date(token.authTime).getTime();
     if (token.signInProvider !== 'password' || !Number.isFinite(authenticatedAt) || Date.now() - authenticatedAt >= SESSION_LENGTH) return null;
     try {
-      const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` }, body: JSON.stringify({ action: 'status' }) });
+      const response = await fetch('/api/auth', { method: 'POST', headers: this.apiHeaders(await user.getIdToken()), body: JSON.stringify({ action: 'status' }) });
       if (!response.ok) return null; const result = await response.json();
       return result.verified && Number(result.expiresAt) > Date.now() ? { expiresAt: Number(result.expiresAt) } : null;
     } catch { return null; }
@@ -257,7 +273,7 @@ class VaultStore {
         const error = new Error('This account is not approved for this private vault.'); error.code = 'auth/unauthorized-owner'; throw error;
       }
       this.uid = credential.user.uid;
-      this.pendingPassword = String(password || '');
+      this.pendingPassword = String(password || ''); this.pendingOtpCode = '';
       const result = await this.authRequest('request');
       this.session = {
         status: 'otpPending', email: this.profile.email, message: `A 6-digit code was sent to ${this.profile.name}'s Telegram.`,
@@ -266,7 +282,7 @@ class VaultStore {
       }; this.emit();
       return credential.user;
     } catch (error) {
-      this.pendingPassword = '';
+      this.pendingPassword = ''; this.pendingOtpCode = '';
       if (this.session.status !== 'signedOut' && this.session.status !== 'otpPending') {
         try { if (this.auth?.currentUser) await this.firebase.signOut(this.auth); } catch { /* lock below */ }
         this.lock('Enter the approved email and password to continue.');
@@ -278,35 +294,45 @@ class VaultStore {
   async authRequest(action, body = {}) {
     const token = await this.auth?.currentUser?.getIdToken();
     if (!token) throw new Error('Your Firebase sign-in is no longer available.');
-    const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action, ...body }) });
+    const response = await fetch('/api/auth', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify({ action, ...body }) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(result.error || 'Secure verification could not be completed.');
       error.code = result.code || (response.status === 429 ? 'auth/otp-rate-limit' : 'auth/otp-failed');
       error.retryAfter = Number(result.retryAfter || 0); error.blockedUntil = Number(result.blockedUntil || 0);
-      error.remainingAttempts = result.remainingAttempts; error.remainingRequests = result.remainingRequests;
+      error.remainingAttempts = result.remainingAttempts; error.remainingRequests = result.remainingRequests; error.activeDevices = result.activeDevices;
       throw error;
     }
     return result;
   }
 
-  async verifyOtp(code) {
+  async verifyOtp(code, replaceDevices = false) {
     if (!this.profile || !this.auth?.currentUser || !this.pendingPassword) throw new Error('Sign in with your password again before entering a code.');
+    const normalizedCode = String(code || '').replace(/\D/g, ''); this.pendingOtpCode = normalizedCode;
     this.session = { ...this.session, status: 'verifyingOtp', message: 'Verifying your secure code…', verificationState: 'checking' }; this.emit();
     try {
-      const result = await this.authRequest('verify', { code });
+      const result = await this.authRequest('verify', { code: normalizedCode, replaceDevices });
       this.session = { ...this.session, status: 'otpSuccess', message: 'OTP verified. Unlocking your encrypted vault…', verificationState: 'success' }; this.emit();
       await new Promise(resolve => setTimeout(resolve, 650));
       await this.prepareOwnerKey(this.pendingPassword);
-      this.pendingPassword = ''; localStorage.setItem(passwordGateKey(), 'v1');
+      this.pendingPassword = ''; this.pendingOtpCode = ''; localStorage.setItem(passwordGateKey(), 'v1');
       await this.activateOwner(this.auth.currentUser, Number(result.expiresAt));
     } catch (error) {
+      if (error.code === 'auth/device-limit') {
+        this.session = { ...this.session, status: 'deviceLimit', message: 'Two devices are already signed in.', verificationState: 'device-limit', activeDevices: error.activeDevices || [], profile: this.profile }; this.emit(); throw error;
+      }
+      this.pendingOtpCode = '';
       this.session = {
         ...this.session, status: 'otpPending', email: this.profile.email, message: error.message, verificationState: 'error',
         otpVerifyLockedUntil: error.code === 'auth/otp-verify-locked' ? Number(error.blockedUntil || 0) : Number(this.session.otpVerifyLockedUntil || 0),
         otpAttemptsRemaining: error.remainingAttempts ?? this.session.otpAttemptsRemaining, profile: this.profile,
       }; this.emit(); throw error;
     }
+  }
+
+  async replaceActiveDevices() {
+    if (!/^\d{6}$/.test(this.pendingOtpCode)) throw new Error('Request and verify a new Telegram code before replacing devices.');
+    return this.verifyOtp(this.pendingOtpCode, true);
   }
 
   async resendOtp() {
@@ -364,10 +390,16 @@ class VaultStore {
   async signOut(reason = 'manual') {
     this.listener?.(); this.listener = null;
     if (activeProfileUid) localStorage.removeItem(passwordGateKey());
-    this.pendingPassword = '';
+    this.pendingPassword = ''; this.pendingOtpCode = '';
     try { if (reason !== 'expired' && this.auth?.currentUser) await this.authRequest('revoke'); } catch { /* local sign-out remains immediate */ }
     try { if (this.auth) await this.firebase.signOut(this.auth); } catch { /* the local gate still locks immediately */ }
-    this.lock(reason === 'expired' ? 'Your secure 12-hour session ended. Enter your password and verify a new Telegram code to continue.' : 'You signed out securely. Enter your password to continue.');
+    this.lock(reason === 'expired' ? 'Your secure 12-hour session ended. Enter your password and verify a new Telegram code to continue.' : reason === 'replaced' ? 'This device was signed out because a newer login replaced all active devices.' : 'You signed out securely. Enter your password to continue.');
+  }
+
+  async ensureActiveSession() {
+    if (this.session.status !== 'signedIn' || !navigator.onLine) return this.session.status === 'signedIn';
+    if (await this.validSession(this.auth?.currentUser)) return true;
+    await this.signOut('replaced'); return false;
   }
 
   async connect() {
@@ -498,21 +530,21 @@ class VaultStore {
   async mirror(change) {
     try {
       const token = await this.idToken(); if (!token) return;
-      await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(change) });
+      await fetch('/api/sync', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify(change) });
     } catch { /* optional server mirror is retried on the next edit */ }
   }
 
   async mirrorSnapshot() {
     try {
       const token = await this.idToken(); if (!token) return;
-      await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ op: 'snapshot', items: this.items }) });
+      await fetch('/api/sync', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify({ op: 'snapshot', items: this.items }) });
     } catch { /* the encrypted Firebase vault remains the source of truth */ }
   }
 
   async pullTelegramActions() {
     try {
       const token = await this.idToken(); if (!token) return [];
-      const response = await fetch('/api/telegram', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'pull' }) });
+      const response = await fetch('/api/telegram', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify({ action: 'pull' }) });
       if (!response.ok) return [];
       return (await response.json()).actions || [];
     } catch { return []; }
@@ -521,7 +553,7 @@ class VaultStore {
   async acknowledgeTelegramActions(queueIds) {
     try {
       const token = await this.idToken(); if (!token || !queueIds?.length) return;
-      await fetch('/api/telegram', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'ack', queueIds }) });
+      await fetch('/api/telegram', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify({ action: 'ack', queueIds }) });
     } catch { /* retrying a mutation is safe because record IDs are stable */ }
   }
 }

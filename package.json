@@ -7,7 +7,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "concurrently -k \"vite --host 0.0.0.0\" \"node server.js\"",
+    "dev": "concurrently -k \"vite --host 0.0.0.0\" \"node --watch server.js\"",
     "build": "vite build",
     "start": "node server.js",
     "preview": "vite preview --host 0.0.0.0",
