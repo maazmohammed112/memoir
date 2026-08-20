@@ -8,17 +8,26 @@ const firebaseConfig = {
   measurementId: 'G-E4CM9P974R',
 };
 
-const DB_NAME = 'memoir-encrypted-vault';
 const DB_VERSION = 1;
-const OWNER_UID = 'uQE6xqhWhQWhOlGmfT2br5HnCEq2';
-const OWNER_EMAIL = 'maaz@memo.com';
-const SESSION_LENGTH = 48 * 60 * 60 * 1000;
-const OWNER_KEY_ID = 'owner-vault-key-v2';
+export const ACCOUNT_PROFILES = [
+  { code: '2002', uid: 'uQE6xqhWhQWhOlGmfT2br5HnCEq2', email: 'maaz@memo.com', name: 'Maaz', initials: 'MM' },
+  { code: '2005', uid: 'GQ4lxeAWoPTlyJ4W1jxU8bxk6qS2', email: 'deepti@memo.com', name: 'Deepti', initials: 'DM' },
+];
+const MAAZ_UID = ACCOUNT_PROFILES[0].uid;
+const SESSION_LENGTH = 12 * 60 * 60 * 1000;
 const LEGACY_KEY_ID = 'device-vault-key';
 const KEY_DERIVATION_ITERATIONS = 600000;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 let firebaseSdk;
+let activeProfileUid = null;
+const selectedProfileKey = 'memoir-selected-profile';
+const introSeenKey = 'memoir-intro-seen';
+const profileByUid = uid => ACCOUNT_PROFILES.find(profile => profile.uid === String(uid || '')) || null;
+const profileByCode = code => ACCOUNT_PROFILES.find(profile => profile.code === String(code || '').trim()) || null;
+const dbName = () => activeProfileUid === MAAZ_UID ? 'memoir-encrypted-vault' : `memoir-encrypted-vault-${activeProfileUid}`;
+const ownerKeyId = () => activeProfileUid === MAAZ_UID ? 'owner-vault-key-v2' : `owner-vault-key-v2-${activeProfileUid}`;
+const passwordGateKey = () => `memoir-password-gate-${activeProfileUid}`;
 async function loadFirebase() {
   if (firebaseSdk) return firebaseSdk;
   const [app, auth, firestore] = await Promise.all([import('firebase/app'), import('firebase/auth'), import('firebase/firestore')]);
@@ -28,7 +37,8 @@ async function loadFirebase() {
 
 function openLocalDb() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    if (!activeProfileUid) return reject(new Error('Choose an account before opening the local vault.'));
+    const request = indexedDB.open(dbName(), DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('records')) db.createObjectStore('records', { keyPath: 'id' });
@@ -55,12 +65,12 @@ const bytesToB64 = bytes => btoa(String.fromCharCode(...bytes));
 const b64ToBytes = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
 
 async function getVaultKey() {
-  let key = await idb('keys', 'readonly', store => store.get(OWNER_KEY_ID));
+  let key = await idb('keys', 'readonly', store => store.get(ownerKeyId()));
   if (key) return key;
-  key = await idb('keys', 'readonly', store => store.get(LEGACY_KEY_ID));
+  key = activeProfileUid === MAAZ_UID ? await idb('keys', 'readonly', store => store.get(LEGACY_KEY_ID)) : null;
   if (!key) {
     key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-    await idb('keys', 'readwrite', store => store.put(key, LEGACY_KEY_ID));
+    await idb('keys', 'readwrite', store => store.put(key, ownerKeyId()));
   }
   return key;
 }
@@ -104,13 +114,16 @@ async function localRemove(id) { await idb('records', 'readwrite', store => stor
 class VaultStore {
   items = [];
   status = 'locked';
-  session = { status: 'checking', email: OWNER_EMAIL, message: '' };
+  session = { status: 'checking', email: '', message: '', profile: null };
+  profile = null;
   uid = null;
   db = null;
   auth = null;
   listener = null;
   connectionPromise = null;
   expiryTimer = null;
+  pendingPassword = '';
+  networkListenersAttached = false;
   subscribers = new Set();
 
   subscribe(callback) { this.subscribers.add(callback); return () => this.subscribers.delete(callback); }
@@ -118,25 +131,66 @@ class VaultStore {
 
   async init() {
     this.emit();
+    if (!this.networkListenersAttached) {
+      this.networkListenersAttached = true;
+      window.addEventListener('online', () => this.connect());
+      window.addEventListener('offline', () => { this.status = 'offline'; this.emit(); });
+    }
     try {
       await this.prepareFirebase();
       if (this.auth.authStateReady) await this.auth.authStateReady();
       else await new Promise(resolve => { const stop = this.firebase.onAuthStateChanged(this.auth, () => { stop(); resolve(); }); });
+      const selected = profileByUid(localStorage.getItem(selectedProfileKey));
+      if (!selected) {
+        if (this.auth.currentUser) await this.firebase.signOut(this.auth);
+        const firstVisit = localStorage.getItem(introSeenKey) !== 'v1';
+        this.session = { status: firstVisit ? 'intro' : 'selectAccount', email: '', message: '', profile: null };
+        this.status = 'locked'; this.emit();
+        if (firstVisit) setTimeout(() => { localStorage.setItem(introSeenKey, 'v1'); if (this.session.status === 'intro') { this.session = { status: 'selectAccount', email: '', message: '', profile: null }; this.emit(); } }, 1450);
+        return this.items;
+      }
+      this.setProfile(selected);
       const user = this.auth.currentUser;
-      const passwordGateEstablished = localStorage.getItem('memoir-owner-password-gate') === 'v1';
-      const localOwnerKey = await idb('keys', 'readonly', store => store.get(OWNER_KEY_ID));
-      if (user && passwordGateEstablished && localOwnerKey && await this.isValidOwnerSession(user)) await this.activateOwner(user);
+      const passwordGateEstablished = localStorage.getItem(passwordGateKey()) === 'v1';
+      const localOwnerKey = await idb('keys', 'readonly', store => store.get(ownerKeyId()));
+      const verified = user && passwordGateEstablished && localOwnerKey ? await this.validSession(user) : null;
+      if (verified) await this.activateOwner(user, verified.expiresAt);
       else {
         if (user) await this.firebase.signOut(this.auth);
-        this.lock(user ? 'For security, your previous session is no longer accepted. Sign in with the approved email and password to continue.' : 'Sign in with your owner email and password to continue.');
+        this.lock(user ? 'Your secure 12-hour session ended. Sign in and verify a new Telegram code to continue.' : 'Sign in with your approved email and password to continue.');
       }
     } catch (error) {
       console.warn('Authentication could not be initialized.', error?.code || error?.message);
       this.lock('Memoir could not verify your identity. Check your connection and sign in again.');
     }
-    window.addEventListener('online', () => this.connect());
-    window.addEventListener('offline', () => { this.status = 'offline'; this.emit(); });
     return this.items;
+  }
+
+  setProfile(profile) {
+    this.profile = profile; activeProfileUid = profile.uid;
+    this.session = { ...this.session, email: profile.email, profile };
+  }
+
+  async selectAccount(code) {
+    const profile = profileByCode(code);
+    if (!profile) { const error = new Error('That private account number is not recognized.'); error.code = 'auth/invalid-account-code'; throw error; }
+    await this.prepareFirebase();
+    if (this.auth.currentUser) await this.firebase.signOut(this.auth);
+    this.listener?.(); this.listener = null; clearTimeout(this.expiryTimer);
+    this.items = []; this.uid = null; this.pendingPassword = ''; this.setProfile(profile);
+    localStorage.setItem(selectedProfileKey, profile.uid);
+    this.lock(`Welcome, ${profile.name}. Enter your Firebase password to continue.`);
+    return profile;
+  }
+
+  async showAccountSelector() {
+    this.listener?.(); this.listener = null; clearTimeout(this.expiryTimer);
+    if (activeProfileUid) localStorage.removeItem(passwordGateKey());
+    try { if (this.auth?.currentUser) await this.authRequest('revoke'); } catch { /* local account switching still locks immediately */ }
+    try { if (this.auth?.currentUser) await this.firebase.signOut(this.auth); } catch { /* selector still locks immediately */ }
+    localStorage.removeItem(selectedProfileKey);
+    this.profile = null; activeProfileUid = null; this.uid = null; this.items = []; this.pendingPassword = ''; this.status = 'locked';
+    this.session = { status: 'selectAccount', email: '', message: 'Enter your 4-digit private account number.', profile: null }; this.emit();
   }
 
   async prepareFirebase() {
@@ -149,21 +203,25 @@ class VaultStore {
     catch { this.db = sdk.getFirestore(app); }
   }
 
-  async isValidOwnerSession(user) {
-    if (!user || user.uid !== OWNER_UID || String(user.email || '').toLowerCase() !== OWNER_EMAIL) return false;
+  async validSession(user) {
+    if (!this.profile || !user || user.uid !== this.profile.uid || String(user.email || '').toLowerCase() !== this.profile.email) return null;
     const token = await this.firebase.getIdTokenResult(user);
     const authenticatedAt = new Date(token.authTime).getTime();
-    return token.signInProvider === 'password' && Number.isFinite(authenticatedAt) && Date.now() - authenticatedAt < SESSION_LENGTH;
+    if (token.signInProvider !== 'password' || !Number.isFinite(authenticatedAt) || Date.now() - authenticatedAt >= SESSION_LENGTH) return null;
+    try {
+      const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` }, body: JSON.stringify({ action: 'status' }) });
+      if (!response.ok) return null; const result = await response.json();
+      return result.verified && Number(result.expiresAt) > Date.now() ? { expiresAt: Number(result.expiresAt) } : null;
+    } catch { return null; }
   }
 
-  async activateOwner(user) {
-    const token = await this.firebase.getIdTokenResult(user);
-    const authenticatedAt = new Date(token.authTime).getTime();
-    const expiresAt = authenticatedAt + SESSION_LENGTH;
+  async activateOwner(user, verifiedExpiresAt = 0) {
+    const token = await this.firebase.getIdTokenResult(user); const authenticatedAt = new Date(token.authTime).getTime();
+    const expiresAt = Math.min(verifiedExpiresAt || authenticatedAt + SESSION_LENGTH, authenticatedAt + SESSION_LENGTH);
     this.uid = user.uid;
     this.items = await localList();
     this.status = navigator.onLine ? 'connecting' : 'offline';
-    this.session = { status: 'signedIn', email: OWNER_EMAIL, expiresAt, message: '' };
+    this.session = { status: 'signedIn', email: this.profile.email, expiresAt, message: '', profile: this.profile };
     this.scheduleExpiry(expiresAt);
     this.emit();
     if (navigator.onLine) await this.connect();
@@ -177,33 +235,65 @@ class VaultStore {
   lock(message) {
     this.listener?.(); this.listener = null; clearTimeout(this.expiryTimer);
     this.uid = null; this.items = []; this.status = 'locked';
-    this.session = { status: 'signedOut', email: OWNER_EMAIL, message };
+    this.session = { status: 'signedOut', email: this.profile?.email || '', message, profile: this.profile };
     this.emit();
   }
 
   async signIn(email, password) {
+    if (!this.profile) { const error = new Error('Choose an account first.'); error.code = 'auth/account-required'; throw error; }
     await this.prepareFirebase();
-    this.session = { status: 'signingIn', email: OWNER_EMAIL, message: '' }; this.emit();
+    this.session = { status: 'signingIn', email: this.profile.email, message: '', profile: this.profile }; this.emit();
     try {
       const credential = await this.firebase.signInWithEmailAndPassword(this.auth, String(email || '').trim(), String(password || ''));
-      if (credential.user.uid !== OWNER_UID || String(credential.user.email || '').toLowerCase() !== OWNER_EMAIL) {
+      if (credential.user.uid !== this.profile.uid || String(credential.user.email || '').toLowerCase() !== this.profile.email) {
         await this.firebase.signOut(this.auth); this.lock('This account is not approved for this private vault.');
         const error = new Error('This account is not approved for this private vault.'); error.code = 'auth/unauthorized-owner'; throw error;
       }
       this.uid = credential.user.uid;
-      await this.prepareOwnerKey(password);
-      localStorage.setItem('memoir-owner-password-gate', 'v1');
-      await this.activateOwner(credential.user);
+      this.pendingPassword = String(password || '');
+      const result = await this.authRequest('request');
+      this.session = { status: 'otpPending', email: this.profile.email, message: `A 6-digit code was sent to ${this.profile.name}'s Telegram.`, otpExpiresAt: result.expiresAt, profile: this.profile }; this.emit();
       return credential.user;
     } catch (error) {
-      if (this.session.status !== 'signedOut') this.lock('Enter the owner email and password to continue.');
+      this.pendingPassword = '';
+      if (this.session.status !== 'signedOut' && this.session.status !== 'otpPending') {
+        try { if (this.auth?.currentUser) await this.firebase.signOut(this.auth); } catch { /* lock below */ }
+        this.lock('Enter the approved email and password to continue.');
+      }
       throw error;
     }
   }
 
+  async authRequest(action, body = {}) {
+    const token = await this.auth?.currentUser?.getIdToken();
+    if (!token) throw new Error('Your Firebase sign-in is no longer available.');
+    const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action, ...body }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) { const error = new Error(result.error || 'Secure verification could not be completed.'); error.code = response.status === 429 ? 'auth/otp-rate-limit' : 'auth/otp-failed'; error.retryAfter = result.retryAfter; throw error; }
+    return result;
+  }
+
+  async verifyOtp(code) {
+    if (!this.profile || !this.auth?.currentUser || !this.pendingPassword) throw new Error('Sign in with your password again before entering a code.');
+    this.session = { ...this.session, status: 'verifyingOtp', message: 'Verifying your secure code…' }; this.emit();
+    try {
+      const result = await this.authRequest('verify', { code });
+      await this.prepareOwnerKey(this.pendingPassword);
+      this.pendingPassword = ''; localStorage.setItem(passwordGateKey(), 'v1');
+      await this.activateOwner(this.auth.currentUser, Number(result.expiresAt));
+    } catch (error) {
+      this.session = { status: 'otpPending', email: this.profile.email, message: error.message, profile: this.profile }; this.emit(); throw error;
+    }
+  }
+
+  async resendOtp() {
+    const result = await this.authRequest('request');
+    this.session = { status: 'otpPending', email: this.profile.email, message: `A fresh code was sent to ${this.profile.name}'s Telegram.`, otpExpiresAt: result.expiresAt, profile: this.profile }; this.emit();
+  }
+
   async prepareOwnerKey(password) {
     if (!navigator.onLine) { const error = new Error('Internet is required to unlock this device for the first time.'); error.code = 'vault/first-unlock-offline'; throw error; }
-    const keyRef = this.firebase.doc(this.db, 'users', OWNER_UID);
+    const keyRef = this.firebase.doc(this.db, 'users', this.profile.uid);
     const snapshot = await this.firebase.getDoc(keyRef);
     const storedVaultKey = snapshot.exists() ? snapshot.data()?.vaultKey : null;
     let rawMaster;
@@ -221,11 +311,11 @@ class VaultStore {
       const salt = crypto.getRandomValues(new Uint8Array(16)); const iv = crypto.getRandomValues(new Uint8Array(12));
       const wrappingKey = await deriveWrappingKey(password, salt);
       const wrappedKey = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, rawMaster);
-      await this.firebase.setDoc(keyRef, { appName: 'Memoir', ownerEmail: OWNER_EMAIL, storage: 'client-encrypted', vaultKey: { version: 2, algorithm: 'AES-256-GCM', derivation: 'PBKDF2-SHA-256', iterations: KEY_DERIVATION_ITERATIONS, salt: bytesToB64(salt), iv: bytesToB64(iv), wrappedKey: bytesToB64(new Uint8Array(wrappedKey)), createdAt: Date.now() } }, { merge: true });
+      await this.firebase.setDoc(keyRef, { appName: 'Memoir', ownerEmail: this.profile.email, storage: 'client-encrypted', vaultKey: { version: 2, algorithm: 'AES-256-GCM', derivation: 'PBKDF2-SHA-256', iterations: KEY_DERIVATION_ITERATIONS, salt: bytesToB64(salt), iv: bytesToB64(iv), wrappedKey: bytesToB64(new Uint8Array(wrappedKey)), createdAt: Date.now() } }, { merge: true });
     }
     const masterKey = await crypto.subtle.importKey('raw', rawMaster, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-    const existingOwnerKey = await idb('keys', 'readonly', store => store.get(OWNER_KEY_ID));
-    const legacyKey = await idb('keys', 'readonly', store => store.get(LEGACY_KEY_ID));
+    const existingOwnerKey = await idb('keys', 'readonly', store => store.get(ownerKeyId()));
+    const legacyKey = activeProfileUid === MAAZ_UID ? await idb('keys', 'readonly', store => store.get(LEGACY_KEY_ID)) : null;
     const rows = await idb('records', 'readonly', store => store.getAll());
     for (const row of rows) {
       let item;
@@ -235,14 +325,16 @@ class VaultStore {
       await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: item.updatedAt, payload }));
       await idb('queue', 'readwrite', store => store.put({ id: item.id, op: 'put', updatedAt: item.updatedAt, payload }));
     }
-    await idb('keys', 'readwrite', store => store.put(masterKey, OWNER_KEY_ID));
+    await idb('keys', 'readwrite', store => store.put(masterKey, ownerKeyId()));
   }
 
   async signOut(reason = 'manual') {
     this.listener?.(); this.listener = null;
-    localStorage.removeItem('memoir-owner-password-gate');
+    if (activeProfileUid) localStorage.removeItem(passwordGateKey());
+    this.pendingPassword = '';
+    try { if (reason !== 'expired' && this.auth?.currentUser) await this.authRequest('revoke'); } catch { /* local sign-out remains immediate */ }
     try { if (this.auth) await this.firebase.signOut(this.auth); } catch { /* the local gate still locks immediately */ }
-    this.lock(reason === 'expired' ? 'Your secure 48-hour session ended. To continue using Memoir, please enter your email and password again.' : 'You signed out securely. Enter your email and password to continue.');
+    this.lock(reason === 'expired' ? 'Your secure 12-hour session ended. Enter your password and verify a new Telegram code to continue.' : 'You signed out securely. Enter your password to continue.');
   }
 
   async connect() {
@@ -257,10 +349,10 @@ class VaultStore {
     this.status = 'connecting'; this.emit();
     try {
       await this.prepareFirebase(); const sdk = this.firebase; const user = this.auth.currentUser;
-      if (!await this.isValidOwnerSession(user)) { await this.signOut('expired'); return; }
+      if (!await this.validSession(user)) { await this.signOut('expired'); return; }
       this.uid = user.uid;
       await sdk.setDoc(sdk.doc(this.db, 'users', this.uid), {
-        appName: 'Memoir', ownerEmail: OWNER_EMAIL, schemaVersion: 1, storage: 'client-encrypted', itemCollection: 'items', lastSeenAt: sdk.serverTimestamp(),
+        appName: 'Memoir', ownerEmail: this.profile.email, schemaVersion: 1, storage: 'client-encrypted', itemCollection: 'items', lastSeenAt: sdk.serverTimestamp(),
       }, { merge: true });
       await this.reconcileOwnerVault();
       await this.flush();
@@ -315,7 +407,7 @@ class VaultStore {
   }
 
   async save(item) {
-    if (this.session.status !== 'signedIn' || this.uid !== OWNER_UID) throw new Error('Owner sign-in is required');
+    if (this.session.status !== 'signedIn' || this.uid !== this.profile?.uid) throw new Error('Owner sign-in is required');
     const now = Date.now();
     const next = { ...item, id: item.id || crypto.randomUUID(), createdAt: item.createdAt || now, updatedAt: now };
     const payload = await localPut(next);
@@ -328,7 +420,7 @@ class VaultStore {
   }
 
   async saveMany(records) {
-    if (this.session.status !== 'signedIn' || this.uid !== OWNER_UID) throw new Error('Owner sign-in is required');
+    if (this.session.status !== 'signedIn' || this.uid !== this.profile?.uid) throw new Error('Owner sign-in is required');
     const saved = []; const baseTime = Date.now();
     for (const [index, record] of (Array.isArray(records) ? records : []).entries()) {
       const now = baseTime + index; const next = { ...record, id: record.id || crypto.randomUUID(), createdAt: record.createdAt || now, updatedAt: now };
@@ -342,7 +434,7 @@ class VaultStore {
   }
 
   async remove(id) {
-    if (this.session.status !== 'signedIn' || this.uid !== OWNER_UID) throw new Error('Owner sign-in is required');
+    if (this.session.status !== 'signedIn' || this.uid !== this.profile?.uid) throw new Error('Owner sign-in is required');
     await localRemove(id);
     this.items = this.items.filter(item => item.id !== id);
     await idb('queue', 'readwrite', store => store.put({ id, op: 'delete', updatedAt: Date.now() }));
@@ -368,7 +460,7 @@ class VaultStore {
     }
   }
 
-  async idToken() { return this.auth?.currentUser?.uid === OWNER_UID ? this.auth.currentUser.getIdToken() : null; }
+  async idToken() { return this.auth?.currentUser?.uid === this.profile?.uid && this.session.status === 'signedIn' ? this.auth.currentUser.getIdToken() : null; }
 
   async mirror(change) {
     try {

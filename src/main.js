@@ -60,7 +60,7 @@ const toastNode = document.querySelector('#toast');
 const state = {
   view: 'home', items: [], status: 'loading', hidden: true,
   provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', telegramSyncing: false,
-  auth: { status: 'checking', email: 'maaz@memo.com', message: '' }, authError: '',
+  auth: { status: 'checking', email: '', message: '', profile: null }, authError: '',
 };
 
 marked.setOptions({ gfm: true, breaks: true });
@@ -82,7 +82,8 @@ async function withRhinoActivity(label, task) {
   try { return await task(); }
   finally { await new Promise(resolve => setTimeout(resolve, Math.max(0, 320 - (Date.now() - started)))); activityDepth = Math.max(0, activityDepth - 1); if (!activityDepth) { node.classList.remove('show'); setTimeout(() => { if (!activityDepth) node.remove(); }, 220); } }
 }
-function titleForView() { return { home: 'Good morning, Maaz', vault: 'Your memories', assistant: 'Ask Rhinous', reminders: 'Your reminders', clipboard: 'Clipboard vault', birthdays: 'Meaningful moments' }[state.view]; }
+function activeProfile() { return state.auth.profile || { name: 'Owner', initials: 'ME', email: state.auth.email || '' }; }
+function titleForView() { return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', assistant: 'Ask Rhinous', reminders: 'Your reminders', clipboard: 'Clipboard vault', birthdays: 'Meaningful moments' }[state.view]; }
 function category(item) { return item.kind === 'clipboard' ? 'Clipboard' : item.type || 'Personal'; }
 function itemIcon(item) { return typeIcons[category(item)] || 'Gem'; }
 function allFields(item) { return item.fields || {}; }
@@ -205,13 +206,14 @@ function navHtml() { return nav.map(([id, glyph, label]) => `<button class="nav-
 
 function shell() {
   if (state.auth.status !== 'signedIn') { renderAuthGate(); return; }
+  const profile = activeProfile();
   document.body.classList.remove('auth-locked');
   app.innerHTML = `<div class="shell">
     <aside class="sidebar">
       <button class="brand" data-view="home"><span class="brand-mark"><img src="/brand/pwa-192.png" alt=""></span><span>memoir</span></button>
       <nav class="nav">${navHtml()}</nav>
       <div class="secure-note"><span class="icon-wrap">${icon('ShieldCheck')}</span><strong>Private by design</strong><p>Values are encrypted before cloud sync. AI sees only your vault structure.</p></div>
-      <button class="profile" data-logout title="Sign out"><span class="avatar">MM</span><span><strong>Maaz</strong><small>Sign out securely</small></span>${icon('LogOut')}</button>
+      <button class="profile" data-logout title="Sign out"><span class="avatar">${escapeHtml(profile.initials)}</span><span><strong>${escapeHtml(profile.name)}</strong><small>Sign out securely</small></span>${icon('LogOut')}</button>
     </aside>
     <main class="content ${state.view === 'assistant' ? 'assistant-content' : ''}">
       <header class="topbar">
@@ -224,7 +226,7 @@ function shell() {
           <button class="round-btn notification-trigger" id="notification-center" title="Notifications" aria-label="Notifications">${icon('BellRing')}<span class="notification-badge" hidden></span></button>
           <button class="round-btn" id="privacy" title="${state.hidden ? 'Reveal values' : 'Hide values'}">${icon(state.hidden ? 'EyeOff' : 'Eye')}</button>
           <button class="round-btn mobile-logout" data-logout title="Sign out">${icon('LogOut')}</button>
-          <span class="avatar desktop-avatar">MM</span>
+          <span class="avatar desktop-avatar">${escapeHtml(profile.initials)}</span>
         </div>
       </header>
       <section class="view" id="view">${state.status === 'loading' || (state.status === 'connecting' && !state.items.length) ? skeleton() : currentView()}</section>
@@ -237,22 +239,45 @@ function shell() {
 function renderAuthGate() {
   if (modal.open) modal.close();
   document.body.classList.add('auth-locked');
-  const checking = state.auth.status === 'checking'; const signingIn = state.auth.status === 'signingIn';
-  app.innerHTML = `<main class="auth-shell"><section class="auth-card ${checking ? 'auth-checking' : ''}"><div class="auth-brand"><img src="/brand/memoir-rhino-ui.png" alt="Memoir rhino"><span>memoir</span></div>${checking ? `<div class="auth-loader"><span class="auth-pulse"><img src="/brand/memoir-rhino-ui.png" alt=""></span><p>Securing your private vault…</p></div>` : `<div class="auth-copy"><p class="eyebrow">Owner access only</p><h1>Welcome back, Maaz.</h1><p>${escapeHtml(state.auth.message || 'To continue using your private vault, enter your approved email and password.')}</p></div><form class="auth-form" id="auth-form"><label>Email address<input id="auth-email" type="email" autocomplete="username" required value="${escapeHtml(state.auth.email || 'maaz@memo.com')}" spellcheck="false"></label><label>Password<div class="password-control"><input id="auth-password" type="password" autocomplete="current-password" required autofocus><button type="button" id="toggle-auth-password" aria-label="Show password">${icon('Eye')}</button></div></label>${state.authError ? `<div class="auth-error" role="alert">${icon('Circle')}<span>${escapeHtml(state.authError)}</span></div>` : ''}<button class="primary auth-submit" ${signingIn ? 'disabled' : ''}>${signingIn ? '<span class="button-spinner"></span> Verifying…' : `${icon('LockKeyhole')} Sign in securely`}</button></form><div class="auth-trust">${icon('ShieldCheck')}<span>Only the approved Firebase owner can enter. Every session automatically ends after 48 hours.</span></div>`}</section><aside class="auth-visual"><img src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Private by design</p><h2>Your memory.<br>Your control.</h2><p>Encrypted locally, owner-locked in Firebase, and protected from unauthenticated access.</p></aside></main>`;
-  if (!checking) bindAuthGate();
+  const status = state.auth.status; const loading = ['checking', 'intro'].includes(status); const selecting = status === 'selectAccount'; const otp = ['otpPending', 'verifyingOtp'].includes(status); const profile = activeProfile();
+  const error = state.authError ? `<div class="auth-error" role="alert">${icon('Circle')}<span>${escapeHtml(state.authError)}</span></div>` : '';
+  let content;
+  if (loading) content = `<div class="auth-loader auth-intro"><span class="auth-pulse"><img src="/brand/memoir-rhino-ui.png" alt=""></span><strong>${status === 'intro' ? 'Memoir' : 'Securing your private vault…'}</strong><p>${status === 'intro' ? 'Your memory. Your control.' : 'Checking this device’s private session.'}</p></div>`;
+  else if (selecting) content = `<div class="auth-copy"><p class="eyebrow">Private account</p><h1>Enter your vault number.</h1><p>${escapeHtml(state.auth.message || 'Use the private 4-digit number assigned to your Memoir account.')}</p></div><form class="auth-form account-code-form" id="account-code-form"><label>4-digit account number<input id="account-code" class="account-code-input" type="password" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]{4}" required autofocus placeholder="••••"></label>${error}<button class="primary auth-submit">${icon('KeyRound')} Continue securely</button></form><div class="auth-trust">${icon('ShieldCheck')}<span>This number chooses the correct isolated account. Your Firebase password and Telegram code are still required.</span></div>`;
+  else if (otp) content = `<div class="auth-copy"><p class="eyebrow">Telegram verification</p><h1>Check Telegram, ${escapeHtml(profile.name)}.</h1><p>${escapeHtml(state.auth.message || 'Enter the 6-digit code sent to your private Telegram account.')}</p></div><form class="auth-form" id="otp-form"><label>6-digit security code<input id="auth-otp" class="otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required autofocus placeholder="000000"></label>${error}<button class="primary auth-submit" ${status === 'verifyingOtp' ? 'disabled' : ''}>${status === 'verifyingOtp' ? '<span class="button-spinner"></span> Verifying code…' : `${icon('ShieldCheck')} Verify and open Memoir`}</button></form><div class="auth-secondary-actions"><button type="button" id="resend-otp">Send a new code</button><button type="button" data-back-login>Back to password</button><button type="button" data-switch-account>Switch account</button></div><div class="auth-trust">${icon('ShieldCheck')}<span>The code expires in 5 minutes. This verified session automatically ends after 12 hours.</span></div>`;
+  else content = `<div class="auth-copy"><p class="eyebrow">${escapeHtml(profile.name)} · private access</p><h1>Welcome back, ${escapeHtml(profile.name)}.</h1><p>${escapeHtml(state.auth.message || 'Enter your approved Firebase password. A private Telegram code will be required next.')}</p></div><form class="auth-form" id="auth-form"><label>Email address<input id="auth-email" type="email" autocomplete="username" readonly required value="${escapeHtml(profile.email)}" spellcheck="false"></label><label>Password<div class="password-control"><input id="auth-password" type="password" autocomplete="current-password" required autofocus><button type="button" id="toggle-auth-password" aria-label="Show password">${icon('Eye')}</button></div></label>${error}<button class="primary auth-submit" ${status === 'signingIn' ? 'disabled' : ''}>${status === 'signingIn' ? '<span class="button-spinner"></span> Sending Telegram code…' : `${icon('LockKeyhole')} Continue securely`}</button></form><div class="auth-secondary-actions"><button type="button" data-switch-account>${icon('ArrowLeft')} Switch account</button></div><div class="auth-trust">${icon('ShieldCheck')}<span>Email, password, and a user-specific Telegram OTP are required. Every session ends after 12 hours.</span></div>`;
+  app.innerHTML = `<main class="auth-shell"><section class="auth-card ${loading ? 'auth-checking' : ''}"><div class="auth-brand"><img src="/brand/memoir-rhino-ui.png" alt="Memoir rhino"><span>memoir</span></div>${content}</section><aside class="auth-visual"><img src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Private by design</p><h2>Your memory.<br>Your control.</h2><p>Each account has its own encrypted browser vault, Firebase collection, AI context, reminders, and Telegram channel.</p></aside></main>`;
+  if (!loading) bindAuthGate();
 }
 
 function bindAuthGate() {
+  document.querySelector('#account-code-form')?.addEventListener('submit', async event => {
+    event.preventDefault(); state.authError = '';
+    try { await vaultStore.selectAccount(document.querySelector('#account-code').value); }
+    catch (error) { state.authError = error.message || 'That account number is not recognized.'; shell(); }
+  });
   document.querySelector('#toggle-auth-password')?.addEventListener('click', event => { const input = document.querySelector('#auth-password'); const reveal = input.type === 'password'; input.type = reveal ? 'text' : 'password'; event.currentTarget.innerHTML = icon(reveal ? 'EyeOff' : 'Eye'); event.currentTarget.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password'); });
   document.querySelector('#auth-form')?.addEventListener('submit', async event => {
     event.preventDefault(); state.authError = '';
     const email = document.querySelector('#auth-email').value.trim(); const password = document.querySelector('#auth-password').value;
     try { await vaultStore.signIn(email, password); }
     catch (error) {
-      state.authError = error?.code === 'auth/unauthorized-owner' ? 'This account is not approved for this vault.' : error?.code === 'vault/key-unlock-failed' ? 'Your Firebase password is correct, but it does not match the password used to secure the shared vault key.' : error?.code === 'vault/first-unlock-offline' ? 'Connect to the internet for this device’s first secure unlock.' : /permission-denied/i.test(error?.code || '') ? 'Your password was accepted, but Firestore blocked the owner vault setup. Publish the supplied owner rules and try again.' : /invalid-credential|wrong-password|user-not-found|invalid-email/i.test(error?.code || '') ? 'The email or password is incorrect. Please enter the approved credentials.' : /network-request-failed/i.test(error?.code || '') ? 'Memoir could not reach Firebase. Check your connection and try again.' : 'The password was accepted, but the encrypted vault could not be opened. Please try once more.';
+      state.authError = error?.code === 'auth/unauthorized-owner' ? 'This Firebase login does not belong to the selected private account.' : /invalid-credential|wrong-password|user-not-found|invalid-email/i.test(error?.code || '') ? 'The password is incorrect. Please enter the approved Firebase password.' : error?.code === 'auth/otp-rate-limit' ? `Please wait ${error.retryAfter || 30} seconds before requesting another code.` : /network-request-failed/i.test(error?.code || '') ? 'Memoir could not reach Firebase. Check your connection and try again.' : error.message || 'Secure sign-in could not be completed.';
       shell();
     }
   });
+  document.querySelector('#otp-form')?.addEventListener('submit', async event => {
+    event.preventDefault(); state.authError = '';
+    try { await vaultStore.verifyOtp(document.querySelector('#auth-otp').value); }
+    catch (error) { state.authError = error?.code === 'vault/key-unlock-failed' ? 'The Firebase password cannot unlock this account’s encrypted vault key. Sign in again with the correct password.' : error.message || 'The Telegram code could not be verified.'; shell(); }
+  });
+  document.querySelector('#resend-otp')?.addEventListener('click', async event => {
+    event.currentTarget.disabled = true; state.authError = '';
+    try { await vaultStore.resendOtp(); }
+    catch (error) { state.authError = error?.code === 'auth/otp-rate-limit' ? `Please wait ${error.retryAfter || 30} seconds before requesting another code.` : error.message || 'A new code could not be sent.'; shell(); }
+  });
+  document.querySelectorAll('[data-switch-account]').forEach(button => button.addEventListener('click', () => vaultStore.showAccountSelector()));
+  document.querySelectorAll('[data-back-login]').forEach(button => button.addEventListener('click', () => vaultStore.signOut('retry')));
 }
 
 function skeleton() { return `<section class="vault-opening"><div class="vault-opening-head"><span class="vault-opening-mark"><img src="/brand/memoir-rhino-ui.png" alt=""></span><div><p class="eyebrow">Encrypted cloud vault</p><h2>Loading your memories…</h2><p>Downloading and decrypting this owner’s latest records. Cached memories will appear instantly on future visits.</p></div><span class="opening-live"><i></i> Secure sync</span></div><div class="opening-grid"><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article></div><div class="opening-list">${Array.from({ length: 4 }, () => `<div class="opening-row"><div class="skeleton opening-avatar"></div><div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></div><div class="skeleton opening-action"></div></div>`).join('')}</div></section>`; }
@@ -378,7 +403,7 @@ function bindView() {
   document.querySelectorAll('[data-reminder-snooze]').forEach(button => button.onclick = () => toggleReminderSnooze(button.dataset.reminderSnooze));
   document.querySelectorAll('[data-reminder-edit]').forEach(button => button.onclick = () => openReminderEditor(state.items.find(item => item.id === button.dataset.reminderEdit)));
   document.querySelectorAll('[data-reminder-delete]').forEach(button => button.onclick = () => confirmDelete(button.dataset.reminderDelete));
-  document.querySelector('#clear-chat')?.addEventListener('click', () => confirmBox('Clear this conversation?', 'This removes the local Rhinous conversation log. Your saved memories and reminders will not be changed.', 'Clear chat', 'Eraser', () => { state.messages = []; state.assistantLog = []; localStorage.removeItem('memoir-assistant-log'); renderView(); toast('Conversation cleared'); }));
+  document.querySelector('#clear-chat')?.addEventListener('click', () => confirmBox('Clear this conversation?', 'This removes the local Rhinous conversation log. Your saved memories and reminders will not be changed.', 'Clear chat', 'Eraser', () => { state.messages = []; state.assistantLog = []; localStorage.removeItem(assistantLogKey()); renderView(); toast('Conversation cleared'); }));
   document.querySelector('#vault-filter')?.addEventListener('input', event => document.querySelectorAll('[data-searchable]').forEach(row => row.hidden = !row.dataset.searchable.includes(event.target.value.toLowerCase())));
   document.querySelector('#paste-clipboard')?.addEventListener('click', pasteClipboard);
   document.querySelector('#bulk-import')?.addEventListener('click', openBulkImporter);
@@ -575,8 +600,9 @@ function assistantHistory(messages) {
   });
   return (live.length ? live : state.assistantLog).slice(-12);
 }
-function loadAssistantLog() { try { const value = JSON.parse(localStorage.getItem('memoir-assistant-log') || '[]'); return Array.isArray(value) ? value.slice(-12) : []; } catch { return []; } }
-function persistAssistantLog() { state.assistantLog = assistantHistory(state.messages); localStorage.setItem('memoir-assistant-log', JSON.stringify(state.assistantLog)); }
+function assistantLogKey(uid = localStorage.getItem('memoir-selected-profile')) { return `memoir-assistant-log-${uid || 'unselected'}`; }
+function loadAssistantLog(uid) { try { const value = JSON.parse(localStorage.getItem(assistantLogKey(uid)) || '[]'); return Array.isArray(value) ? value.slice(-12) : []; } catch { return []; } }
+function persistAssistantLog() { state.assistantLog = assistantHistory(state.messages); localStorage.setItem(assistantLogKey(state.auth.profile?.uid), JSON.stringify(state.assistantLog)); }
 function rehydrateAction(action, privateValues) {
   if (!action || !['create', 'update', 'delete'].includes(action.op)) return null;
   const restore = value => Object.entries(privateValues).reduce((text, [token, secret]) => text.split(token).join(secret), String(value || ''));
@@ -642,10 +668,10 @@ async function logSentNotification({ title, category, scheduledAt, sourceId, del
 }
 
 async function checkBirthdayReminders() {
-  if (!navigator.onLine) return; const now = Date.now(); const sent = JSON.parse(localStorage.getItem('memoir-reminders-sent') || '{}'); const offsets = [[48 * 3600000, 'in two days'], [24 * 3600000, 'tomorrow'], [5 * 3600000, 'in five hours'], [2 * 3600000, 'in two hours'], [0, 'today']];
+  if (!navigator.onLine) return; const now = Date.now(); const sentKey = `memoir-reminders-sent-${state.auth.profile?.uid || 'unknown'}`; const sent = JSON.parse(localStorage.getItem(sentKey) || '{}'); const offsets = [[48 * 3600000, 'in two days'], [24 * 3600000, 'tomorrow'], [5 * 3600000, 'in five hours'], [2 * 3600000, 'in two hours'], [0, 'today']];
   for (const item of memories().filter(row => row.type === 'Birthday' && row.fields?.Date)) {
     const next = nextBirthday(item, new Date(now)); if (!next) continue; const birthday = next.occurrence.getTime(); const occurrenceKey = next.occurrence.toISOString().slice(0, 10);
-    for (const [offset, label] of offsets) { const due = birthday - offset; const key = `birthday:${item.id}:${occurrenceKey}:${offset}`; if (!sent[key] && now >= due && now - due < 10 * 60000) { const name = item.title.replace(/['’]s birthday/i, ''); try { const identityToken = await vaultStore.idToken(); if (!identityToken) continue; const response = await fetch('/api/telegram', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${identityToken}` }, body: JSON.stringify({ action: 'send', reminderKey: key, text: `🎂 Birthday reminder\n\n${name}'s birthday is ${label}.\n${item.note ? `\n📝 ${item.note}` : ''}\n\nOpen Memoir to prepare a thoughtful wish.` }) }); if (response.ok) { const result = await response.json().catch(() => ({})); sent[key] = Date.now(); localStorage.setItem('memoir-reminders-sent', JSON.stringify(sent)); if (!result.deduplicated) await logSentNotification({ title: item.title, category: 'Birthday', scheduledAt: due, sourceId: item.id, deliveryKey: key }); } } catch { /* retry on next interval */ } } }
+    for (const [offset, label] of offsets) { const due = birthday - offset; const key = `birthday:${item.id}:${occurrenceKey}:${offset}`; if (!sent[key] && now >= due && now - due < 10 * 60000) { const name = item.title.replace(/['’]s birthday/i, ''); try { const identityToken = await vaultStore.idToken(); if (!identityToken) continue; const response = await fetch('/api/telegram', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${identityToken}` }, body: JSON.stringify({ action: 'send', reminderKey: key, text: `🎂 Birthday reminder\n\n${name}'s birthday is ${label}.\n${item.note ? `\n📝 ${item.note}` : ''}\n\nOpen Memoir to prepare a thoughtful wish.` }) }); if (response.ok) { const result = await response.json().catch(() => ({})); sent[key] = Date.now(); localStorage.setItem(sentKey, JSON.stringify(sent)); if (!result.deduplicated) await logSentNotification({ title: item.title, category: 'Birthday', scheduledAt: due, sourceId: item.id, deliveryKey: key }); } } catch { /* retry on next interval */ } } }
   }
 }
 
@@ -700,8 +726,11 @@ async function runBackgroundAutomation() {
   }
 }
 
+let currentProfileUid = localStorage.getItem('memoir-selected-profile') || '';
 vaultStore.subscribe((items, status, session) => {
   const wasSignedIn = state.auth.status === 'signedIn'; state.items = items; state.status = status; state.auth = session || state.auth;
+  const nextProfileUid = state.auth.profile?.uid || '';
+  if (nextProfileUid !== currentProfileUid) { currentProfileUid = nextProfileUid; state.messages = []; state.assistantLog = nextProfileUid ? loadAssistantLog(nextProfileUid) : []; }
   if (state.auth.status === 'signedIn') state.authError = '';
   if (wasSignedIn && state.auth.status === 'signedIn' && document.querySelector('.shell')) { updateSyncUi(); if (!document.querySelector('.detail')) renderView(); }
   else shell();

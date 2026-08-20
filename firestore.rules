@@ -1,22 +1,30 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isVaultOwner() {
+    function isApprovedUser() {
       return request.auth != null
-        && request.auth.uid == 'uQE6xqhWhQWhOlGmfT2br5HnCEq2'
-        && request.auth.token.email == 'maaz@memo.com'
+        && ((request.auth.uid == 'uQE6xqhWhQWhOlGmfT2br5HnCEq2' && request.auth.token.email == 'maaz@memo.com')
+          || (request.auth.uid == 'GQ4lxeAWoPTlyJ4W1jxU8bxk6qS2' && request.auth.token.email == 'deepti@memo.com'))
         && request.auth.token.firebase.sign_in_provider == 'password'
-        && request.time < timestamp.value(request.auth.token.auth_time * 1000) + duration.value(48, 'h');
+        && request.time < timestamp.value(request.auth.token.auth_time * 1000) + duration.value(12, 'h');
+    }
+    function hasVerifiedOtp() {
+      return isApprovedUser()
+        && exists(/databases/$(database)/documents/verifiedSessions/$(request.auth.uid)/sessions/$(string(request.auth.token.auth_time)))
+        && get(/databases/$(database)/documents/verifiedSessions/$(request.auth.uid)/sessions/$(string(request.auth.token.auth_time))).data.authTime == request.auth.token.auth_time
+        && get(/databases/$(database)/documents/verifiedSessions/$(request.auth.uid)/sessions/$(string(request.auth.token.auth_time))).data.expiresAt > request.time;
     }
     match /users/{userId} {
-      allow read, write: if isVaultOwner() && userId == request.auth.uid;
+      allow read, write: if hasVerifiedOtp() && userId == request.auth.uid;
       match /items/{itemId} {
-        allow read, write: if isVaultOwner() && userId == request.auth.uid;
+        allow read, write: if hasVerifiedOtp() && userId == request.auth.uid;
       }
       match /vaultKeys/{keyId} {
-        allow read, write: if isVaultOwner() && userId == request.auth.uid;
+        allow read, write: if hasVerifiedOtp() && userId == request.auth.uid;
       }
     }
+    match /verifiedSessions/{document=**} { allow read, write: if false; }
+    match /otpChallenges/{document=**} { allow read, write: if false; }
     match /secureVault/{document=**} { allow read, write: if false; }
     match /telegramLinks/{document=**} { allow read, write: if false; }
   }

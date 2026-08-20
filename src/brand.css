@@ -158,6 +158,50 @@ body.auth-locked { overflow: hidden; }
   box-shadow: 0 0 0 4px #f32e8b12;
 }
 
+.auth-form input[readonly] {
+  color: var(--muted);
+  cursor: default;
+}
+
+.account-code-input,
+.otp-input {
+  text-align: center;
+  font-size: 22px !important;
+  font-weight: 750;
+  letter-spacing: .42em;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-code-input::placeholder,
+.otp-input::placeholder { letter-spacing: .28em; }
+
+.auth-secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.auth-secondary-actions button {
+  min-height: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.auth-secondary-actions button:hover { color: var(--text); background: var(--surface2); }
+.auth-secondary-actions button:disabled { opacity: .55; cursor: wait; }
+.auth-secondary-actions .icon { width: 14px; height: 14px; }
+
 .password-control { position: relative; }
 .password-control input { padding-right: 52px; }
 
@@ -301,6 +345,9 @@ body.auth-locked { overflow: hidden; }
   color: var(--muted);
   font-size: 11px;
 }
+
+.auth-loader strong { color: var(--text); font-size: 22px; letter-spacing: -.04em; }
+.auth-loader p { margin: -13px 0 0; }
 
 .auth-pulse {
   width: 100px;

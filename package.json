@@ -11,7 +11,7 @@
     "build": "vite build",
     "start": "node server.js",
     "preview": "vite preview --host 0.0.0.0",
-    "check": "node --check src/main.js && node --check src/store.js && node --check api/assistant.js && node --check api/telegram.js && node --check api/reminders.js && node --check api/sync.js && node --check lib/firebaseAdmin.js && node --check lib/runtimeVault.js && node --check server.js"
+    "check": "node --check src/main.js && node --check src/store.js && node --check api/assistant.js && node --check api/auth.js && node --check api/telegram.js && node --check api/reminders.js && node --check api/sync.js && node --check lib/firebaseAdmin.js && node --check lib/users.js && node --check lib/telegramClient.js && node --check lib/runtimeVault.js && node --check server.js"
   },
   "dependencies": {
     "@google/genai": "latest",
