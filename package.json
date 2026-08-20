@@ -20,7 +20,7 @@
     "dotenv": "latest",
     "express": "latest",
     "firebase": "latest",
-    "firebase-admin": "latest",
+    "firebase-admin": "13.10.0",
     "lucide": "latest",
     "marked": "latest"
   },
