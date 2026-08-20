@@ -5,15 +5,33 @@
       "intents": [
         {
           "name": "AMAZON.CancelIntent",
-          "samples": []
+          "samples": [
+            "cancel",
+            "never mind",
+            "forget it",
+            "cancel that"
+          ]
         },
         {
           "name": "AMAZON.HelpIntent",
-          "samples": []
+          "samples": [
+            "help",
+            "what can you do",
+            "how do I use this",
+            "help me",
+            "what can I say"
+          ]
         },
         {
           "name": "AMAZON.StopIntent",
-          "samples": []
+          "samples": [
+            "stop",
+            "exit",
+            "quit",
+            "goodbye",
+            "bye",
+            "close"
+          ]
         },
         {
           "name": "AMAZON.NavigateHomeIntent",
@@ -27,18 +45,22 @@
           "name": "UpcomingBirthdaysIntent",
           "slots": [],
           "samples": [
+            "what birthdays are coming",
+            "what birthdays are coming up",
+            "what birthdays are in next month",
             "what are next month birthday coming",
             "what are next month birthdays coming",
             "what are next month birthdays",
             "what birthdays are coming next month",
-            "what birthdays are coming",
-            "what birthdays are coming up",
             "upcoming birthdays",
             "birthdays coming up",
+            "birthdays next month",
+            "birthdays this month",
             "whose birthday is next",
             "any birthdays this month",
             "any birthdays next month",
             "who has a birthday soon",
+            "who has a birthday coming up",
             "birthdays",
             "check birthdays",
             "what are the upcoming birthdays",
@@ -46,7 +68,14 @@
             "show birthdays",
             "birthday list",
             "who has a birthday",
-            "birthday reminders"
+            "birthday reminders",
+            "check upcoming birthdays",
+            "tell me upcoming birthdays",
+            "any birthdays today",
+            "whose birthday is today",
+            "whose birthday is tomorrow",
+            "do I have any birthdays coming up",
+            "are there any birthdays soon"
           ]
         },
         {
@@ -56,8 +85,10 @@
             "what reminders do I have today",
             "what reminders do I have",
             "what reminders do I have tomorrow",
+            "what reminders are scheduled for today",
             "what are my reminders",
             "what are my reminders today",
+            "what are my reminders for tomorrow",
             "upcoming reminders",
             "reminders",
             "my reminders",
@@ -66,16 +97,25 @@
             "today's reminders",
             "any reminders coming up",
             "any reminders today",
+            "any reminders tomorrow",
             "what do I need to do",
             "what do I need to do today",
+            "what tasks do I have",
             "check my reminders",
             "check reminders",
             "tell me my reminders",
+            "tell me today's reminders",
             "reminders for today",
             "what is on my reminder list",
             "list my reminders",
+            "show my reminders",
             "do I have any reminders",
-            "do I have reminders today"
+            "do I have reminders today",
+            "read my reminders",
+            "what are my tasks for today",
+            "what is due today",
+            "what do I have scheduled",
+            "active reminders"
           ]
         },
         {
@@ -88,12 +128,43 @@
           ],
           "samples": [
             "add a reminder to {ReminderTitle}",
+            "add a reminder for {ReminderTitle}",
+            "add a reminder to read namaz",
+            "add a reminder to buy medicines",
+            "add a reminder for four am today to read namaz",
+            "add a reminder to read fajr namaz at four thirty am",
+            "add a reminder to buy medicines at eight pm",
+            "add a reminder to take pills after dinner",
             "remind me to {ReminderTitle}",
+            "remind me for {ReminderTitle}",
+            "remind me about {ReminderTitle}",
+            "remind me to read namaz",
+            "remind me to read namaz at four am",
+            "remind me to read fajr namaz",
+            "remind me to buy medicine",
+            "remind me to take my tablets",
+            "remind me to drink water",
+            "remind me to pay bills",
+            "remind me to renew insurance",
+            "remind me to call doctor",
+            "remind me to go to gym",
             "create a reminder for {ReminderTitle}",
+            "create a reminder to {ReminderTitle}",
+            "create reminder to read namaz",
+            "create reminder to buy medicines",
             "set a reminder to {ReminderTitle}",
             "set a reminder for {ReminderTitle}",
+            "set a reminder to read namaz at four am",
+            "set a reminder to take medicine at nine pm",
+            "set reminder {ReminderTitle}",
             "add reminder {ReminderTitle}",
-            "remind me about {ReminderTitle}"
+            "add reminder to read namaz",
+            "add reminder to buy medicines",
+            "schedule a reminder to {ReminderTitle}",
+            "schedule a reminder for {ReminderTitle}",
+            "put a reminder to {ReminderTitle}",
+            "new reminder {ReminderTitle}",
+            "make a reminder to {ReminderTitle}"
           ]
         },
         {
@@ -111,7 +182,16 @@
             "snooze my {ReminderTitle} reminder",
             "snooze reminder",
             "snooze",
-            "snooze for thirty minutes"
+            "snooze for thirty minutes",
+            "postpone my reminder",
+            "postpone {ReminderTitle}",
+            "delay my reminder",
+            "remind me later",
+            "remind me in thirty minutes",
+            "snooze namaz reminder",
+            "snooze medicine reminder",
+            "give me thirty minutes",
+            "pause reminder"
           ]
         },
         {
@@ -131,7 +211,17 @@
             "complete reminder",
             "mark reminder done",
             "done with reminder",
-            "reminder is done"
+            "reminder is done",
+            "mark as completed",
+            "mark as done",
+            "I finished {ReminderTitle}",
+            "I completed {ReminderTitle}",
+            "I took my medicine",
+            "I read namaz",
+            "done with namaz reminder",
+            "done with medicine reminder",
+            "clear reminder",
+            "dismiss reminder"
           ]
         },
         {
@@ -155,7 +245,19 @@
             "find my {Query}",
             "where is my {Query}",
             "for my {Query}",
-            "check {Query}"
+            "check {Query}",
+            "what is my wifi",
+            "what is my wifi name",
+            "when did I buy my phone",
+            "when did I buy my iphone",
+            "what did I note about car insurance",
+            "when does my insurance expire",
+            "when does my passport expire",
+            "what notes do I have for {Query}",
+            "find information on {Query}",
+            "search Memoir for {Query}",
+            "tell me what I saved about {Query}",
+            "what is written in {Query}"
           ]
         }
       ],

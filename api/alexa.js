@@ -138,17 +138,80 @@ function getUpcomingReminders(items) {
   return `You have ${sorted.length} active reminder${sorted.length > 1 ? 's' : ''}: ${speechList.join(' ')}`;
 }
 
+function parseSpokenReminder(rawText, explicitDue) {
+  let text = String(rawText || '').trim();
+  if (explicitDue) {
+    const parsedExplicit = new Date(explicitDue).getTime();
+    if (Number.isFinite(parsedExplicit)) {
+      return { title: text.replace(/^remind me to\s+/i, '').replace(/^add a reminder to\s+/i, ''), timestamp: parsedExplicit };
+    }
+  }
+
+  const now = new Date();
+  const targetDate = new Date();
+
+  const isTomorrow = /\btomorrow\b/i.test(text);
+  const isDayAfter = /\bday after tomorrow\b/i.test(text);
+  const isTonight = /\btonight\b/i.test(text);
+
+  if (isTomorrow) targetDate.setDate(targetDate.getDate() + 1);
+  if (isDayAfter) targetDate.setDate(targetDate.getDate() + 2);
+
+  // Time pattern matching: "4:00 a.m.", "4 am", "4:30 pm", "at 4", "for 4", "8 pm"
+  const timeRegex = /(?:\b(?:at|for)\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.m\.|p\.m\.|a\.m|p\.m|am|pm|o'clock)?/i;
+  const timeMatch = text.match(timeRegex);
+  let hours = 9;
+  let minutes = 0;
+  let foundTime = false;
+
+  if (timeMatch && (timeMatch[3] || timeMatch[2] || /\b(at|for)\b/i.test(timeMatch[0]))) {
+    foundTime = true;
+    let h = parseInt(timeMatch[1], 10);
+    const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+    const mer = (timeMatch[3] || '').toLowerCase().replace(/\./g, '');
+
+    if (mer === 'pm' && h < 12) h += 12;
+    if (mer === 'am' && h === 12) h = 0;
+    if (!mer && isTonight && h < 12) h += 12;
+
+    hours = h;
+    minutes = m;
+  } else if (isTonight) {
+    hours = 20;
+    minutes = 0;
+    foundTime = true;
+  }
+
+  targetDate.setHours(hours, minutes, 0, 0);
+
+  // Clean title
+  let clean = text
+    .replace(/\b(add a reminder to|add reminder to|add a reminder for|add reminder for|remind me to|remind me about|create reminder to|set a reminder to|set reminder to|add reminder|remind me)\b/gi, '')
+    .replace(/(?:\b(?:at|for)\s+)?\d{1,2}(?::\d{2})?\s*(?:a\.m\.|p\.m\.|a\.m|p\.m|am|pm|o'clock)?/gi, '')
+    .replace(/\b(tomorrow|day after tomorrow|today|tonight)\b/gi, '')
+    .replace(/\b(a\.m\.|p\.m\.|a\.m|p\.m|am|pm)\b/gi, '')
+    .replace(/^\s*(?:to|for)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!clean) clean = 'Reminder';
+  clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+
+  return { title: clean, timestamp: targetDate.getTime() };
+}
+
 async function handleAddReminder(profile, { title, dueAt, note }) {
   if (!title) return 'Please specify what you would like to be reminded about.';
 
+  const parsed = parseSpokenReminder(title, dueAt);
   const id = crypto.randomUUID();
-  const timestamp = dueAt ? new Date(dueAt).getTime() : Date.now() + 60 * 60 * 1000;
+  const timestamp = parsed.timestamp;
   const isoDue = new Date(timestamp).toISOString();
 
   const reminderItem = {
     id,
     type: 'Reminder',
-    title: title.trim(),
+    title: parsed.title,
     note: note ? String(note).trim() : '',
     fields: {
       'Due at': isoDue,
@@ -167,8 +230,9 @@ async function handleAddReminder(profile, { title, dueAt, note }) {
   const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: getAppTimezone() });
   const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: getAppTimezone() });
 
-  return `I have added a reminder to ${title} for ${dateStr} at ${timeStr}.`;
+  return `I have added a reminder to ${parsed.title} for ${dateStr} at ${timeStr}.`;
 }
+
 
 async function handleSnoozeReminder(profile, items, titleQuery) {
   const reminders = items.filter(item => String(item.type || '').toLowerCase() === 'reminder');
