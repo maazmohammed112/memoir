@@ -175,6 +175,8 @@ function toggleNotificationCenter(force) {
   let popover = document.querySelector('.notification-popover'); const shouldOpen = force ?? !popover;
   if (!shouldOpen) { popover?.remove(); return; }
   if (!popover) { popover = document.createElement('aside'); popover.className = 'notification-popover'; document.body.appendChild(popover); }
+  const trigger = document.querySelector('#notification-center'); const triggerRect = trigger?.getBoundingClientRect();
+  if (triggerRect) popover.style.setProperty('--notification-top', `${Math.round(triggerRect.bottom + 10)}px`);
   popover.innerHTML = notificationCenterMarkup(); popover.querySelector('#close-notifications').onclick = () => popover.remove();
 }
 function updateNotificationBadge() {
