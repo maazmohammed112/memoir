@@ -260,8 +260,10 @@ const FallbackIntentHandler = {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
       Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.FallbackIntent';
   },
-  handle(handlerInput) {
-    const speakOutput = 'Sorry, I couldn\'t understand that request. You can ask for birthdays, reminders, or safe notes.';
+  async handle(handlerInput) {
+    const userId = getUserId(handlerInput);
+    const result = await callMemoirBridge({ intent: 'AMAZON.FallbackIntent', userId });
+    const speakOutput = result.speak || 'Rhino Memoir is ready. You can ask for upcoming birthdays, today\'s reminders, or safe notes.';
 
     return handlerInput.responseBuilder
       .speak(speakOutput)
@@ -269,6 +271,7 @@ const FallbackIntentHandler = {
       .getResponse();
   },
 };
+
 
 const SessionEndedRequestHandler = {
   canHandle(handlerInput) {

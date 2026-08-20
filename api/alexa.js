@@ -345,7 +345,17 @@ export default async function alexaHandler(req, res) {
       case 'AskSafeInfoIntent':
       case 'lookup':
       case 'query':
-        speech = handleSafeLookup(items, query || title);
+      case 'AMAZON.FallbackIntent':
+      case 'fallback':
+        if (/birthday|bday/i.test(query)) {
+          speech = getUpcomingBirthdays(items);
+        } else if (/reminder|due|schedule|todo/i.test(query)) {
+          speech = getUpcomingReminders(items);
+        } else if (query) {
+          speech = handleSafeLookup(items, query || title);
+        } else {
+          speech = `Rhino Memoir is ready. You can ask for upcoming birthdays, today's reminders, or safe notes.`;
+        }
         break;
 
       case 'LaunchRequest':
@@ -353,7 +363,16 @@ export default async function alexaHandler(req, res) {
         break;
 
       default:
-        speech = query ? handleSafeLookup(items, query) : `Rhino Memoir is ready. Ask for birthdays, reminders, or safe notes.`;
+        if (/birthday|bday/i.test(query)) {
+          speech = getUpcomingBirthdays(items);
+        } else if (/reminder|due|schedule|todo/i.test(query)) {
+          speech = getUpcomingReminders(items);
+        } else if (query) {
+          speech = handleSafeLookup(items, query);
+        } else {
+          speech = `Rhino Memoir is ready. Ask for birthdays, reminders, or safe notes.`;
+        }
+
     }
 
     return res.status(200).json({

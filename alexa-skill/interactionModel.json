@@ -27,15 +27,26 @@
           "name": "UpcomingBirthdaysIntent",
           "slots": [],
           "samples": [
+            "what are next month birthday coming",
+            "what are next month birthdays coming",
+            "what are next month birthdays",
+            "what birthdays are coming next month",
             "what birthdays are coming",
             "what birthdays are coming up",
             "upcoming birthdays",
+            "birthdays coming up",
             "whose birthday is next",
             "any birthdays this month",
+            "any birthdays next month",
             "who has a birthday soon",
             "birthdays",
             "check birthdays",
-            "what are the upcoming birthdays"
+            "what are the upcoming birthdays",
+            "tell me birthdays",
+            "show birthdays",
+            "birthday list",
+            "who has a birthday",
+            "birthday reminders"
           ]
         },
         {
@@ -44,13 +55,27 @@
           "samples": [
             "what reminders do I have today",
             "what reminders do I have",
-            "upcoming reminders",
+            "what reminders do I have tomorrow",
             "what are my reminders",
+            "what are my reminders today",
+            "upcoming reminders",
+            "reminders",
+            "my reminders",
+            "reminders today",
+            "today reminders",
+            "today's reminders",
             "any reminders coming up",
+            "any reminders today",
             "what do I need to do",
+            "what do I need to do today",
             "check my reminders",
+            "check reminders",
+            "tell me my reminders",
             "reminders for today",
-            "what is on my reminder list"
+            "what is on my reminder list",
+            "list my reminders",
+            "do I have any reminders",
+            "do I have reminders today"
           ]
         },
         {
@@ -72,7 +97,9 @@
             "set a reminder to {ReminderTitle}",
             "remind me to {ReminderTitle} at {DueAt}",
             "add a reminder to {ReminderTitle} on {DueAt}",
-            "set a reminder for {ReminderTitle}"
+            "set a reminder for {ReminderTitle}",
+            "add reminder {ReminderTitle}",
+            "remind me about {ReminderTitle}"
           ]
         },
         {
@@ -88,7 +115,9 @@
             "snooze {ReminderTitle}",
             "snooze the {ReminderTitle} reminder",
             "snooze my {ReminderTitle} reminder",
-            "snooze reminder"
+            "snooze reminder",
+            "snooze",
+            "snooze for 30 minutes"
           ]
         },
         {
@@ -106,7 +135,9 @@
             "finish {ReminderTitle} reminder",
             "mark my {ReminderTitle} reminder as done",
             "complete reminder",
-            "mark reminder done"
+            "mark reminder done",
+            "done with reminder",
+            "reminder is done"
           ]
         },
         {
@@ -120,6 +151,7 @@
           "samples": [
             "ask about {Query}",
             "what is my {Query}",
+            "what is the {Query}",
             "when did I buy my {Query}",
             "when is my {Query}",
             "what did I note about {Query}",
@@ -128,7 +160,8 @@
             "search for {Query}",
             "find my {Query}",
             "where is my {Query}",
-            "for my {Query}"
+            "for my {Query}",
+            "check {Query}"
           ]
         }
       ],
