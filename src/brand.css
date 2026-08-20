@@ -35,6 +35,45 @@
   object-fit: cover;
 }
 
+.header-rhino-runner { display: none; }
+
+.field-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  flex: none;
+}
+
+.link-btn {
+  color: var(--violet);
+  text-decoration: none;
+}
+
+.answer-table td:last-child { width: 72px; }
+.answer-table .link-btn,
+.answer-table .copy-field { width: 29px; height: 29px; border: 0; border-radius: 8px; background: var(--surface2); }
+
+.document-field-help {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 2px 0 13px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--green) 25%, var(--line));
+  border-radius: 13px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--green) 5%, var(--surface));
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.document-field-help .icon { width: 14px; height: 14px; flex: none; color: var(--green); }
+
+.add-custom-field { min-height: 36px; margin: 2px 0 10px; padding-inline: 12px; font-size: 10px; }
+.custom-memory-field { display: grid; grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr); gap: 10px; }
+.custom-memory-field label { min-width: 0; }
+
 .hero .hero-rhino {
   position: absolute;
   z-index: 0;
@@ -1052,8 +1091,76 @@ body.auth-locked { overflow: hidden; }
     background: var(--surface);
     box-shadow: 0 8px 25px rgba(39, 21, 29, .06);
   }
+  .header-rhino-runner {
+    position: relative;
+    display: block;
+    flex: 1 1 58px;
+    min-width: 46px;
+    height: 40px;
+    overflow: hidden;
+    pointer-events: none;
+    isolation: isolate;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 13%, #000 88%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 13%, #000 88%, transparent);
+  }
+  .header-rhino-runner .rhino-track {
+    position: absolute;
+    z-index: -1;
+    right: 3px;
+    bottom: 7px;
+    left: 3px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--muted) 24%, transparent), transparent);
+  }
+  .header-rhino-runner img {
+    position: absolute;
+    left: -43px;
+    bottom: 7px;
+    width: 39px;
+    height: 28px;
+    object-fit: contain;
+    filter: contrast(1.12);
+    animation: header-rhino-run 4.8s cubic-bezier(.42, .03, .58, .98) infinite;
+    will-change: left, transform;
+  }
+  .header-rhino-runner i {
+    position: absolute;
+    bottom: 6px;
+    left: 8%;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--muted) 40%, transparent);
+    opacity: 0;
+    animation: rhino-dust 4.8s ease-out infinite;
+  }
+  .header-rhino-runner i:nth-of-type(2) { left: 34%; animation-delay: .18s; }
+  .header-rhino-runner i:nth-of-type(3) { left: 61%; animation-delay: .36s; }
   .top-actions .round-btn { width: 40px; height: 40px; }
   .notification-badge { top: -3px; right: -3px; }
+}
+
+@keyframes header-rhino-run {
+  0% { left: -43px; transform: translateY(0) rotate(-1deg); }
+  12% { transform: translateY(-2px) rotate(1deg); }
+  24% { transform: translateY(0) rotate(-1deg); }
+  36% { transform: translateY(-2px) rotate(1deg); }
+  48% { transform: translateY(0) rotate(-1deg); }
+  60% { transform: translateY(-2px) rotate(1deg); }
+  72% { transform: translateY(0) rotate(-1deg); }
+  84% { transform: translateY(-2px) rotate(1deg); }
+  100% { left: calc(100% + 5px); transform: translateY(0) rotate(-1deg); }
+}
+
+@keyframes rhino-dust {
+  0%, 18%, 100% { opacity: 0; transform: translate(0, 0) scale(.6); }
+  25% { opacity: .55; }
+  48% { opacity: 0; transform: translate(-9px, -5px) scale(1.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header-rhino-runner img { left: 50%; transform: translateX(-50%); animation: none; }
+  .header-rhino-runner i { display: none; }
 }
 
 @media (max-width: 380px) {
@@ -1236,6 +1343,7 @@ body.auth-locked { overflow: hidden; }
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .custom-memory-field { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }
 
 @media (max-width: 360px) {

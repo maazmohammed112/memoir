@@ -22,6 +22,8 @@ import Ellipsis from 'lucide/dist/esm/icons/ellipsis.mjs';
 import Eraser from 'lucide/dist/esm/icons/eraser.mjs';
 import Eye from 'lucide/dist/esm/icons/eye.mjs';
 import EyeOff from 'lucide/dist/esm/icons/eye-off.mjs';
+import ExternalLink from 'lucide/dist/esm/icons/external-link.mjs';
+import FileBadge from 'lucide/dist/esm/icons/file-badge.mjs';
 import Gem from 'lucide/dist/esm/icons/gem.mjs';
 import House from 'lucide/dist/esm/icons/house.mjs';
 import KeyRound from 'lucide/dist/esm/icons/key-round.mjs';
@@ -43,11 +45,13 @@ const nav = [
   ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['assistant', 'Rhino', 'Rhinous'],
   ['reminders', 'AlarmClock', 'Reminders'], ['clipboard', 'Clipboard', 'Clipboard'], ['birthdays', 'CakeSlice', 'Birthdays'],
 ];
-const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', Personal: 'NotebookText', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
-const iconSet = { AlarmClock, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Copy, Ellipsis, Eraser, Eye, EyeOff, Gem, House, KeyRound, Landmark, LockKeyhole, LogOut, NotebookText, Pencil, Plus, Search, ShieldCheck, Trash2, WandSparkles, Wifi, X };
+const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', 'Government Document': 'FileBadge', Personal: 'NotebookText', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
+const iconSet = { AlarmClock, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Copy, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, Gem, House, KeyRound, Landmark, LockKeyhole, LogOut, NotebookText, Pencil, Plus, Search, ShieldCheck, Trash2, WandSparkles, Wifi, X };
 const fieldMap = {
   Login: ['Username / ID', 'Password'], Finance: ['Account number', 'IFSC code', 'Debit card number', 'Expiry', 'CVV', 'ATM PIN'],
-  Identity: ['Document number', 'Expiry'], Personal: ['Value'], Birthday: ['Date', 'Relation', 'Gift idea', 'Wish note'], 'Wi-Fi': ['Network', 'Password'],
+  Identity: ['Document number', 'Document type', 'Issued by', 'Expiry date', 'Soft copy link'],
+  'Government Document': ['Document number', 'Reference number', 'Issued by', 'Issued date', 'Expiry date', 'Soft copy link'],
+  Personal: ['Value'], Birthday: ['Date', 'Relation', 'Gift idea', 'Wish note'], 'Wi-Fi': ['Network', 'Password'],
   Reminder: ['Due at', 'Status', 'Snoozed'],
 };
 const app = document.querySelector('#app');
@@ -82,6 +86,18 @@ function titleForView() { return { home: 'Good morning, Maaz', vault: 'Your memo
 function category(item) { return item.kind === 'clipboard' ? 'Clipboard' : item.type || 'Personal'; }
 function itemIcon(item) { return typeIcons[category(item)] || 'Gem'; }
 function allFields(item) { return item.fields || {}; }
+function safeExternalLink(value) { try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.href : ''; } catch { return ''; } }
+function externalLinkButton(value, label = 'Open secure link') {
+  const url = safeExternalLink(value);
+  return url ? `<a class="icon-btn link-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${icon('ExternalLink')}</a>` : '';
+}
+function fieldInputAttributes(name) {
+  if (/^(issued date|expiry date|purchase date)$/i.test(name)) return 'type="date"';
+  if (/link$/i.test(name)) return 'type="url" inputmode="url" placeholder="https://drive.google.com/…"';
+  if (/number|\bid\b|imei|eid|pin|cvv/i.test(name)) return 'type="text" inputmode="numeric"';
+  return 'type="text"';
+}
+function memoryFieldInput(name, value = '') { return `<label>${escapeHtml(name)}<input data-field="${escapeHtml(name)}" ${fieldInputAttributes(name)} value="${escapeHtml(value)}"></label>`; }
 function searchable(item) { return [item.title, item.note, category(item), ...Object.keys(allFields(item)), ...Object.values(allFields(item))].join(' ').toLowerCase(); }
 function parseBirthday(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '')); if (!match) return null;
@@ -203,6 +219,7 @@ function shell() {
         <div class="top-actions">
           <div class="global-search"><span>${icon('Search')}</span><input id="global-search" placeholder="Search everything…" autocomplete="off"><span class="key-hint">⌘ K</span></div>
           <span class="sync-pill"><i class="sync-dot ${state.status === 'synced' ? '' : 'offline'}"></i>${syncLabel()}</span>
+          <div class="header-rhino-runner" aria-hidden="true"><span class="rhino-track"></span><img src="/brand/memoir-rhino-ui.png" alt=""><i></i><i></i><i></i></div>
           <button class="round-btn mobile-search" id="mobile-search-button" title="Search everything">${icon('Search')}</button>
           <button class="round-btn notification-trigger" id="notification-center" title="Notifications" aria-label="Notifications">${icon('BellRing')}<span class="notification-badge" hidden></span></button>
           <button class="round-btn" id="privacy" title="${state.hidden ? 'Reveal values' : 'Hide values'}">${icon(state.hidden ? 'EyeOff' : 'Eye')}</button>
@@ -314,7 +331,7 @@ function renderMessage(message) {
   if (message.role === 'user') return `<div class="message user">${escapeHtml(message.text)}</div>`;
   if (message.fields?.length) {
     const fieldObject = Object.fromEntries(message.fields.map(field => [field.label, field.value])); const card = paymentCard(message.title || 'Saved card', fieldObject, true);
-    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${message.fields.map(field => `<tr><td>${escapeHtml(field.label)}</td><td><span class="${state.hidden ? 'blur' : ''}">${escapeHtml(field.value)}</span></td><td><button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy">${icon('Copy')}</button></td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${message.fields.map(field => `<tr><td>${escapeHtml(field.label)}</td><td><span class="${state.hidden ? 'blur' : ''}">${escapeHtml(field.value)}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy">${icon('Copy')}</button></span></td></tr>`).join('')}</tbody></table></div>`;
   }
   if (message.actions?.length) return `<div class="message bot"><strong>${escapeHtml((message.title || 'Review changes').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}<div class="ai-action-list">${message.actions.map(action => `<div class="ai-action"><span>${escapeHtml(action.op)}</span><strong>${escapeHtml(action.title || state.items.find(item => item.id === action.id)?.title || 'Memory')}</strong><small>${escapeHtml(action.type || 'Saved item')} · ${Object.keys(action.fields || {}).length} field${Object.keys(action.fields || {}).length === 1 ? '' : 's'}</small></div>`).join('')}</div></div>`;
   return `<div class="message bot">${message.title ? `<strong>${escapeHtml(message.title.toUpperCase())}</strong>` : ''}${safeMarkdown(message.markdown || message.text || '')}</div>`;
@@ -393,7 +410,7 @@ function openBulkImporter() {
     event.preventDefault(); const submit = event.submitter;
     try {
       const parsed = JSON.parse(document.querySelector('#bulk-json').value); if (!Array.isArray(parsed) || !parsed.length || parsed.length > 100) throw new Error('Use a JSON array containing 1 to 100 memories.');
-      const allowedTypes = new Set(['Login', 'Finance', 'Identity', 'Personal', 'Birthday', 'Wi-Fi']);
+      const allowedTypes = new Set(['Login', 'Finance', 'Identity', 'Government Document', 'Personal', 'Birthday', 'Wi-Fi']);
       const records = parsed.map(raw => {
         const title = String(raw?.title || '').trim(); if (!title) throw new Error('Every memory needs a title.');
         const existing = state.items.find(item => item.kind !== 'clipboard' && item.title.toLowerCase() === title.toLowerCase());
@@ -419,9 +436,14 @@ function openEditor(item = null, initialType = 'Personal') {
   modal.className = 'modal';
   modal.innerHTML = `<form class="modal-inner" id="memory-form"><div class="modal-head"><div><p class="eyebrow">${item ? 'Edit memory' : 'New memory'}</p><h2>${item ? 'Update what matters' : 'Add something important'}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><label>Category<select id="memory-type">${Object.keys(fieldMap).filter(type => !['Birthday', 'Reminder'].includes(type)).map(type => `<option ${type === selected ? 'selected' : ''}>${type}</option>`).join('')}</select></label><label>Title<input id="memory-title" required placeholder="e.g. Home Wi-Fi" value="${escapeHtml(item?.title || '')}"></label><div id="dynamic-fields"></div><label>Note<textarea id="memory-note" rows="3" placeholder="Context, reminder, or anything useful">${escapeHtml(item?.note || '')}</textarea></label><div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Check')} ${item ? 'Save changes' : 'Save memory'}</button></div></form>`;
   showModal();
-  const renderFields = () => { const type = document.querySelector('#memory-type').value; document.querySelector('#dynamic-fields').innerHTML = `<div class="field-grid">${fieldMap[type].map(name => `<label>${escapeHtml(name)}<input data-field="${escapeHtml(name)}" ${name === 'Date' ? 'type="date"' : ''} value="${escapeHtml(item?.fields?.[name] || '')}"></label>`).join('')}</div>`; };
+  const renderFields = () => {
+    const type = document.querySelector('#memory-type').value;
+    const names = [...new Set([...(fieldMap[type] || []), ...Object.keys(item?.fields || {})])];
+    document.querySelector('#dynamic-fields').innerHTML = `<div class="field-grid">${names.map(name => memoryFieldInput(name, item?.fields?.[name] || '')).join('')}</div><div id="custom-memory-fields"></div><button type="button" class="ghost add-custom-field" id="add-custom-field">${icon('Plus')} Add custom field</button>${type === 'Government Document' || type === 'Identity' ? `<p class="document-field-help">${icon('ShieldCheck')} Add an HTTPS Google Drive, OneDrive, or other private cloud link. Memoir stores the link as an encrypted field and Rhinous can retrieve it by document name.</p>` : ''}`;
+    document.querySelector('#add-custom-field').onclick = () => document.querySelector('#custom-memory-fields').insertAdjacentHTML('beforeend', `<div class="custom-memory-field"><label>Field name<input data-custom-label maxlength="100" placeholder="e.g. Application number"></label><label>Field value<input data-custom-value maxlength="5000" placeholder="Enter the protected value"></label></div>`);
+  };
   renderFields(); document.querySelector('#memory-type').onchange = renderFields;
-  document.querySelector('#memory-form').onsubmit = async event => { event.preventDefault(); const fields = {}; document.querySelectorAll('[data-field]').forEach(input => { if (input.value.trim()) fields[input.dataset.field] = input.value.trim(); }); await withRhinoActivity(item ? 'Updating memory…' : 'Saving memory…', () => vaultStore.save({ ...(item || {}), kind: 'memory', type: document.querySelector('#memory-type').value, title: document.querySelector('#memory-title').value.trim(), note: document.querySelector('#memory-note').value.trim(), fields })); closeModal(); toast(item ? 'Memory updated instantly' : 'Memory saved securely'); };
+  document.querySelector('#memory-form').onsubmit = async event => { event.preventDefault(); const fields = {}; document.querySelectorAll('[data-field]').forEach(input => { if (input.value.trim()) fields[input.dataset.field] = input.value.trim(); }); document.querySelectorAll('.custom-memory-field').forEach(row => { const label = row.querySelector('[data-custom-label]').value.trim(); const value = row.querySelector('[data-custom-value]').value.trim(); if (label && value) fields[label.slice(0, 100)] = value.slice(0, 5000); }); await withRhinoActivity(item ? 'Updating memory…' : 'Saving memory…', () => vaultStore.save({ ...(item || {}), kind: 'memory', type: document.querySelector('#memory-type').value, title: document.querySelector('#memory-title').value.trim(), note: document.querySelector('#memory-note').value.trim(), fields })); closeModal(); toast(item ? 'Memory updated instantly' : 'Memory saved securely'); };
 }
 function openBirthdayEditor(item = null) {
   const parsed = parseBirthday(item?.fields?.Date) || { year: 0, month: '', day: '', hasYear: false };
@@ -484,7 +506,7 @@ function confirmBox(title, text, action, glyph, callback) {
 function openDetail(id) {
   const item = state.items.find(row => row.id === id); if (!item) return;
   state.view = 'vault'; shell();
-  document.querySelector('#view').innerHTML = `<section class="detail"><button class="secondary" data-view="vault">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, allFields(item)) : ''}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${Object.entries(allFields(item)).map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
+  document.querySelector('#view').innerHTML = `<section class="detail"><button class="secondary" data-view="vault">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, allFields(item)) : ''}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${Object.entries(allFields(item)).map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
   bindView(); document.querySelector('[data-view="vault"]').onclick = () => navigate('vault');
 }
 
@@ -526,7 +548,7 @@ function protectPrivateInput(input) {
   const knownValues = state.items.flatMap(item => Object.values(allFields(item))).map(String).filter(value => value.trim().length >= 3).sort((a, b) => b.length - a.length);
   knownValues.forEach(value => { if (text.includes(value)) text = text.split(value).join(remember(value)); });
   const isMutation = /\b(add|create|save|remember|edit|update|change|replace|delete|remove|forget)\b/i.test(text);
-  const labels = ['debit card number', 'credit card number', 'application number', 'account number', 'document number', 'username / id', 'username', 'atm pin', 'wifi password', 'wi-fi password', 'password', 'passcode', 'security code', 'cvv', 'pin', 'ifsc code', 'expiry', 'network', 'ssid', 'date', 'relation', 'gift idea', 'wish note', 'content', 'value', 'note'];
+  const labels = ['debit card number', 'credit card number', 'application number', 'account number', 'document number', 'reference number', 'soft copy link', 'drive link', 'eid', 'imei', 'imei2', 'username / id', 'username', 'atm pin', 'wifi password', 'wi-fi password', 'password', 'passcode', 'security code', 'cvv', 'pin', 'ifsc code', 'expiry date', 'expiry', 'issued date', 'purchase date', 'network', 'ssid', 'date', 'relation', 'gift idea', 'wish note', 'content', 'value', 'note'];
   const labelPattern = labels.map(label => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   const labelledValue = new RegExp(`\\b(${labelPattern})\\s*(?:to|is|:|=)\\s*([\\s\\S]*?)(?=(?:\\s*(?:,|;|\\n)\\s*|\\s+and\\s+)(?:${labelPattern})\\s*(?:to|is|:|=)|$)`, 'gi');
   text = text.replace(labelledValue, (_match, label, value) => `${label}: ${/^\\[\\[PRIVATE_\\d+\\]\\]$/.test(value.trim()) ? value.trim() : remember(value)}`);
@@ -588,7 +610,23 @@ async function confirmAssistantActions(actions) {
 }
 function localRoute(query) {
   const needle = query.toLowerCase(); const candidates = state.items.filter(item => item.type !== 'Notification' && (needle.includes(item.title.toLowerCase()) || item.title.toLowerCase().split(/\s+/).some(word => word.length > 3 && needle.includes(word)) || Object.keys(allFields(item)).some(field => needle.includes(field.toLowerCase().replace('number', '').trim()))));
-  if (!candidates.length) return null; const item = candidates[0]; let entries = Object.entries(allFields(item)); const exact = entries.filter(([label]) => needle.includes(label.toLowerCase()) || needle.includes(label.toLowerCase().replace('number', '').trim())); if (exact.length) entries = exact; else if (!/(all|details|info|everything|complete)/.test(needle)) entries = entries.slice(0, 1); return { role: 'assistant', title: item.title, markdown: 'Here is exactly what matched your request.', fields: entries.map(([label, value]) => ({ label, value })) };
+  if (!candidates.length) return null;
+  const item = candidates[0]; let entries = Object.entries(allFields(item));
+  const intentMatches = ([label]) => {
+    const normalized = label.toLowerCase();
+    if (needle.includes(normalized) || needle.includes(normalized.replace('number', '').trim())) return true;
+    return [
+      [/\b(link|soft copy|drive|document file)\b/, /link|soft copy/i],
+      [/\b(expiry|expires|valid thru)\b/, /expiry|valid thru/i],
+      [/\b(card number)\b/, /card number|debit card|credit card/i],
+      [/\b(account number)\b/, /account number/i],
+      [/\b(pin|atm pin)\b/, /pin/i],
+      [/\b(cvv|security code)\b/, /cvv|security code/i],
+      [/\b(document number|reference number|application number)\b/, /document number|reference number|application number/i],
+    ].some(([queryPattern, labelPattern]) => queryPattern.test(needle) && labelPattern.test(label));
+  };
+  const exact = entries.filter(intentMatches); if (exact.length) entries = exact; else if (!/(all|details|info|everything|complete)/.test(needle)) entries = entries.slice(0, 1);
+  return { role: 'assistant', title: item.title, markdown: 'Here is exactly what matched your request.', fields: entries.map(([label, value]) => ({ label, value })) };
 }
 function scrollChat() { requestAnimationFrame(() => { const node = document.querySelector('#messages'); if (node) node.scrollTop = node.scrollHeight; }); }
 function generateBirthdayMessage(id) { const item = state.items.find(row => row.id === id); state.view = 'assistant'; shell(); askAssistant(`Write a warm, natural birthday message for the person in my saved birthday record titled "${item.title}". Do not reveal or request any private vault values.`); }
