@@ -84,10 +84,6 @@
             {
               "name": "ReminderTitle",
               "type": "AMAZON.SearchQuery"
-            },
-            {
-              "name": "DueAt",
-              "type": "AMAZON.SearchQuery"
             }
           ],
           "samples": [
@@ -95,8 +91,6 @@
             "remind me to {ReminderTitle}",
             "create a reminder for {ReminderTitle}",
             "set a reminder to {ReminderTitle}",
-            "remind me to {ReminderTitle} at {DueAt}",
-            "add a reminder to {ReminderTitle} on {DueAt}",
             "set a reminder for {ReminderTitle}",
             "add reminder {ReminderTitle}",
             "remind me about {ReminderTitle}"
@@ -117,7 +111,7 @@
             "snooze my {ReminderTitle} reminder",
             "snooze reminder",
             "snooze",
-            "snooze for 30 minutes"
+            "snooze for thirty minutes"
           ]
         },
         {
