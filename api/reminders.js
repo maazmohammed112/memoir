@@ -43,33 +43,33 @@ function localDueString(timestamp) {
 async function loadReminderItems(profile) {
   let items = listRuntimeItems(profile.uid);
   if (!items.length && hasAdminMirror()) {
-    const snapshot = await getAdmin().firestore().collection('secureVault').doc(profile.uid).collection('items').get();
+    const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
     items = snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean); replaceRuntimeItems(profile.uid, items);
   }
   return items.filter(item => item.type === 'Reminder');
 }
 
 const scopedKey = (profile, key) => `${profile.uid}:${key}`;
-const deliveryRef = (profile, key) => getAdmin().firestore().collection('reminderDeliveries').doc(profile.uid).collection('items').doc(key);
+const deliveryRef = async (profile, key) => (await getAdmin()).firestore().collection('reminderDeliveries').doc(profile.uid).collection('items').doc(key);
 async function reserveDelivery(profile, key) {
   const memoryKey = scopedKey(profile, key); if (reminderWasDelivered(memoryKey) || deliveryReservations.has(memoryKey)) return false; deliveryReservations.add(memoryKey);
   if (!hasAdminMirror()) return true;
-  try { await deliveryRef(profile, key).create({ status: 'sending', claimedAt: Date.now() }); return true; }
+  try { await (await deliveryRef(profile, key)).create({ status: 'sending', claimedAt: Date.now() }); return true; }
   catch (error) { deliveryReservations.delete(memoryKey); if (error?.code === 6 || /already exists/i.test(error?.message || '')) return false; throw error; }
 }
 async function finishDelivery(profile, key) {
   const memoryKey = scopedKey(profile, key); markReminderDelivered(memoryKey); deliveryReservations.delete(memoryKey);
-  if (hasAdminMirror()) await deliveryRef(profile, key).set({ status: 'sent', deliveredAt: Date.now() }, { merge: true });
+  if (hasAdminMirror()) await (await deliveryRef(profile, key)).set({ status: 'sent', deliveredAt: Date.now() }, { merge: true });
 }
 async function releaseDelivery(profile, key) {
   deliveryReservations.delete(scopedKey(profile, key));
-  if (hasAdminMirror()) await deliveryRef(profile, key).delete().catch(() => {});
+  if (hasAdminMirror()) await (await deliveryRef(profile, key)).delete().catch(() => {});
 }
 
 async function queuePersistedAction(profile, action, source) {
   const queued = queueRuntimeActions(profile.uid, [action], source);
   if (hasAdminMirror()) {
-    const collection = getAdmin().firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
+    const collection = (await getAdmin()).firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
     await Promise.all(queued.map(entry => collection.doc(entry.queueId).set({ payload: serverEncrypt(entry), createdAt: entry.createdAt })));
   }
 }

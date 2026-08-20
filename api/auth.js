@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { Timestamp } from 'firebase-admin/firestore';
 import { getAdmin, verifyApprovedToken, verifiedSessionFor } from '../lib/firebaseAdmin.js';
 import { getUserByUid, SESSION_LENGTH_MS } from '../lib/users.js';
 import { telegramRequest } from '../lib/telegramClient.js';
@@ -25,7 +24,7 @@ function safeEqual(left, right) {
 async function requestOtp(identity) {
   const profile = getUserByUid(identity.uid);
   if (!profile?.telegramToken || !profile.telegramChatId) { const error = new Error('Telegram OTP is not configured for this account'); error.status = 503; throw error; }
-  const firestore = getAdmin().firestore();
+  const firestore = (await getAdmin()).firestore();
   const ref = firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(String(identity.auth_time));
   const previous = await ref.get(); const previousData = previous.data() || {};
   const lastSentAt = typeof previousData.sentAt?.toMillis === 'function' ? previousData.sentAt.toMillis() : Number(previousData.sentAt || 0);
@@ -38,7 +37,7 @@ async function requestOtp(identity) {
   const now = Date.now(); const expiresAt = now + OTP_LIFETIME_MS;
   await ref.set({
     hash: challengeHash(identity.uid, identity.auth_time, code), lastCodeHash: stableHash,
-    authTime: Number(identity.auth_time), createdAt: Timestamp.fromMillis(now), expiresAt: Timestamp.fromMillis(expiresAt),
+    authTime: Number(identity.auth_time), createdAt: new Date(now), expiresAt: new Date(expiresAt),
     attempts: 0, status: 'pending', sentAt: null,
   });
   try {
@@ -46,9 +45,9 @@ async function requestOtp(identity) {
       chat_id: profile.telegramChatId,
       text: `🔐 Memoir sign-in code\n\n${code}\n\nThis code is for ${profile.name}'s vault and expires in 5 minutes. Never share it with anyone.`,
     });
-    await ref.set({ sentAt: Timestamp.now(), status: 'sent' }, { merge: true });
+    await ref.set({ sentAt: new Date(), status: 'sent' }, { merge: true });
   } catch (error) {
-    await ref.set({ status: 'delivery-failed', failedAt: Timestamp.now() }, { merge: true });
+    await ref.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true });
     const deliveryError = new Error('Open your assigned Telegram bot, tap Start, then request a new sign-in code.');
     deliveryError.status = 424; deliveryError.cause = error; throw deliveryError;
   }
@@ -58,7 +57,7 @@ async function requestOtp(identity) {
 async function verifyOtp(identity, input) {
   const code = String(input || '').replace(/\D/g, '');
   if (!/^\d{6}$/.test(code)) { const error = new Error('Enter the 6-digit code'); error.status = 400; throw error; }
-  const firestore = getAdmin().firestore(); const sessionId = String(identity.auth_time);
+  const firestore = (await getAdmin()).firestore(); const sessionId = String(identity.auth_time);
   const challengeRef = firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(sessionId);
   const sessionRef = firestore.collection('verifiedSessions').doc(identity.uid).collection('sessions').doc(sessionId);
   const expiresAt = Math.min(Number(identity.auth_time) * 1000 + SESSION_LENGTH_MS, Date.now() + SESSION_LENGTH_MS);
@@ -71,8 +70,8 @@ async function verifyOtp(identity, input) {
       transaction.update(challengeRef, { attempts: Number(data.attempts || 0) + 1 });
       return { error: 'The code is incorrect', status: 400 };
     }
-    transaction.set(sessionRef, { authTime: Number(identity.auth_time), verifiedAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(expiresAt) });
-    transaction.update(challengeRef, { status: 'used', usedAt: Timestamp.now(), hash: null });
+    transaction.set(sessionRef, { authTime: Number(identity.auth_time), verifiedAt: new Date(), expiresAt: new Date(expiresAt) });
+    transaction.update(challengeRef, { status: 'used', usedAt: new Date(), hash: null });
     return { verified: true };
   });
   if (outcome?.error) { const error = new Error(outcome.error); error.status = outcome.status; throw error; }
@@ -92,7 +91,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ verified: Boolean(session), expiresAt: session?.expiresAt || 0 });
     }
     if (action === 'revoke') {
-      const sessionId = String(identity.auth_time); const firestore = getAdmin().firestore();
+      const sessionId = String(identity.auth_time); const firestore = (await getAdmin()).firestore();
       await Promise.all([
         firestore.collection('verifiedSessions').doc(identity.uid).collection('sessions').doc(sessionId).delete().catch(() => {}),
         firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(sessionId).delete().catch(() => {}),

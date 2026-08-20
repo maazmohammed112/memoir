@@ -1,5 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
-import { Mistral } from '@mistralai/mistralai';
 import { verifyOwnerToken } from '../lib/firebaseAdmin.js';
 
 const coolingDown = new Map();
@@ -83,6 +81,7 @@ async function withFallback(provider, task) {
 
 async function callGemini(prompt) {
   if (!process.env.GEMINI_API_KEY) throw new Error('Gemini is not configured');
+  const { GoogleGenAI } = await import('@google/genai');
   const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   return withFallback('gemini', async model => {
     const response = await client.models.generateContent({ model, contents: prompt, config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', temperature: 0.15 } });
@@ -91,6 +90,7 @@ async function callGemini(prompt) {
 }
 async function callMistral(prompt) {
   if (!process.env.MISTRAL_API_KEY) throw new Error('Mistral is not configured');
+  const { Mistral } = await import('@mistralai/mistralai');
   const client = new Mistral({ apiKey: process.env.MISTRAL_API_KEY });
   return withFallback('mistral', async model => {
     const response = await client.chat.complete({ model, responseFormat: { type: 'json_object' }, temperature: 0.15, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: prompt }] });

@@ -16,7 +16,7 @@ export default async function handler(req, res) {
       if (JSON.stringify(items).length > 1000000) return res.status(413).json({ error: 'Snapshot too large' });
       replaceRuntimeItems(identity.uid, items);
       if (hasAdminMirror()) {
-        const admin = getAdmin(); const collection = admin.firestore().collection('secureVault').doc(identity.uid).collection('items'); const existing = await collection.get();
+        const admin = await getAdmin(); const collection = admin.firestore().collection('secureVault').doc(identity.uid).collection('items'); const existing = await collection.get();
         const incomingIds = new Set(items.map(item => item.id)); const writes = [];
         existing.docs.filter(doc => !incomingIds.has(doc.id)).forEach(doc => writes.push(() => doc.ref.delete()));
         items.forEach(item => writes.push(() => collection.doc(item.id).set({ payload: serverEncrypt(item), updatedAt: Date.now() })));
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
     else { const serialized = JSON.stringify(body.item || {}); if (serialized.length > 100000) return res.status(413).json({ error: 'Record too large' }); putRuntimeItem(identity.uid, body.item); }
 
     if (!hasAdminMirror()) return res.status(200).json({ ok: true, mirrored: 'runtime' });
-    const admin = getAdmin(); const ref = admin.firestore().collection('secureVault').doc(identity.uid).collection('items').doc(id);
+    const admin = await getAdmin(); const ref = admin.firestore().collection('secureVault').doc(identity.uid).collection('items').doc(id);
     if (body.op === 'delete') await ref.delete();
     else await ref.set({ payload: serverEncrypt(body.item), updatedAt: Date.now() });
     const chatId = getUserByUid(identity.uid)?.telegramChatId;

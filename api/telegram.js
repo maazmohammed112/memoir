@@ -16,7 +16,7 @@ export const telegram = (profileOrUid, method, payload) => telegramRequest(profi
 async function loadVault(profile) {
   const runtime = listRuntimeItems(profile.uid); if (runtime.length) return runtime;
   if (!hasAdminMirror()) return [];
-  const snapshot = await getAdmin().firestore().collection('secureVault').doc(profile.uid).collection('items').get();
+  const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
   return snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
 }
 
@@ -66,14 +66,14 @@ function rehydrateActions(actions, privateValues) {
 
 async function persistQueuedActions(profile, queued) {
   if (!hasAdminMirror() || !queued.length) return;
-  const collection = getAdmin().firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
+  const collection = (await getAdmin()).firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
   await Promise.all(queued.map(entry => collection.doc(entry.queueId).set({ payload: serverEncrypt(entry), createdAt: entry.createdAt })));
 }
 
 async function pullQueuedActions(profile) {
   const runtime = pullRuntimeActions(profile.uid);
   if (!hasAdminMirror()) return runtime;
-  const snapshot = await getAdmin().firestore().collection('telegramActionQueue').doc(profile.uid).collection('items').orderBy('createdAt').limit(100).get();
+  const snapshot = await (await getAdmin()).firestore().collection('telegramActionQueue').doc(profile.uid).collection('items').orderBy('createdAt').limit(100).get();
   const persisted = snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
   const seen = new Set(); return [...runtime, ...persisted].filter(entry => entry?.queueId && !seen.has(entry.queueId) && seen.add(entry.queueId));
 }
@@ -81,7 +81,7 @@ async function pullQueuedActions(profile) {
 async function acknowledgeQueuedActions(profile, ids) {
   acknowledgeRuntimeActions(profile.uid, ids);
   if (!hasAdminMirror() || !ids?.length) return;
-  const collection = getAdmin().firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
+  const collection = (await getAdmin()).firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
   await Promise.all(ids.slice(0, 100).map(id => collection.doc(String(id)).delete()));
 }
 
@@ -126,13 +126,13 @@ export async function claimMessageKey(profile, key) {
   if (!key) return { claimed: true, id: '', uid: profile.uid }; const id = crypto.createHash('sha256').update(`${profile.uid}:${String(key)}`).digest('hex');
   if (sentMessageKeys.has(id)) return { claimed: false, id }; sentMessageKeys.add(id);
   if (!hasAdminMirror()) return { claimed: true, id, uid: profile.uid };
-  try { await getAdmin().firestore().collection('telegramMessageDeliveries').doc(profile.uid).collection('items').doc(id).create({ key: String(key).slice(0, 300), claimedAt: Date.now() }); return { claimed: true, id, uid: profile.uid }; }
+  try { await (await getAdmin()).firestore().collection('telegramMessageDeliveries').doc(profile.uid).collection('items').doc(id).create({ key: String(key).slice(0, 300), claimedAt: Date.now() }); return { claimed: true, id, uid: profile.uid }; }
   catch (error) { if (error?.code === 6 || /already exists/i.test(error?.message || '')) return { claimed: false, id }; sentMessageKeys.delete(id); throw error; }
 }
 
 async function releaseMessageKey(claim) {
   if (!claim?.id) return; sentMessageKeys.delete(claim.id);
-  if (hasAdminMirror()) await getAdmin().firestore().collection('telegramMessageDeliveries').doc(claim.uid).collection('items').doc(claim.id).delete().catch(() => {});
+  if (hasAdminMirror()) await (await getAdmin()).firestore().collection('telegramMessageDeliveries').doc(claim.uid).collection('items').doc(claim.id).delete().catch(() => {});
 }
 
 export async function processTelegramUpdate(update, profile = getUserByChatId(update?.message?.chat?.id || update?.callback_query?.message?.chat?.id)) {
