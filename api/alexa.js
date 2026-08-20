@@ -138,12 +138,32 @@ function getUpcomingReminders(items) {
   return `You have ${sorted.length} active reminder${sorted.length > 1 ? 's' : ''}: ${speechList.join(' ')}`;
 }
 
+const WORD_NUMBERS = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17,
+  eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50,
+};
+
+function cleanSpokenTitle(raw) {
+  let text = String(raw || '')
+    .replace(/\b(add a reminder to|add reminder to|add a reminder for|add reminder for|remind me to|remind me about|create reminder to|set a reminder to|set reminder to|add reminder|remind me)\b/gi, '')
+    .replace(/(?:\b(?:at|for|around)\s+)?\d{1,2}(?:[:.]\d{2})?\s*(?:a\.m\.|p\.m\.|a\.m|p\.m|am|pm|o'clock)?/gi, '')
+    .replace(/(?:\b(?:at|for)\s+)?(half past|quarter past|quarter to)?\s*(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(?:(fifteen|thirty|forty five|forty|fifty|twenty five|twenty|ten|five))?\s*(am|pm|a\.m\.|p\.m\.|in the morning|in the evening|in the afternoon|at night|o'clock)?/gi, '')
+    .replace(/\b(tomorrow|day after tomorrow|today|tonight|in the morning|in the evening|in the afternoon|at night)\b/gi, '')
+    .replace(/\b(a\.m\.|p\.m\.|a\.m|p\.m|am|pm)\b/gi, '')
+    .replace(/^\s*(?:to|for)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) text = 'Reminder';
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function parseSpokenReminder(rawText, explicitDue) {
   let text = String(rawText || '').trim();
   if (explicitDue) {
     const parsedExplicit = new Date(explicitDue).getTime();
     if (Number.isFinite(parsedExplicit)) {
-      return { title: text.replace(/^remind me to\s+/i, '').replace(/^add a reminder to\s+/i, ''), timestamp: parsedExplicit };
+      return { title: cleanSpokenTitle(text), timestamp: parsedExplicit };
     }
   }
 
@@ -153,52 +173,95 @@ function parseSpokenReminder(rawText, explicitDue) {
   const isTomorrow = /\btomorrow\b/i.test(text);
   const isDayAfter = /\bday after tomorrow\b/i.test(text);
   const isTonight = /\btonight\b/i.test(text);
+  const isMorning = /\bmorning\b/i.test(text);
+  const isAfternoon = /\bafternoon\b/i.test(text);
+  const isEvening = /\bevening\b/i.test(text);
+  const isNight = /\bnight\b/i.test(text);
 
   if (isTomorrow) targetDate.setDate(targetDate.getDate() + 1);
   if (isDayAfter) targetDate.setDate(targetDate.getDate() + 2);
 
-  // Time pattern matching: "4:00 a.m.", "4 am", "4:30 pm", "at 4", "for 4", "8 pm"
-  const timeRegex = /(?:\b(?:at|for)\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.m\.|p\.m\.|a\.m|p\.m|am|pm|o'clock)?/i;
-  const timeMatch = text.match(timeRegex);
   let hours = 9;
   let minutes = 0;
   let foundTime = false;
 
+  // 1. Relative offset: 'in 10 minutes', 'in 2 hours', 'in thirty minutes'
+  const inMatch = text.match(/\bin\s+(\d+|one|two|three|four|five|ten|fifteen|twenty|thirty|forty|fifty|sixty)\s+(minute|minutes|min|mins|hour|hours|hr|hrs)\b/i);
+  if (inMatch) {
+    const qty = WORD_NUMBERS[inMatch[1].toLowerCase()] || parseInt(inMatch[1], 10) || 1;
+    const unit = inMatch[2].toLowerCase();
+    const ms = unit.startsWith('hour') || unit.startsWith('hr') ? qty * 60 * 60 * 1000 : qty * 60 * 1000;
+    return { title: cleanSpokenTitle(text.replace(inMatch[0], '')), timestamp: now.getTime() + ms };
+  }
+
+  // 2. Specific Prayer & Meal times
+  if (/\b(fajr|fajar|sehri|suhoor|tahajjud)\b/i.test(text) && !/\d|o'clock/i.test(text)) {
+    hours = 5; minutes = 0; foundTime = true;
+  } else if (/\b(dhuhr|zuhr|zohar|jumma|juma)\b/i.test(text) && !/\d|o'clock/i.test(text)) {
+    hours = 13; minutes = 30; foundTime = true;
+  } else if (/\b(asr|asar)\b/i.test(text) && !/\d|o'clock/i.test(text)) {
+    hours = 17; minutes = 0; foundTime = true;
+  } else if (/\b(maghrib|magrib|iftar|iftaar)\b/i.test(text) && !/\d|o'clock/i.test(text)) {
+    hours = 18; minutes = 45; foundTime = true;
+  } else if (/\b(isha|ishaa)\b/i.test(text) && !/\d|o'clock/i.test(text)) {
+    hours = 20; minutes = 30; foundTime = true;
+  } else if (/\bbreakfast\b/i.test(text) && !/\d/i.test(text)) {
+    hours = 8; minutes = 30; foundTime = true;
+  } else if (/\blunch\b/i.test(text) && !/\d/i.test(text)) {
+    hours = 13; minutes = 30; foundTime = true;
+  } else if (/\bdinner\b/i.test(text) && !/\d/i.test(text)) {
+    hours = 20; minutes = 30; foundTime = true;
+  }
+
+  // 3. Digital or number time match: '4:30 am', '4:00', '4 am', '16:00', '4.30 pm'
+  const timeRegex = /(?:\b(?:at|for)\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(a\.m\.|p\.m\.|a\.m|p\.m|am|pm|o'clock)?/i;
+  const timeMatch = text.match(timeRegex);
   if (timeMatch && (timeMatch[3] || timeMatch[2] || /\b(at|for)\b/i.test(timeMatch[0]))) {
     foundTime = true;
     let h = parseInt(timeMatch[1], 10);
     const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
     const mer = (timeMatch[3] || '').toLowerCase().replace(/\./g, '');
-
     if (mer === 'pm' && h < 12) h += 12;
     if (mer === 'am' && h === 12) h = 0;
-    if (!mer && isTonight && h < 12) h += 12;
-
+    if (!mer && (isEvening || isNight || isTonight) && h < 12) h += 12;
+    if (!mer && isAfternoon && h <= 5) h += 12;
     hours = h;
     minutes = m;
-  } else if (isTonight) {
-    hours = 20;
-    minutes = 0;
-    foundTime = true;
   }
 
+  // 4. Word-based time match: 'four thirty am', 'half past four', 'quarter to five', 'four in the morning'
+  if (!foundTime) {
+    const wordMatch = text.match(/(?:at|for)?\s*(half past|quarter past|quarter to)?\s*(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(?:(fifteen|thirty|forty five|forty|fifty|twenty five|twenty|ten|five))?\s*(am|pm|a\.m\.|p\.m\.|in the morning|in the evening|in the afternoon|at night|o'clock)?/i);
+    if (wordMatch && (wordMatch[1] || wordMatch[3] || wordMatch[4] || /\b(at|for)\b/i.test(wordMatch[0]))) {
+      foundTime = true;
+      let h = WORD_NUMBERS[wordMatch[2].toLowerCase()] || 9;
+      let m = 0;
+      if (wordMatch[1]) {
+        const prefix = wordMatch[1].toLowerCase();
+        if (prefix === 'half past') m = 30;
+        else if (prefix === 'quarter past') m = 15;
+        else if (prefix === 'quarter to') { m = 45; h = (h - 1 + 12) % 12; }
+      } else if (wordMatch[3]) {
+        const minWord = wordMatch[3].toLowerCase();
+        if (minWord === 'forty five') m = 45;
+        else if (minWord === 'twenty five') m = 25;
+        else m = WORD_NUMBERS[minWord] || 0;
+      }
+      const mer = (wordMatch[4] || '').toLowerCase();
+      if ((mer.includes('pm') || mer.includes('evening') || mer.includes('night') || isEvening || isNight || isTonight) && h < 12) h += 12;
+      if (mer.includes('afternoon') && h <= 5) h += 12;
+      if (mer.includes('am') && h === 12) h = 0;
+      hours = h;
+      minutes = m;
+    }
+  }
+
+  if (isTonight && !foundTime) { hours = 20; minutes = 0; }
   targetDate.setHours(hours, minutes, 0, 0);
 
-  // Clean title
-  let clean = text
-    .replace(/\b(add a reminder to|add reminder to|add a reminder for|add reminder for|remind me to|remind me about|create reminder to|set a reminder to|set reminder to|add reminder|remind me)\b/gi, '')
-    .replace(/(?:\b(?:at|for)\s+)?\d{1,2}(?::\d{2})?\s*(?:a\.m\.|p\.m\.|a\.m|p\.m|am|pm|o'clock)?/gi, '')
-    .replace(/\b(tomorrow|day after tomorrow|today|tonight)\b/gi, '')
-    .replace(/\b(a\.m\.|p\.m\.|a\.m|p\.m|am|pm)\b/gi, '')
-    .replace(/^\s*(?:to|for)\s+/i, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!clean) clean = 'Reminder';
-  clean = clean.charAt(0).toUpperCase() + clean.slice(1);
-
-  return { title: clean, timestamp: targetDate.getTime() };
+  return { title: cleanSpokenTitle(text), timestamp: targetDate.getTime() };
 }
+
 
 async function handleAddReminder(profile, { title, dueAt, note }) {
   if (!title) return 'Please specify what you would like to be reminded about.';
