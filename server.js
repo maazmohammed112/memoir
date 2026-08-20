@@ -6,6 +6,7 @@ import auth from './api/auth.js';
 import telegram, { startTelegramPolling } from './api/telegram.js';
 import sync from './api/sync.js';
 import reminders, { runReminderSweep } from './api/reminders.js';
+import alexa from './api/alexa.js';
 
 dotenv.config({ path: '.env.local', override: true });
 const server = express();
@@ -18,7 +19,8 @@ server.post('/api/telegram', telegram);
 server.post('/api/sync', sync);
 server.post('/api/reminders', reminders);
 server.get('/api/reminders', reminders);
-server.get('/api/health', (_req, res) => res.json({ ok: true, gemini: Boolean(process.env.GEMINI_API_KEY), mistral: Boolean(process.env.MISTRAL_API_KEY), telegram: Boolean(process.env.TELEGRAM_BOT_TOKEN || process.env.MAAZ_TELEGRAM_BOT_TOKEN || process.env.DEEPTI_TELEGRAM_BOT_TOKEN), telegramPolling: Boolean((process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) || (process.env.MAAZ_TELEGRAM_BOT_TOKEN && process.env.MAAZ_TELEGRAM_CHAT_ID) || (process.env.DEEPTI_TELEGRAM_BOT_TOKEN && process.env.DEEPTI_TELEGRAM_CHAT_ID)), secureMirror: Boolean((process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_FILE) && process.env.VAULT_SERVER_KEY) }));
+server.post('/api/alexa', alexa);
+server.get('/api/health', (_req, res) => res.json({ ok: true, gemini: Boolean(process.env.GEMINI_API_KEY), mistral: Boolean(process.env.MISTRAL_API_KEY), telegram: Boolean(process.env.TELEGRAM_BOT_TOKEN || process.env.MAAZ_TELEGRAM_BOT_TOKEN || process.env.DEEPTI_TELEGRAM_BOT_TOKEN), telegramPolling: Boolean((process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) || (process.env.MAAZ_TELEGRAM_BOT_TOKEN && process.env.MAAZ_TELEGRAM_CHAT_ID) || (process.env.DEEPTI_TELEGRAM_BOT_TOKEN && process.env.DEEPTI_TELEGRAM_CHAT_ID)), alexaBridge: Boolean(process.env.ALEXA_BRIDGE_SECRET || process.env.ALEXA_SKILL_ID), secureMirror: Boolean((process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_FILE) && process.env.VAULT_SERVER_KEY) }));
 server.listen(Number(process.env.PORT || 8787), () => {
   console.log(`Memoir API ready on http://localhost:${process.env.PORT || 8787}`);
   startTelegramPolling().catch(error => console.warn('Telegram polling could not start:', error?.message));

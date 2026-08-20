@@ -1,0 +1,138 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "rhino memoir",
+      "intents": [
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "UpcomingBirthdaysIntent",
+          "slots": [],
+          "samples": [
+            "what birthdays are coming",
+            "what birthdays are coming up",
+            "upcoming birthdays",
+            "whose birthday is next",
+            "any birthdays this month",
+            "who has a birthday soon",
+            "birthdays",
+            "check birthdays",
+            "what are the upcoming birthdays"
+          ]
+        },
+        {
+          "name": "UpcomingRemindersIntent",
+          "slots": [],
+          "samples": [
+            "what reminders do I have today",
+            "what reminders do I have",
+            "upcoming reminders",
+            "what are my reminders",
+            "any reminders coming up",
+            "what do I need to do",
+            "check my reminders",
+            "reminders for today",
+            "what is on my reminder list"
+          ]
+        },
+        {
+          "name": "AddReminderIntent",
+          "slots": [
+            {
+              "name": "ReminderTitle",
+              "type": "AMAZON.SearchQuery"
+            },
+            {
+              "name": "DueAt",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "add a reminder to {ReminderTitle}",
+            "remind me to {ReminderTitle}",
+            "create a reminder for {ReminderTitle}",
+            "set a reminder to {ReminderTitle}",
+            "remind me to {ReminderTitle} at {DueAt}",
+            "add a reminder to {ReminderTitle} on {DueAt}",
+            "set a reminder for {ReminderTitle}"
+          ]
+        },
+        {
+          "name": "SnoozeReminderIntent",
+          "slots": [
+            {
+              "name": "ReminderTitle",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "snooze my reminder",
+            "snooze {ReminderTitle}",
+            "snooze the {ReminderTitle} reminder",
+            "snooze my {ReminderTitle} reminder",
+            "snooze reminder"
+          ]
+        },
+        {
+          "name": "CompleteReminderIntent",
+          "slots": [
+            {
+              "name": "ReminderTitle",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "mark my reminder as done",
+            "complete my {ReminderTitle} reminder",
+            "mark {ReminderTitle} as completed",
+            "finish {ReminderTitle} reminder",
+            "mark my {ReminderTitle} reminder as done",
+            "complete reminder",
+            "mark reminder done"
+          ]
+        },
+        {
+          "name": "AskSafeInfoIntent",
+          "slots": [
+            {
+              "name": "Query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "ask about {Query}",
+            "what is my {Query}",
+            "when did I buy my {Query}",
+            "when is my {Query}",
+            "what did I note about {Query}",
+            "tell me about {Query}",
+            "look up {Query}",
+            "search for {Query}",
+            "find my {Query}",
+            "where is my {Query}",
+            "for my {Query}"
+          ]
+        }
+      ],
+      "types": []
+    }
+  }
+}

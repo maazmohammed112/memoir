@@ -803,8 +803,4 @@ setInterval(runBackgroundAutomation, 30000);
 setInterval(updateReminderCountdowns, 1000);
 setInterval(updateSecurityCountdowns, 1000);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
-document.addEventListener('contextmenu', event => event.preventDefault());
-document.addEventListener('keydown', event => {
-  const blocked = event.key === 'F12' || ((event.ctrlKey || event.metaKey) && event.shiftKey && ['i', 'j', 'c'].includes(event.key.toLowerCase())) || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'u');
-  if (blocked) { event.preventDefault(); event.stopPropagation(); toast('Developer shortcuts are disabled in Memoir'); }
-}, true);
+
