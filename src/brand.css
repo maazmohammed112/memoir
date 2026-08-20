@@ -87,7 +87,7 @@
   pointer-events: none;
 }
 
-body.auth-locked { overflow: hidden; }
+body.auth-locked { overflow-x: hidden; overflow-y: auto; }
 
 .auth-shell {
   min-height: 100vh;
@@ -99,12 +99,14 @@ body.auth-locked { overflow: hidden; }
 
 .auth-card {
   width: min(440px, calc(100% - 56px));
+  max-height: calc(100dvh - 32px);
   margin: auto;
   padding: 38px;
   border: 1px solid var(--line);
   border-radius: 32px;
   background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: 0 30px 90px rgba(50, 25, 38, .12);
+  overflow-y: auto;
   animation: auth-enter .45s cubic-bezier(.2,.8,.2,1) both;
 }
 
@@ -795,6 +797,7 @@ body.auth-locked { overflow: hidden; }
   .auth-card { width: calc(100% - 26px); padding: 27px 22px; border-radius: 27px; }
   .auth-brand { margin-bottom: 34px; }
   .auth-copy h1 { font-size: 30px; }
+  .otp-security-meta { flex-direction: column; gap: 3px; }
   .payment-card { min-height: 205px; padding: 18px; border-radius: 22px; }
   .payment-card-number > span { font-size: 14px; letter-spacing: .08em; }
   .payment-card-meta { gap: 11px; }
