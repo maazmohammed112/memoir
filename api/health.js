@@ -18,7 +18,13 @@ export default async function handler(req, res) {
   if (!expected || supplied !== expected) return res.status(403).json({ error: 'Invalid diagnostic token' });
 
   const profiles = listUserProfiles();
-  const checks = { firebase: false, users: {}, telegram: {} };
+  const checks = {
+    firebase: false,
+    firebaseConfigured: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_FILE),
+    firebaseError: '',
+    users: {},
+    telegram: {},
+  };
   try {
     const admin = await getAdmin();
     const records = await Promise.all(profiles.map(profile => admin.auth().getUser(profile.uid)));
@@ -26,6 +32,16 @@ export default async function handler(req, res) {
     profiles.forEach((profile, index) => { checks.users[profile.uid] = Boolean(records[index]); });
   } catch (error) {
     console.error('Firebase diagnostic failed:', error?.message);
+    const message = String(error?.message || '');
+    checks.firebaseError = /default credentials/i.test(message)
+      ? 'missing-service-account'
+      : /JSON|base64|unexpected token/i.test(message)
+        ? 'invalid-service-account-json'
+        : /private key|PEM|DECODER/i.test(message)
+          ? 'invalid-private-key'
+          : /user.?not.?found/i.test(`${error?.code || ''} ${message}`)
+            ? 'approved-user-not-found'
+            : String(error?.code || 'firebase-admin-error').slice(0, 100);
   }
 
   await Promise.all(profiles.map(async profile => {
