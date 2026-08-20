@@ -1,0 +1,28 @@
+{
+  "name": "memoir-personal-vault",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 0.0.0.0\" \"node server.js\"",
+    "build": "vite build",
+    "start": "node server.js",
+    "preview": "vite preview --host 0.0.0.0",
+    "check": "node --check src/main.js && node --check src/store.js && node --check api/assistant.js && node --check api/telegram.js && node --check api/reminders.js && node --check api/sync.js && node --check lib/firebaseAdmin.js && node --check lib/runtimeVault.js && node --check server.js"
+  },
+  "dependencies": {
+    "@google/genai": "latest",
+    "@mistralai/mistralai": "latest",
+    "dompurify": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "firebase": "latest",
+    "firebase-admin": "latest",
+    "lucide": "latest",
+    "marked": "latest"
+  },
+  "devDependencies": {
+    "concurrently": "latest",
+    "vite": "latest"
+  }
+}

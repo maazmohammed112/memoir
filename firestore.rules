@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isVaultOwner() {
+      return request.auth != null
+        && request.auth.uid == 'uQE6xqhWhQWhOlGmfT2br5HnCEq2'
+        && request.auth.token.email == 'maaz@memo.com'
+        && request.auth.token.firebase.sign_in_provider == 'password'
+        && request.time < timestamp.value(request.auth.token.auth_time * 1000) + duration.value(48, 'h');
+    }
+    match /users/{userId} {
+      allow read, write: if isVaultOwner() && userId == request.auth.uid;
+      match /items/{itemId} {
+        allow read, write: if isVaultOwner() && userId == request.auth.uid;
+      }
+      match /vaultKeys/{keyId} {
+        allow read, write: if isVaultOwner() && userId == request.auth.uid;
+      }
+    }
+    match /secureVault/{document=**} { allow read, write: if false; }
+    match /telegramLinks/{document=**} { allow read, write: if false; }
+  }
+}
