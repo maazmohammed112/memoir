@@ -213,7 +213,7 @@ function shell() {
       <div class="secure-note"><span class="icon-wrap">${icon('ShieldCheck')}</span><strong>Private by design</strong><p>Values are encrypted before cloud sync. AI sees only your vault structure.</p></div>
       <button class="profile" data-logout title="Sign out"><span class="avatar">MM</span><span><strong>Maaz</strong><small>Sign out securely</small></span>${icon('LogOut')}</button>
     </aside>
-    <main class="content">
+    <main class="content ${state.view === 'assistant' ? 'assistant-content' : ''}">
       <header class="topbar">
         <div class="topbar-copy"><span class="mobile-brand-icon"><img src="/brand/pwa-192.png" alt="Memoir"></span><div><p class="eyebrow">${new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>${titleForView()}</h1></div></div>
         <div class="top-actions">

@@ -860,7 +860,31 @@ body.auth-locked { overflow: hidden; }
 
 @media (max-width: 880px) {
   .mobile-nav .nav-btn { width: clamp(43px, 13.5vw, 53px); }
-  .chat { height: calc(100dvh - 180px); min-height: 480px; }
+  .assistant-content {
+    height: 100dvh;
+    min-height: 0;
+    padding-bottom: calc(94px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .assistant-content .topbar { flex: none; }
+  .assistant-content > .view {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .assistant-content .assistant-layout,
+  .assistant-content .chat {
+    width: 100%;
+    min-height: 0;
+    height: 100%;
+  }
+  .assistant-content .assistant-layout { display: block; }
+  .assistant-content .chat { display: flex; flex-direction: column; }
+  .assistant-content .messages { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .assistant-content .chat-form { flex: none; }
   .reminder-hero { min-height: 205px; padding: 24px; align-items: flex-start; flex-direction: column; justify-content: flex-end; }
 }
 
