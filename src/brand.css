@@ -70,6 +70,40 @@
 
 .document-field-help .icon { width: 14px; height: 14px; flex: none; color: var(--green); }
 
+.memory-filters {
+  margin: -4px 0 18px;
+  padding: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  width: max-content;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface2) 72%, transparent);
+}
+
+.memory-filters button {
+  min-height: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  transition: .18s ease;
+}
+
+.memory-filters button:hover { color: var(--ink); background: var(--surface); }
+.memory-filters button.active { color: #fff; background: #1d191c; box-shadow: 0 6px 18px #180e1330; }
+.memory-filters button b { min-width: 19px; padding: 2px 6px; border-radius: 20px; background: var(--surface); color: var(--muted); font-size: 8px; }
+.memory-filters button.active b { color: #fff; background: #ffffff20; }
+
 .add-custom-field { min-height: 36px; margin: 2px 0 10px; padding-inline: 12px; font-size: 10px; }
 .custom-memory-field { display: grid; grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr); gap: 10px; }
 .custom-memory-field label { min-width: 0; }
@@ -1449,6 +1483,14 @@ body.auth-locked { overflow-x: hidden; overflow-y: auto; }
     grid-column: 1 / -1;
     width: 100%;
   }
+
+  .memory-filters {
+    width: 100%;
+    padding: 5px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .memory-filters button { min-width: 0; padding-inline: 7px; }
 
   .vault-list { gap: 10px; }
   .vault-row {
