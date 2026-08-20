@@ -21,6 +21,7 @@ The Firebase web configuration is already included. In the Firebase Console:
 4. For background Telegram access, create a Firebase Admin service account and place its JSON (single-line JSON or Base64) in `FIREBASE_SERVICE_ACCOUNT_JSON`.
 5. Generate a long random secret (at least 24 characters) for `VAULT_SERVER_KEY`.
 6. Add `CRON_SECRET` in Vercel and keep `APP_TIMEZONE=Asia/Calcutta` for background reminder delivery.
+7. On Vercel Hobby, configure an external HTTPS scheduler to call `GET https://YOUR_DOMAIN/api/reminders` every minute with the header `Authorization: Bearer YOUR_CRON_SECRET`.
 
 Without steps 1–3, Memoir remains fully usable offline but shows **Offline ready** rather than **Synced**. Without steps 4–5, Telegram background queries and the secure server mirror remain disabled.
 
@@ -70,7 +71,7 @@ Pass the same secret as Telegram’s `secret_token`. The bot ignores every chat 
 
 ## Deployment
 
-`vercel.json` provides Vite output configuration, SPA fallback, security headers, and the minute-by-minute reminder scheduler. Add these values to Vercel’s encrypted environment variables for Production, Preview, and Development as appropriate:
+`vercel.json` provides Vite output configuration, SPA fallback, and security headers. `package.json` requires Node.js `24.x` for Vercel builds and server functions. Add these values to Vercel’s encrypted environment variables for Production, Preview, and Development as appropriate:
 
 - `GEMINI_API_KEY`, `MISTRAL_API_KEY`
 - `GEMINI_MODELS`, `MISTRAL_MODELS`, `TELEGRAM_AI_PROVIDER`
@@ -78,7 +79,11 @@ Pass the same secret as Telegram’s `secret_token`. The bot ignores every chat 
 - `FIREBASE_SERVICE_ACCOUNT_JSON`, `FIREBASE_PROJECT_ID`, `VAULT_OWNER_UID`
 - `VAULT_SERVER_KEY`, `CRON_SECRET`, `APP_TIMEZONE`
 
-Keep `APP_TIMEZONE=Asia/Calcutta`. Generate `VAULT_SERVER_KEY`, `TELEGRAM_WEBHOOK_SECRET`, and `CRON_SECRET` as separate long random values. Do not reuse a password. `FIREBASE_SERVICE_ACCOUNT_JSON` must be the complete single-line service-account JSON (or its Base64 encoding). The one-minute Vercel Cron schedule requires a Vercel plan that supports that frequency.
+Keep `APP_TIMEZONE=Asia/Calcutta`. Generate `VAULT_SERVER_KEY`, `TELEGRAM_WEBHOOK_SECRET`, and `CRON_SECRET` as separate long random values. Do not reuse a password. `FIREBASE_SERVICE_ACCOUNT_JSON` must be the complete single-line service-account JSON (or its Base64 encoding).
+
+Vercel Hobby only supports daily Vercel Cron jobs, so this repository intentionally does not declare a `crons` block. For precise reminders on Hobby, use an external scheduler such as cron-job.org to call `/api/reminders` every minute and send `Authorization: Bearer YOUR_CRON_SECRET`. The endpoint rejects requests without the correct secret.
+
+Telegram reminder delivery requires `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, the Firebase Admin secure mirror, and the external scheduler. Telegram messages, AI queries, and the **Done**/**Snooze 30m** buttons additionally require Telegram's webhook to point to `https://YOUR_DOMAIN/api/telegram`, configured with the same value stored in `TELEGRAM_WEBHOOK_SECRET` and with `message` and `callback_query` updates enabled.
 
 Run `pnpm build`, then deploy. `public/404.html`, the manifest, app icon, and service worker are included.
 

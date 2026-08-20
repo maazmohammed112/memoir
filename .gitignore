@@ -5,3 +5,5 @@ dist/
 !.env.example
 .vercel/
 *.log
+*-firebase-adminsdk-*.json
+*service-account*.json
