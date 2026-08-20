@@ -883,7 +883,15 @@ body.auth-locked { overflow: hidden; }
   }
   .assistant-content .assistant-layout { display: block; }
   .assistant-content .chat { display: flex; flex-direction: column; }
-  .assistant-content .messages { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .assistant-content .messages {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+  .assistant-content .messages > .message { flex: 0 0 auto; }
   .assistant-content .chat-form { flex: none; }
   .reminder-hero { min-height: 205px; padding: 24px; align-items: flex-start; flex-direction: column; justify-content: flex-end; }
 }
