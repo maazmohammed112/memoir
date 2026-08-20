@@ -1097,8 +1097,12 @@ body.auth-locked { overflow: hidden; }
     flex: 1 1 58px;
     min-width: 46px;
     height: 40px;
+    padding: 0;
+    border: 0;
+    background: transparent;
     overflow: hidden;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: pointer;
     isolation: isolate;
     -webkit-mask-image: linear-gradient(90deg, transparent, #000 13%, #000 88%, transparent);
     mask-image: linear-gradient(90deg, transparent, #000 13%, #000 88%, transparent);
@@ -1111,18 +1115,21 @@ body.auth-locked { overflow: hidden; }
     left: 3px;
     height: 1px;
     background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--muted) 24%, transparent), transparent);
+    pointer-events: none;
   }
-  .header-rhino-runner img {
+  .header-rhino-launch {
     position: absolute;
     left: -43px;
     bottom: 7px;
     width: 39px;
     height: 28px;
-    object-fit: contain;
-    filter: contrast(1.12);
+    pointer-events: none;
     animation: header-rhino-run 4.8s cubic-bezier(.42, .03, .58, .98) infinite;
     will-change: left, transform;
   }
+  .header-rhino-runner:hover .header-rhino-launch,
+  .header-rhino-runner:focus-visible .header-rhino-launch { animation-play-state: paused; }
+  .header-rhino-launch img { display: block; width: 100%; height: 100%; object-fit: contain; filter: contrast(1.12); }
   .header-rhino-runner i {
     position: absolute;
     bottom: 6px;
@@ -1133,6 +1140,7 @@ body.auth-locked { overflow: hidden; }
     background: color-mix(in srgb, var(--muted) 40%, transparent);
     opacity: 0;
     animation: rhino-dust 4.8s ease-out infinite;
+    pointer-events: none;
   }
   .header-rhino-runner i:nth-of-type(2) { left: 34%; animation-delay: .18s; }
   .header-rhino-runner i:nth-of-type(3) { left: 61%; animation-delay: .36s; }
@@ -1159,7 +1167,7 @@ body.auth-locked { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .header-rhino-runner img { left: 50%; transform: translateX(-50%); animation: none; }
+  .header-rhino-launch { left: 50%; transform: translateX(-50%); animation: none; }
   .header-rhino-runner i { display: none; }
 }
 

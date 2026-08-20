@@ -59,7 +59,7 @@ const modal = document.querySelector('#modal');
 const toastNode = document.querySelector('#toast');
 const state = {
   view: 'home', items: [], status: 'loading', hidden: true,
-  provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', telegramSyncing: false,
+  provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', telegramSyncing: false,
   auth: { status: 'checking', email: 'maaz@memo.com', message: '' }, authError: '',
 };
 
@@ -219,7 +219,7 @@ function shell() {
         <div class="top-actions">
           <div class="global-search"><span>${icon('Search')}</span><input id="global-search" placeholder="Search everything…" autocomplete="off"><span class="key-hint">⌘ K</span></div>
           <span class="sync-pill"><i class="sync-dot ${state.status === 'synced' ? '' : 'offline'}"></i>${syncLabel()}</span>
-          <div class="header-rhino-runner" aria-hidden="true"><span class="rhino-track"></span><img src="/brand/memoir-rhino-ui.png" alt=""><i></i><i></i><i></i></div>
+          <button class="header-rhino-runner" id="header-rhino-assistant" title="Open Rhinous" aria-label="Open Rhinous assistant"><span class="rhino-track" aria-hidden="true"></span><span class="header-rhino-launch" aria-hidden="true"><img src="/brand/memoir-rhino-ui.png" alt=""></span><i></i><i></i><i></i></button>
           <button class="round-btn mobile-search" id="mobile-search-button" title="Search everything">${icon('Search')}</button>
           <button class="round-btn notification-trigger" id="notification-center" title="Notifications" aria-label="Notifications">${icon('BellRing')}<span class="notification-badge" hidden></span></button>
           <button class="round-btn" id="privacy" title="${state.hidden ? 'Reveal values' : 'Hide values'}">${icon(state.hidden ? 'EyeOff' : 'Eye')}</button>
@@ -301,7 +301,13 @@ function vaultRow(item) {
   if (isCardRecord(item)) return `<article class="finance-memory" data-searchable="${escapeHtml(searchable(item))}">${paymentCard(item.title, allFields(item))}<div class="finance-memory-foot"><div><h3>${escapeHtml(item.title)}</h3><p>${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'Banking memory')}</p></div><span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></div></article>`;
   return `<article class="vault-row" data-searchable="${escapeHtml(searchable(item))}"><span class="icon-wrap ${item.type === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><div class="vault-info"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(category(item))} · ${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'No note')}</p></div><span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`;
 }
+function detailMarkup(item) {
+  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, allFields(item)) : ''}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${Object.entries(allFields(item)).map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
+}
 function vaultView() {
+  const selected = state.items.find(item => item.id === state.selectedMemoryId);
+  if (selected) return detailMarkup(selected);
+  state.selectedMemoryId = null;
   const list = memories();
   return `<div class="toolbar"><input class="search-input" id="vault-filter" placeholder="Filter titles, notes, fields or values…"><button class="secondary" id="bulk-import">${icon('NotebookText')} Secure import</button><button class="primary" data-add="memory">${icon('Plus')} Add memory</button></div>${list.length ? `<div class="vault-list" id="vault-list">${list.map(vaultRow).join('')}</div>` : emptyState('Gem', 'Nothing saved yet', 'Start with a login, bank record, document, Wi-Fi detail, or anything personal.', 'Add first memory', 'memory')}`;
 }
@@ -343,22 +349,24 @@ function emptyState(glyph, title, text, action, type) { return `<div class="empt
 function bindShell() {
   document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => navigate(button.dataset.view));
   document.querySelectorAll('[data-logout]').forEach(button => button.onclick = () => confirmBox('Sign out of Memoir?', 'Your local vault stays encrypted. You will need the approved email and password to enter again.', 'Sign out', 'LogOut', () => vaultStore.signOut()));
-  document.querySelector('#privacy').onclick = () => { state.hidden = !state.hidden; toast(state.hidden ? 'Sensitive values hidden' : 'Sensitive values visible'); renderView(); };
+  document.querySelector('#privacy').onclick = event => { state.hidden = !state.hidden; event.currentTarget.innerHTML = icon(state.hidden ? 'EyeOff' : 'Eye'); event.currentTarget.title = state.hidden ? 'Reveal values' : 'Hide values'; toast(state.hidden ? 'Sensitive values hidden' : 'Sensitive values visible'); renderView(); };
   const global = document.querySelector('#global-search');
   global?.addEventListener('input', event => showGlobalSearch(event.target.value));
   document.querySelector('#mobile-search-button')?.addEventListener('click', openMobileSearch);
   document.querySelector('#notification-center')?.addEventListener('click', () => toggleNotificationCenter());
+  document.querySelector('#header-rhino-assistant')?.addEventListener('click', () => navigate('assistant'));
   document.addEventListener('keydown', shortcutHandler, { once: true });
   bindView();
   updateNotificationBadge();
 }
 function shortcutHandler(event) { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search')?.focus(); } document.addEventListener('keydown', shortcutHandler, { once: true }); }
-function navigate(viewName) { document.querySelector('.notification-popover')?.remove(); state.view = viewName; state.query = ''; shell(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function navigate(viewName) { document.querySelector('.notification-popover')?.remove(); state.view = viewName; state.query = ''; state.selectedMemoryId = null; shell(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 function renderView() { const node = document.querySelector('#view'); if (node) node.innerHTML = currentView(); bindView(); }
 
 function bindView() {
   document.querySelectorAll('[data-add]').forEach(button => button.onclick = () => button.dataset.add === 'clipboard' ? pasteClipboard() : button.dataset.add === 'reminder' ? openReminderEditor() : button.dataset.add === 'birthday' ? openBirthdayEditor() : openEditor(null, 'Personal'));
   document.querySelectorAll('[data-open]').forEach(button => button.onclick = () => openDetail(button.dataset.open));
+  document.querySelector('#back-to-memories')?.addEventListener('click', () => { state.selectedMemoryId = null; renderView(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
   document.querySelectorAll('[data-edit]').forEach(button => button.onclick = () => confirmEdit(button.dataset.edit));
   document.querySelectorAll('[data-delete]').forEach(button => button.onclick = () => confirmDelete(button.dataset.delete));
   document.querySelectorAll('[data-copy]').forEach(button => button.onclick = () => copyText(button.dataset.copy));
@@ -505,9 +513,7 @@ function confirmBox(title, text, action, glyph, callback) {
 }
 function openDetail(id) {
   const item = state.items.find(row => row.id === id); if (!item) return;
-  state.view = 'vault'; shell();
-  document.querySelector('#view').innerHTML = `<section class="detail"><button class="secondary" data-view="vault">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, allFields(item)) : ''}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${Object.entries(allFields(item)).map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
-  bindView(); document.querySelector('[data-view="vault"]').onclick = () => navigate('vault');
+  state.view = 'vault'; state.selectedMemoryId = id; shell(); window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function askAssistant(query) {
