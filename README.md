@@ -48,10 +48,11 @@ Without steps 1–3, Memoir remains fully usable offline but shows **Offline rea
 
 ## Notification center
 
-- The navbar bell separates upcoming reminder deliveries, upcoming birthday deliveries, and Telegram deliveries already sent.
+- The navbar bell separates reminder and birthday deliveries due within the next 14 hours from Telegram deliveries sent during the previous 14 hours.
 - Sent receipts are encrypted like every other vault record and remain visible for 14 hours.
 - Expired receipts are automatically deleted from local storage and Firestore during background synchronization.
 - A small animated Rhino status chip appears while records are being saved, edited, deleted, or synchronized from Telegram.
+- Memoir uses one consistent light interface; theme switching is intentionally unavailable.
 
 ## Birthdays
 

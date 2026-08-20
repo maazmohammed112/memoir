@@ -276,9 +276,6 @@ body.auth-locked { overflow: hidden; }
 .auth-pulse img { width: 74px; height: 52px; object-fit: contain; }
 @keyframes auth-pulse { 50% { transform: scale(1.06); opacity: .66; } }
 
-body.dark .auth-brand img,
-body.dark .auth-pulse img { filter: brightness(0) invert(1); }
-
 .mobile-logout { display: none; }
 
 .vault-opening {
@@ -311,7 +308,6 @@ body.dark .auth-pulse img { filter: brightness(0) invert(1); }
 }
 
 .vault-opening-mark img { width: 54px; height: 38px; object-fit: contain; }
-body.dark .vault-opening-mark img { filter: none; }
 @keyframes vault-breathe { 50% { transform: translateY(-3px); box-shadow: 0 13px 28px #f32e8b1c; } }
 
 .vault-opening-head h2 { margin: 2px 0 5px; font-size: 20px; letter-spacing: -.035em; }
@@ -395,11 +391,6 @@ body.dark .vault-opening-mark img { filter: none; }
   flex: none;
   object-fit: contain;
   filter: contrast(1.08);
-}
-
-body.dark .assistant-logo,
-body.dark .nav-rhino {
-  filter: brightness(0) invert(1);
 }
 
 .ai-action-list {
@@ -673,7 +664,6 @@ body.dark .nav-rhino {
   .topbar-copy { min-width: 0; }
   .topbar-copy > div { min-width: 0; }
   .topbar-copy h1 { font-size: 20px; white-space: nowrap; }
-  .top-actions #theme { display: none; }
   .stat-symbol { width: 27px; height: 27px; margin-bottom: 5px; }
   .stat-symbol .icon { width: 24px; height: 24px; }
   .assistant-logo { width: 42px; height: 31px; }

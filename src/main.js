@@ -28,13 +28,11 @@ import KeyRound from 'lucide/dist/esm/icons/key-round.mjs';
 import Landmark from 'lucide/dist/esm/icons/landmark.mjs';
 import LockKeyhole from 'lucide/dist/esm/icons/lock-keyhole.mjs';
 import LogOut from 'lucide/dist/esm/icons/log-out.mjs';
-import Moon from 'lucide/dist/esm/icons/moon.mjs';
 import NotebookText from 'lucide/dist/esm/icons/notebook-text.mjs';
 import Pencil from 'lucide/dist/esm/icons/pencil.mjs';
 import Plus from 'lucide/dist/esm/icons/plus.mjs';
 import Search from 'lucide/dist/esm/icons/search.mjs';
 import ShieldCheck from 'lucide/dist/esm/icons/shield-check.mjs';
-import Sun from 'lucide/dist/esm/icons/sun.mjs';
 import Trash2 from 'lucide/dist/esm/icons/trash-2.mjs';
 import WandSparkles from 'lucide/dist/esm/icons/wand-sparkles.mjs';
 import Wifi from 'lucide/dist/esm/icons/wifi.mjs';
@@ -46,7 +44,7 @@ const nav = [
   ['reminders', 'AlarmClock', 'Reminders'], ['clipboard', 'Clipboard', 'Clipboard'], ['birthdays', 'CakeSlice', 'Birthdays'],
 ];
 const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', Personal: 'NotebookText', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
-const iconSet = { AlarmClock, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Copy, Ellipsis, Eraser, Eye, EyeOff, Gem, House, KeyRound, Landmark, LockKeyhole, LogOut, Moon, NotebookText, Pencil, Plus, Search, ShieldCheck, Sun, Trash2, WandSparkles, Wifi, X };
+const iconSet = { AlarmClock, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Copy, Ellipsis, Eraser, Eye, EyeOff, Gem, House, KeyRound, Landmark, LockKeyhole, LogOut, NotebookText, Pencil, Plus, Search, ShieldCheck, Trash2, WandSparkles, Wifi, X };
 const fieldMap = {
   Login: ['Username / ID', 'Password'], Finance: ['Account number', 'IFSC code', 'Debit card number', 'Expiry', 'CVV', 'ATM PIN'],
   Identity: ['Document number', 'Expiry'], Personal: ['Value'], Birthday: ['Date', 'Relation', 'Gift idea', 'Wish note'], 'Wi-Fi': ['Network', 'Password'],
@@ -56,13 +54,14 @@ const app = document.querySelector('#app');
 const modal = document.querySelector('#modal');
 const toastNode = document.querySelector('#toast');
 const state = {
-  view: 'home', items: [], status: 'loading', hidden: true, dark: localStorage.getItem('memoir-theme') === 'dark',
+  view: 'home', items: [], status: 'loading', hidden: true,
   provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', telegramSyncing: false,
   auth: { status: 'checking', email: 'maaz@memo.com', message: '' }, authError: '',
 };
 
 marked.setOptions({ gfm: true, breaks: true });
-document.body.classList.toggle('dark', state.dark);
+localStorage.removeItem('memoir-theme');
+document.body.classList.remove('dark');
 
 function icon(name, className = '') {
   const item = iconSet[name] || Circle;
@@ -148,19 +147,19 @@ function updateReminderCountdowns() { document.querySelectorAll('[data-reminder-
 function reminderNotificationCount(item) { const due = reminderDue(item); const earliest = Math.max(Number(item.createdAt || Date.now()), Date.now()); return Number.isFinite(due) ? reminderOffsets.filter(offset => due - offset >= earliest).length : 0; }
 function localDateTimeValue(timestamp = Date.now() + 3600000) { const date = new Date(timestamp - new Date(timestamp).getTimezoneOffset() * 60000); return date.toISOString().slice(0, 16); }
 function notificationCenterData(now = Date.now()) {
-  const upcoming = [];
+  const upcoming = []; const windowEnd = now + 14 * 3600000;
   reminders().filter(item => !reminderIsSnoozed(item) && !['completed', 'no-response'].includes(reminderStatus(item))).forEach(item => {
     const due = reminderDue(item); if (!Number.isFinite(due)) return;
     [[24 * 3600000, '1 day before'], [5 * 3600000, '5 hours before'], [3 * 3600000, '3 hours before'], [2 * 3600000, '2 hours before'], [30 * 60000, '30 minutes before'], [10 * 60000, '10 minutes before'], [0, 'At due time']].forEach(([offset, label]) => {
-      const scheduledAt = due - offset; if (scheduledAt >= now && scheduledAt >= Number(item.createdAt || 0)) upcoming.push({ id: `reminder:${item.id}:${due}:${offset}`, category: 'Reminder', title: item.title, scheduledAt, label });
+      const scheduledAt = due - offset; if (scheduledAt >= now && scheduledAt <= windowEnd && scheduledAt >= Number(item.createdAt || 0)) upcoming.push({ id: `reminder:${item.id}:${due}:${offset}`, category: 'Reminder', title: item.title, scheduledAt, label });
     });
   });
   memories().filter(item => item.type === 'Birthday').forEach(item => {
     const next = nextBirthday(item, new Date(now)); if (!next) return; const due = next.occurrence.getTime();
-    [[48 * 3600000, '2 days before'], [24 * 3600000, '1 day before'], [5 * 3600000, '5 hours before'], [2 * 3600000, '2 hours before'], [0, 'At midnight']].forEach(([offset, label]) => { const scheduledAt = due - offset; if (scheduledAt >= now) upcoming.push({ id: `birthday:${item.id}:${due}:${offset}`, category: 'Birthday', title: item.title, scheduledAt, label }); });
+    [[48 * 3600000, '2 days before'], [24 * 3600000, '1 day before'], [5 * 3600000, '5 hours before'], [2 * 3600000, '2 hours before'], [0, 'At midnight']].forEach(([offset, label]) => { const scheduledAt = due - offset; if (scheduledAt >= now && scheduledAt <= windowEnd) upcoming.push({ id: `birthday:${item.id}:${due}:${offset}`, category: 'Birthday', title: item.title, scheduledAt, label }); });
   });
   upcoming.sort((a, b) => a.scheduledAt - b.scheduledAt);
-  const sent = notificationRecords().filter(item => { const sentAt = Number(item.fields?.['Sent at'] || 0); return sentAt && now - sentAt <= 14 * 3600000; }).sort((a, b) => Number(b.fields?.['Sent at']) - Number(a.fields?.['Sent at']));
+  const sent = notificationRecords().filter(item => { const sentAt = Number(item.fields?.['Sent at'] || 0); return sentAt && sentAt <= now && now - sentAt <= 14 * 3600000; }).sort((a, b) => Number(b.fields?.['Sent at']) - Number(a.fields?.['Sent at']));
   return { upcoming, sent };
 }
 function notificationTime(timestamp) { return new Date(Number(timestamp)).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); }
@@ -170,7 +169,7 @@ function notificationRows(rows, sent = false) {
 function notificationCenterMarkup() {
   const { upcoming, sent } = notificationCenterData(); const reminderUpcoming = upcoming.filter(item => item.category === 'Reminder'); const birthdayUpcoming = upcoming.filter(item => item.category === 'Birthday');
   const section = (title, rows, isSent = false) => `<section class="notification-section"><div class="notification-section-head"><strong>${title}</strong><span>${rows.length}</span></div>${rows.length ? notificationRows(rows, isSent) : `<p class="notification-empty">Nothing here right now.</p>`}</section>`;
-  return `<div class="notification-head"><div><p class="eyebrow">Telegram delivery center</p><h2>Notifications</h2></div><button class="modal-close" id="close-notifications">${icon('X')}</button></div><p class="notification-note">Upcoming delivery windows appear automatically. Sent entries stay for 14 hours, then are securely removed from the vault.</p>${section('Upcoming reminders', reminderUpcoming)}${section('Upcoming birthdays', birthdayUpcoming)}${section('Sent in the last 14 hours', sent, true)}`;
+  return `<div class="notification-head"><div><p class="eyebrow">Telegram delivery center</p><h2>Notifications</h2></div><button class="modal-close" id="close-notifications">${icon('X')}</button></div><p class="notification-note">Only deliveries due within the next 14 hours appear here. Sent entries stay for the previous 14 hours, then are securely removed from the vault.</p>${section('Next 14 hours · reminders', reminderUpcoming)}${section('Next 14 hours · birthdays', birthdayUpcoming)}${section('Sent in the last 14 hours', sent, true)}`;
 }
 function toggleNotificationCenter(force) {
   let popover = document.querySelector('.notification-popover'); const shouldOpen = force ?? !popover;
@@ -205,7 +204,6 @@ function shell() {
           <button class="round-btn mobile-search" id="mobile-search-button" title="Search everything">${icon('Search')}</button>
           <button class="round-btn notification-trigger" id="notification-center" title="Notifications" aria-label="Notifications">${icon('BellRing')}<span class="notification-badge" hidden></span></button>
           <button class="round-btn" id="privacy" title="${state.hidden ? 'Reveal values' : 'Hide values'}">${icon(state.hidden ? 'EyeOff' : 'Eye')}</button>
-          <button class="round-btn" id="theme" title="Change theme">${icon(state.dark ? 'Sun' : 'Moon')}</button>
           <button class="round-btn mobile-logout" data-logout title="Sign out">${icon('LogOut')}</button>
           <span class="avatar desktop-avatar">MM</span>
         </div>
@@ -327,7 +325,6 @@ function bindShell() {
   document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => navigate(button.dataset.view));
   document.querySelectorAll('[data-logout]').forEach(button => button.onclick = () => confirmBox('Sign out of Memoir?', 'Your local vault stays encrypted. You will need the approved email and password to enter again.', 'Sign out', 'LogOut', () => vaultStore.signOut()));
   document.querySelector('#privacy').onclick = () => { state.hidden = !state.hidden; toast(state.hidden ? 'Sensitive values hidden' : 'Sensitive values visible'); renderView(); };
-  document.querySelector('#theme').onclick = () => { state.dark = !state.dark; document.body.classList.toggle('dark', state.dark); localStorage.setItem('memoir-theme', state.dark ? 'dark' : 'light'); shell(); };
   const global = document.querySelector('#global-search');
   global?.addEventListener('input', event => showGlobalSearch(event.target.value));
   document.querySelector('#mobile-search-button')?.addEventListener('click', openMobileSearch);
