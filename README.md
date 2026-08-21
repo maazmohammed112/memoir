@@ -12,7 +12,7 @@ No demo records are included. Every displayed record belongs to the currently se
 
 - Responsive layouts for mobile phones, tablets, laptops, and desktops.
 - Modern theme with Memoir branding, sharp Lucide vector icons, skeleton loading states, background sync indicators, confirmation dialogs, toasts, and activity animations.
-- Bottom mobile navigation and fixed desktop sidebar for Home, Memories, Rhinous, Audio, Reminders, Clipboard, and Birthdays.
+- Bottom mobile navigation and fixed desktop sidebar for Home, Memories, Rhinous, Audio, To-do Lists, Reminders, Clipboard, and Birthdays.
 - **Expiring Soon Dashboard**: High-priority section on Home view alerting the owner about banking cards, IDs, and appliance warranties expiring within 5 months.
 - Global search across local titles, notes, field labels, and field values.
 - Birthday search results are routed to Birthdays; reminders and clipboard results are routed to their own sections.
@@ -30,6 +30,8 @@ No demo records are included. Every displayed record belongs to the currently se
   - Dedicated Audio navigation lists app recordings, uploads, and Telegram voice notes with authenticated HTML5 playback.
   - Audio upload accepts common mobile and desktop formats; app uploads are limited to 3 MB for reliable Vercel request handling and encrypted synchronization.
   - Mistral Voxtral transcription is attempted first. If speech is unclear or transcription is unavailable, Memoir saves the original audio with its date/time and an explicit “No transcript available” status instead of inventing text.
+  - Audio is saved before AI transcription begins. Rate limits therefore never discard a recording; failed transcripts expose a retry action that reuses the existing encrypted audio.
+  - Transcripts are the only editable audio metadata. Transcript corrections automatically update reminders linked to the voice memo.
 
 ### Telegram Voice & Photo Bot
 
@@ -37,6 +39,17 @@ No demo records are included. Every displayed record belongs to the currently se
 - **Voice Note Capture**: Send voice notes dictating reminders (e.g. *"Remind me about laptop repair tomorrow at 4 PM"*) or memories.
 - **Voice Audio Persistence**: Telegram voice audio is downloaded, encrypted into the isolated chunked audio vault, transcribed with Voxtral when possible, and queued with its asset reference and transcript for the owner’s Audio tab.
 - **Done & Snooze Callbacks**: Inline buttons to complete or snooze reminders directly from Telegram.
+- Incoming Telegram update IDs are claimed atomically so webhook retries cannot produce repeated progress messages or duplicate captures.
+
+### To-do Lists & Receipts
+
+- Dedicated encrypted To-do tab, isolated per owner and excluded from the general Memories list.
+- Create lists manually or through Rhinous using comma-separated, line-separated, English, Hindi, or Hinglish item names.
+- Check/uncheck, rename, delete, and add optional INR amounts to every subtask independently.
+- Close and calculate a list without completing it, or move it into Completed while retaining the full history.
+- Generate polished receipt images locally in the browser without consuming AI credits.
+- Copy structured receipt text, copy the receipt image where supported, download it, or use the native mobile share sheet.
+- Telegram and Memoir provenance badges show where and when each supported record was created.
 
 ### Expiry Tracking & Automated Alerts
 
@@ -54,7 +67,7 @@ No demo records are included. Every displayed record belongs to the currently se
 ### Memories & Finance
 
 - Create, view, edit, delete, copy, search, and securely import memories.
-- Supported categories: Login, Finance, Identity, Government Document, Personal, Birthday, Wi-Fi, Clipboard, and Reminder.
+- Supported categories: Login, Finance, Identity, Government Document, Personal, Audio, To-do, Birthday, Wi-Fi, Clipboard, and Reminder.
 - Finance records containing card numbers render responsive payment cards with masked/revealed toggles and field copy buttons.
 - Document records support document numbers, issuing authority, validity dates, soft-copy drive links, and attached voice recordings.
 - Bulk import accepts 1–100 JSON memory objects and encrypts them client-side without page reload.

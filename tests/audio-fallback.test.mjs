@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { cleanAudioBase64 } from '../lib/audioVault.js';
+
+assert.equal(cleanAudioBase64('data:audio/webm;codecs=opus;base64,YWJjZA=='), 'YWJjZA==');
+assert.equal(cleanAudioBase64('data:audio/ogg;base64,YWJjZA=='), 'YWJjZA==');
 
 delete process.env.GEMINI_API_KEY;
 delete process.env.MISTRAL_API_KEY;

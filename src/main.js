@@ -36,6 +36,7 @@ import KeyRound from 'lucide/dist/esm/icons/key-round.mjs';
 import Landmark from 'lucide/dist/esm/icons/landmark.mjs';
 import LockKeyhole from 'lucide/dist/esm/icons/lock-keyhole.mjs';
 import LogOut from 'lucide/dist/esm/icons/log-out.mjs';
+import ListTodo from 'lucide/dist/esm/icons/list-todo.mjs';
 import Mail from 'lucide/dist/esm/icons/mail.mjs';
 import MessageCircle from 'lucide/dist/esm/icons/message-circle.mjs';
 import Mic from 'lucide/dist/esm/icons/mic.mjs';
@@ -44,6 +45,7 @@ import Paperclip from 'lucide/dist/esm/icons/paperclip.mjs';
 import Pencil from 'lucide/dist/esm/icons/pencil.mjs';
 import Plus from 'lucide/dist/esm/icons/plus.mjs';
 import Search from 'lucide/dist/esm/icons/search.mjs';
+import ReceiptText from 'lucide/dist/esm/icons/receipt-text.mjs';
 import Send from 'lucide/dist/esm/icons/send.mjs';
 import Share2 from 'lucide/dist/esm/icons/share-2.mjs';
 import ShieldAlert from 'lucide/dist/esm/icons/shield-alert.mjs';
@@ -58,9 +60,9 @@ import { vaultStore } from './store.js';
 
 const nav = [
   ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['assistant', 'Rhino', 'Rhinous'],
-  ['audio', 'AudioLines', 'Audio'], ['reminders', 'AlarmClock', 'Reminders'], ['clipboard', 'Clipboard', 'Clipboard'], ['birthdays', 'CakeSlice', 'Birthdays'],
+  ['audio', 'AudioLines', 'Audio'], ['todos', 'ListTodo', 'To-do'], ['reminders', 'AlarmClock', 'Reminders'], ['clipboard', 'Clipboard', 'Clipboard'], ['birthdays', 'CakeSlice', 'Birthdays'],
 ];
-const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', 'Government Document': 'FileBadge', Personal: 'NotebookText', Audio: 'AudioLines', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
+const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', 'Government Document': 'FileBadge', Personal: 'NotebookText', Audio: 'AudioLines', Todo: 'ListTodo', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
 const customBrandIcons = {
   WhatsApp: '<path fill="currentColor" d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24m4.52 11.53c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.03-1.25-.75-.67-1.26-1.5-1.41-1.75-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.44.06-.67.31-.23.25-.87.85-.87 2.08 0 1.23.89 2.42 1.02 2.59.13.17 1.76 2.69 4.27 3.77.6.26 1.06.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.17-.48-.29"/>',
   Telegram: '<path fill="currentColor" d="m20.665 3.717-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l-.313 4.693c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/>',
@@ -70,7 +72,7 @@ const iconSet = {
   AlarmClock, AudioLines, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Calendar, Camera,
   Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Clock,
   Copy, CreditCard, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, House, KeyRound, Landmark,
-  LockKeyhole, LogOut, Mail, MessageCircle, Mic, NotebookText, Paperclip, Pencil, Plus, Search,
+  LockKeyhole, LogOut, ListTodo, Mail, MessageCircle, Mic, NotebookText, Paperclip, Pencil, Plus, ReceiptText, Search,
   Send, Share2, ShieldAlert, ShieldCheck, Sparkles, Trash2, TriangleAlert, WandSparkles, Wifi, X,
 };
 
@@ -78,7 +80,7 @@ const fieldMap = {
   Login: ['Username / ID', 'Password'], Finance: ['Account number', 'IFSC code', 'Debit card number', 'Expiry', 'CVV', 'ATM PIN'],
   Identity: ['Document number', 'Document type', 'Issued by', 'Expiry date', 'Soft copy link'],
   'Government Document': ['Document number', 'Reference number', 'Issued by', 'Issued date', 'Expiry date', 'Soft copy link'],
-  Personal: ['Value'], Audio: ['Audio Transcript', 'Recorded at'], Birthday: ['Date', 'Relation', 'Gift idea', 'Wish note'], 'Wi-Fi': ['Network', 'Password'],
+  Personal: ['Value'], Audio: ['Audio Transcript', 'Recorded at'], Todo: ['Todo items', 'Status'], Birthday: ['Date', 'Relation', 'Gift idea', 'Wish note'], 'Wi-Fi': ['Network', 'Password'],
   Reminder: ['Due at', 'Status', 'Snoozed'],
 };
 const app = document.querySelector('#app');
@@ -86,7 +88,7 @@ const modal = document.querySelector('#modal');
 const toastNode = document.querySelector('#toast');
 const state = {
   view: 'home', items: [], status: 'loading', hidden: true,
-  provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, vaultCategory: 'all', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', telegramSyncing: false,
+  provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, vaultCategory: 'all', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', todoTab: 'active', telegramSyncing: false,
   auth: { status: 'checking', email: '', message: '', profile: null }, authError: '',
   chatAttachment: null, isRecordingVoice: false,
 };
@@ -131,10 +133,20 @@ async function withRhinoActivity(label, task) {
   finally { await new Promise(resolve => setTimeout(resolve, Math.max(0, 320 - (Date.now() - started)))); activityDepth = Math.max(0, activityDepth - 1); if (!activityDepth) { node.classList.remove('show'); setTimeout(() => { if (!activityDepth) node.remove(); }, 220); } }
 }
 function activeProfile() { return state.auth.profile || { name: 'Owner', initials: 'ME', email: state.auth.email || '' }; }
-function titleForView() { return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', assistant: 'Ask Rhinous', audio: 'Audio memories', reminders: 'Your reminders', clipboard: 'Clipboard vault', birthdays: 'Meaningful moments' }[state.view]; }
+function titleForView() { return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', assistant: 'Ask Rhinous', audio: 'Audio memories', todos: 'Your to-do lists', reminders: 'Your reminders', clipboard: 'Clipboard vault', birthdays: 'Meaningful moments' }[state.view]; }
 function category(item) { return item.kind === 'clipboard' ? 'Clipboard' : item.type || 'Personal'; }
 function itemIcon(item) { return typeIcons[category(item)] || 'Gem'; }
 function allFields(item) { return item.fields || {}; }
+function provenanceOf(item) {
+  const source = String(item?.provenance?.source || item?.fields?.['Created via'] || item?.fields?.['Audio Source'] || 'Memoir app');
+  const isTelegram = /telegram/i.test(source);
+  return { source: isTelegram ? 'Telegram' : 'Memoir app', createdAt: item?.provenance?.createdAt || item?.fields?.['Created at'] || item?.fields?.['Recorded at'] || new Date(item?.createdAt || Date.now()).toISOString(), icon: isTelegram ? 'Telegram' : 'Rhino' };
+}
+function provenanceBadge(item) { const info = provenanceOf(item); return `<button type="button" class="provenance-badge ${info.source === 'Telegram' ? 'telegram' : 'memoir'}" data-provenance="${item.id}" title="Where this was created">${info.icon === 'Telegram' ? icon('Telegram') : '<img src="/brand/memoir-rhino-ui.png" alt="">'}</button>`; }
+function showProvenance(id) {
+  const item = state.items.find(row => row.id === id); if (!item) return; const info = provenanceOf(item); const created = new Date(info.createdAt); const time = Number.isNaN(created.getTime()) ? 'time unavailable' : created.toLocaleString();
+  modal.className = 'modal confirm'; modal.innerHTML = `<div class="modal-inner"><span class="confirm-icon provenance-confirm">${info.source === 'Telegram' ? icon('Telegram') : '<img src="/brand/memoir-rhino-ui.png" alt="">'}</span><div class="modal-head"><div><p class="eyebrow">Creation history</p><h2>Added from ${escapeHtml(info.source)}</h2></div></div><p>“${escapeHtml(item.title)}” was added on ${escapeHtml(time)} using ${escapeHtml(info.source)}.</p><div class="modal-actions"><button class="primary modal-cancel">Done</button></div></div>`; showModal();
+}
 function safeExternalLink(value) { try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.href : ''; } catch { return ''; } }
 function externalLinkButton(value, label = 'Open secure link') {
   const url = safeExternalLink(value);
@@ -356,8 +368,8 @@ function bindAuthGate() {
 }
 
 function skeleton() { return `<section class="vault-opening"><div class="vault-opening-head"><span class="vault-opening-mark"><img src="/brand/memoir-rhino-ui.png" alt=""></span><div><p class="eyebrow">Encrypted cloud vault</p><h2>Loading your memories…</h2><p>Downloading and decrypting this owner’s latest records. Cached memories will appear instantly on future visits.</p></div><span class="opening-live"><i></i> Secure sync</span></div><div class="opening-grid"><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article></div><div class="opening-list">${Array.from({ length: 4 }, () => `<div class="opening-row"><div class="skeleton opening-avatar"></div><div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></div><div class="skeleton opening-action"></div></div>`).join('')}</div></section>`; }
-function currentView() { return ({ home: homeView, vault: vaultView, assistant: assistantView, audio: audioView, reminders: remindersView, clipboard: clipboardView, birthdays: birthdaysView }[state.view] || homeView)(); }
-function memories() { return state.items.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Notification'].includes(item.type)); }
+function currentView() { return ({ home: homeView, vault: vaultView, assistant: assistantView, audio: audioView, todos: todosView, reminders: remindersView, clipboard: clipboardView, birthdays: birthdaysView }[state.view] || homeView)(); }
+function memories() { return state.items.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Notification', 'Todo'].includes(item.type)); }
 function vaultMemories() { return memories().filter(item => item.type !== 'Birthday' && item.type !== 'Audio'); }
 function memoryFilterGroup(item) {
   if (item.type === 'Finance') return 'banks';
@@ -367,6 +379,7 @@ function memoryFilterGroup(item) {
   return 'personal';
 }
 function reminders() { return state.items.filter(item => item.type === 'Reminder'); }
+function todoLists() { return state.items.filter(item => item.type === 'Todo'); }
 function notificationRecords() { return state.items.filter(item => item.type === 'Notification'); }
 function clips() { return state.items.filter(item => item.kind === 'clipboard'); }
 const audioDataLabels = new Set(['Audio Recording', 'Voice Note', 'Voice Recording']);
@@ -533,7 +546,7 @@ function paymentCard(title, fields, compact = false) {
 function memoryCard(item) {
   const expiryInfo = extractItemExpiry(item);
   const expiryChip = expiryInfo ? `<span class="chip expiry-chip ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? icon('ShieldAlert') : icon('Calendar')} ${escapeHtml(expiryInfo.status.text)}</span>` : '';
-  return `<article class="memory-card" data-open="${item.id}" tabindex="0"><span class="icon-wrap ${category(item) === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.note || Object.keys(allFields(item)).join(' · '))}</p><div class="memory-card-foot"><span class="chip">${escapeHtml(category(item))}</span>${expiryChip}<div class="card-action-triggers"><button type="button" class="icon-btn-mini" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><span class="card-open-arrow">${icon('ArrowUpRight')}</span></div></div></article>`;
+  return `<article class="memory-card" data-open="${item.id}" tabindex="0"><div class="memory-card-origin"><span class="icon-wrap ${category(item) === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span>${provenanceBadge(item)}</div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.note || Object.keys(allFields(item)).join(' · '))}</p><div class="memory-card-foot"><span class="chip">${escapeHtml(category(item))}</span>${expiryChip}<div class="card-action-triggers"><button type="button" class="icon-btn-mini" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><span class="card-open-arrow">${icon('ArrowUpRight')}</span></div></div></article>`;
 }
 function reminderCard(item, compact = false) {
   const status = reminderStatus(item); const snoozed = reminderIsSnoozed(item); const completed = status === 'completed' || status === 'no-response';
@@ -573,8 +586,8 @@ function vaultRow(item) {
   const filterGroup = memoryFilterGroup(item);
   const expiryInfo = extractItemExpiry(item);
   const expiryChip = expiryInfo ? `<span class="chip expiry-chip ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? icon('ShieldAlert') : icon('Calendar')} ${escapeHtml(expiryInfo.status.text)}</span>` : '';
-  if (isCardRecord(item)) return `<article class="finance-memory" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}">${paymentCard(item.title, allFields(item))}<div class="finance-memory-foot"><div><h3>${escapeHtml(item.title)}</h3><p>${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'Banking memory')}</p></div>${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></div></article>`;
-  return `<article class="vault-row" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}"><span class="icon-wrap ${item.type === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><div class="vault-info"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(category(item))} · ${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'No note')}</p></div>${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`;
+  if (isCardRecord(item)) return `<article class="finance-memory" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}">${paymentCard(item.title, allFields(item))}<div class="finance-memory-foot"><div><h3>${escapeHtml(item.title)}</h3><p>${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'Banking memory')}</p></div>${provenanceBadge(item)}${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></div></article>`;
+  return `<article class="vault-row" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}"><span class="icon-wrap ${item.type === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><div class="vault-info"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(category(item))} · ${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'No note')}</p></div>${provenanceBadge(item)}${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`;
 }
 
 
@@ -586,7 +599,7 @@ function detailMarkup(item) {
   const displayFields = Object.entries(fields).filter(([k]) => !audioDataLabels.has(k) && !audioMetadataLabels.has(k));
 
   const backLabel = state.view === 'audio' ? 'Back to audio' : 'Back to memories';
-  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} ${backLabel}</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
+  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} ${backLabel}</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div>${provenanceBadge(item)}</div>${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button>${attachment ? `<button class="secondary" data-audio-retry="${item.id}">${icon('AudioLines')} Transcribe again</button><button class="secondary" data-audio-transcript-edit="${item.id}">${icon('Pencil')} Edit transcript</button>` : `<button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button>`}<button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
 }
 
 function vaultView() {
@@ -610,7 +623,44 @@ function audioView() {
   const records = audioMemories();
   return `<section class="audio-hero"><div><p class="eyebrow">Encrypted voice library</p><h2>Every recording, ready to replay.</h2><p>Record in Memoir or send a Telegram voice note. Audio and transcripts stay isolated to this account.</p></div><button class="primary" id="audio-upload-main">${icon('Plus')} Upload audio</button></section>
   <input type="file" id="audio-upload-input-main" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac" hidden>
-  ${records.length ? `<div class="audio-grid">${records.map(item => { const attachment = audioAttachment(item); const recorded = attachment?.recordedAt ? new Date(attachment.recordedAt) : new Date(item.createdAt); const validDate = !Number.isNaN(recorded.getTime()); return `<article class="audio-memory-card">${audioPlayerMarkup(attachment, item.title)}<div class="audio-memory-copy"><span>${validDate ? escapeHtml(recorded.toLocaleString()) : 'Recording date unavailable'}</span><p>${escapeHtml(attachment?.transcript || item.note || 'No transcript available')}</p></div><div class="row-actions"><button class="icon-btn" data-open="${item.id}" data-open-view="audio" title="Open details">${icon('ArrowUpRight')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`; }).join('')}</div>` : emptyState('AudioLines', 'No audio memories yet', 'Record in Rhinous, upload an audio file, or send a Telegram voice note.', 'Upload audio', 'audio-upload')}`;
+  ${records.length ? `<div class="audio-grid">${records.map(item => { const attachment = audioAttachment(item); const recorded = attachment?.recordedAt ? new Date(attachment.recordedAt) : new Date(item.createdAt); const validDate = !Number.isNaN(recorded.getTime()); const status = String(item.fields?.['Transcription status'] || ''); const needsRetry = !/^completed|edited/i.test(status); return `<article class="audio-memory-card">${audioPlayerMarkup(attachment, item.title)}<div class="audio-memory-copy"><span>${validDate ? escapeHtml(recorded.toLocaleString()) : 'Recording date unavailable'}</span><b class="transcription-state ${needsRetry ? 'pending' : 'ready'}">${escapeHtml(status || 'Saved')}</b><p>${escapeHtml(attachment?.transcript || item.note || 'No transcript available')}</p></div><div class="audio-card-footer">${provenanceBadge(item)}<div class="row-actions"><button class="icon-btn" data-open="${item.id}" data-open-view="audio" title="Open details">${icon('ArrowUpRight')}</button>${needsRetry ? `<button class="icon-btn" data-audio-retry="${item.id}" title="Try transcription again">${icon('AudioLines')}</button>` : ''}<button class="icon-btn" data-audio-transcript-edit="${item.id}" title="Edit transcript">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></div></article>`; }).join('')}</div>` : emptyState('AudioLines', 'No audio memories yet', 'Record in Rhinous, upload an audio file, or send a Telegram voice note.', 'Upload audio', 'audio-upload')}`;
+}
+
+function parseTodoItems(item) {
+  try {
+    const parsed = JSON.parse(String(item?.fields?.['Todo items'] || '[]'));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((row, index) => ({ id: String(row?.id || `${item.id}-${index}`), text: String(row?.text || '').slice(0, 240), done: Boolean(row?.done), amount: row?.amount === '' || row?.amount == null ? '' : Math.max(0, Number(row.amount) || 0) })).filter(row => row.text);
+  } catch { return []; }
+}
+function todoItemsFromFields(fields) { try { const rows = JSON.parse(String(fields?.['Todo items'] || '[]')); return Array.isArray(rows) ? rows.map(row => String(row?.text || '').trim()).filter(Boolean) : []; } catch { return splitTodoInput(fields?.['Todo items']); } }
+function todoTotal(item) { return parseTodoItems(item).reduce((sum, row) => sum + (row.amount === '' ? 0 : Number(row.amount) || 0), 0); }
+function todoStatus(item) { return String(item?.fields?.Status || 'active').toLowerCase() === 'completed' ? 'completed' : 'active'; }
+function todoCurrency(value) { return `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: Number(value || 0) % 1 ? 2 : 0, maximumFractionDigits: 2 })}`; }
+function todoCard(item) {
+  const rows = parseTodoItems(item); const completed = todoStatus(item) === 'completed'; const done = rows.filter(row => row.done).length; const total = todoTotal(item); const closed = String(item.fields?.Closed || '').toLowerCase() === 'yes';
+  return `<article class="todo-card ${completed ? 'is-completed' : ''}">
+    <div class="todo-card-head"><div><span class="todo-kicker">${completed ? 'Completed list' : closed ? 'Totalled list' : 'Active list'}</span><h3>${escapeHtml(item.title)}</h3><p>${done} of ${rows.length} completed${total ? ` · ${todoCurrency(total)}` : ''}</p></div><div class="todo-head-actions">${provenanceBadge(item)}${!completed ? `<button class="icon-btn" data-todo-edit="${item.id}" title="Edit list">${icon('Pencil')}</button>` : ''}<button class="icon-btn" data-todo-receipt="${item.id}" title="View receipt">${icon('ReceiptText')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete list">${icon('Trash2')}</button></div></div>
+    <div class="todo-progress"><i style="width:${rows.length ? Math.round(done / rows.length * 100) : 0}%"></i></div>
+    <div class="todo-items">${rows.map(row => `<div class="todo-item ${row.done ? 'done' : ''}" data-todo-row="${row.id}"><button class="todo-check" data-todo-toggle="${item.id}" data-row-id="${row.id}" title="${row.done ? 'Mark not done' : 'Mark done'}">${icon(row.done ? 'CircleCheckBig' : 'Circle')}</button><span>${escapeHtml(row.text)}</span><label class="todo-amount"><b>₹</b><input type="number" min="0" step="0.01" inputmode="decimal" placeholder="Amount" value="${row.amount === '' ? '' : escapeHtml(row.amount)}" data-todo-amount="${item.id}" data-row-id="${row.id}" ${completed ? 'disabled' : ''}></label>${!completed ? `<button class="todo-mini" data-todo-edit-row="${item.id}" data-row-id="${row.id}" title="Edit item">${icon('Pencil')}</button><button class="todo-mini danger" data-todo-delete-row="${item.id}" data-row-id="${row.id}" title="Delete item">${icon('Trash2')}</button>` : ''}</div>`).join('')}</div>
+    <div class="todo-total"><span>Total amount</span><strong>${todoCurrency(total)}</strong></div>
+    <div class="todo-card-actions">${!completed ? `<button class="secondary" data-todo-add-row="${item.id}">${icon('Plus')} Add item</button><button class="secondary" data-todo-close="${item.id}">${icon('ReceiptText')} Close & total</button><button class="primary" data-todo-complete="${item.id}">${icon('CircleCheckBig')} Complete list</button>` : `<button class="primary" data-todo-receipt="${item.id}">${icon('Share2')} Share receipt</button>`}</div>
+  </article>`;
+}
+function todosView() {
+  const grouped = { active: todoLists().filter(item => todoStatus(item) === 'active'), completed: todoLists().filter(item => todoStatus(item) === 'completed') };
+  const active = grouped[state.todoTab] || grouped.active;
+  return `<section class="todo-hero"><div><p class="eyebrow">Lists that add themselves up</p><h2>Plan it. Tick it. Share the total.</h2><p>Create groceries, errands, packing lists, or anything else. Add optional amounts and generate a clean receipt without AI.</p></div><button class="primary" data-add="todo">${icon('Plus')} New to-do list</button></section>
+  <div class="todo-tabs">${[['active', 'Active'], ['completed', 'Completed']].map(([id, label]) => `<button class="${state.todoTab === id ? 'active' : ''}" data-todo-tab="${id}">${label}<span>${grouped[id].length}</span></button>`).join('')}</div>
+  ${active.length ? `<div class="todo-grid">${active.map(todoCard).join('')}</div>` : emptyState('ListTodo', `No ${state.todoTab} lists`, state.todoTab === 'active' ? 'Create a list and separate items with commas or new lines.' : 'Finished lists and their receipts stay available here.', 'Create to-do list', 'todo')}`;
+}
+function normalizeTodoRecord(record) {
+  const fields = { ...(record.fields || {}) }; let rows;
+  try { rows = JSON.parse(String(fields['Todo items'] || '[]')); } catch { rows = splitTodoInput(fields['Todo items']).map(text => ({ text })); }
+  if (!Array.isArray(rows)) rows = [];
+  rows = rows.map(row => ({ id: String(row?.id || crypto.randomUUID()), text: String(row?.text || '').trim().slice(0, 240), done: Boolean(row?.done), amount: row?.amount === '' || row?.amount == null ? '' : Math.max(0, Number(row.amount) || 0) })).filter(row => row.text).slice(0, 200);
+  fields['Todo items'] = JSON.stringify(rows); fields.Status = String(fields.Status || 'active').toLowerCase() === 'completed' ? 'completed' : 'active'; fields.Currency = fields.Currency || 'INR';
+  return { ...record, kind: 'memory', type: 'Todo', fields };
 }
 function clipboardView() {
   return `<div class="toolbar"><button class="primary" id="paste-clipboard">${icon('ClipboardPaste')} Paste current clipboard</button><input class="search-input" id="clip-input" placeholder="Or type or paste content here"><button class="secondary" id="save-clip">Save</button></div>${clips().length ? `<div class="vault-list">${clips().map(item => `<article class="vault-row"><span class="icon-wrap violet">${icon('Clipboard')}</span><div class="vault-info"><h3>${escapeHtml(item.title || 'Untitled clip')}</h3><p class="clip-value">${escapeHtml(item.fields?.Content || '')}</p><p>${new Date(item.createdAt).toLocaleString()}</p></div><div class="row-actions"><button class="icon-btn" data-copy="${escapeHtml(item.fields?.Content || '')}" title="Copy">${icon('Copy')}</button><button class="icon-btn" data-share="${item.id}" title="Share clip">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`).join('')}</div>` : emptyState('Clipboard', 'Clipboard vault is empty', 'Paste something, add a useful note, and find it instantly later.', 'Paste clipboard', 'clipboard')}`;
@@ -656,9 +706,9 @@ function renderMessage(message) {
   }
   if (message.actions?.length) {
     const isSmartCapture = message.actions.some(a => a.fields && (a.fields['Audio Transcript'] || a.fields['Expiry date'] || a.fields['Serial'] || a.fields['Brand'] || a.fields['Model']));
-    return `<div class="message bot">${isSmartCapture ? '<span class="smart-capture-badge">Smart Capture Extracted</span>' : ''}<strong>${escapeHtml((message.title || 'Review changes').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}<div class="ai-action-list">${message.actions.map(action => { const visibleCount = Object.keys(action.fields || {}).filter(label => !audioDataLabels.has(label) && !audioMetadataLabels.has(label)).length; return `<div class="ai-action"><span>${escapeHtml(action.op)}</span><strong>${escapeHtml(action.title || state.items.find(item => item.id === action.id)?.title || 'Memory')}</strong><small>${escapeHtml(action.type || 'Saved item')} · ${visibleCount} detail${visibleCount === 1 ? '' : 's'}${action.fields?.['Audio Asset ID'] ? ' · encrypted audio attached' : ''}</small>${action.fields?.['Audio Transcript'] ? `<div class="transcript-box"><strong>${icon('Mic')} Audio Transcript</strong><p>${escapeHtml(action.fields['Audio Transcript'])}</p></div>` : ''}</div>`; }).join('')}</div></div>`;
+    return `<div class="message bot">${isSmartCapture ? '<span class="smart-capture-badge">Smart Capture Extracted</span>' : ''}<strong>${escapeHtml((message.title || 'Review changes').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}<div class="ai-action-list">${message.actions.map(action => { const visibleCount = Object.keys(action.fields || {}).filter(label => !audioDataLabels.has(label) && !audioMetadataLabels.has(label)).length; const todoPreview = action.type === 'Todo' ? todoItemsFromFields(action.fields) : []; return `<div class="ai-action"><span>${escapeHtml(action.op)}</span><strong>${escapeHtml(action.title || state.items.find(item => item.id === action.id)?.title || 'Memory')}</strong><small>${escapeHtml(action.type || 'Saved item')} · ${action.type === 'Todo' ? `${todoPreview.length} item${todoPreview.length === 1 ? '' : 's'}` : `${visibleCount} detail${visibleCount === 1 ? '' : 's'}`}${action.fields?.['Audio Asset ID'] ? ' · encrypted audio attached' : ''}</small>${todoPreview.length ? `<ul class="ai-todo-preview">${todoPreview.map(text => `<li>${icon('Circle')}<span>${escapeHtml(text)}</span></li>`).join('')}</ul>` : ''}${action.fields?.['Audio Transcript'] ? `<div class="transcript-box"><strong>${icon('Mic')} Audio Transcript</strong><p>${escapeHtml(action.fields['Audio Transcript'])}</p></div>` : ''}</div>`; }).join('')}</div></div>`;
   }
-  return `<div class="message bot">${message.title ? `<strong>${escapeHtml(message.title.toUpperCase())}</strong>` : ''}${safeMarkdown(message.markdown || message.text || '')}</div>`;
+  return `<div class="message bot">${message.title ? `<strong>${escapeHtml(message.title.toUpperCase())}</strong>` : ''}${safeMarkdown(message.markdown || message.text || '')}${message.retryAudioId ? `<button class="secondary ai-retry-audio" data-audio-retry="${escapeHtml(message.retryAudioId)}">${icon('AudioLines')} Try transcription again</button>` : ''}</div>`;
 }
 
 function safeMarkdown(text) { return DOMPurify.sanitize(marked.parse(text), { USE_PROFILES: { html: true } }); }
@@ -683,7 +733,7 @@ function navigate(viewName) { document.querySelector('.notification-popover')?.r
 function renderView() { const node = document.querySelector('#view'); if (node) node.innerHTML = currentView(); bindView(); }
 
 function bindView() {
-  document.querySelectorAll('[data-add]').forEach(button => button.onclick = () => button.dataset.add === 'clipboard' ? pasteClipboard() : button.dataset.add === 'reminder' ? openReminderEditor() : button.dataset.add === 'birthday' ? openBirthdayEditor() : button.dataset.add === 'audio-upload' ? document.querySelector('#audio-upload-input-main')?.click() : openEditor(null, 'Personal'));
+  document.querySelectorAll('[data-add]').forEach(button => button.onclick = () => button.dataset.add === 'clipboard' ? pasteClipboard() : button.dataset.add === 'reminder' ? openReminderEditor() : button.dataset.add === 'birthday' ? openBirthdayEditor() : button.dataset.add === 'todo' ? openTodoEditor() : button.dataset.add === 'audio-upload' ? document.querySelector('#audio-upload-input-main')?.click() : openEditor(null, 'Personal'));
   document.querySelectorAll('[data-open]').forEach(button => button.onclick = () => openDetail(button.dataset.open, button.dataset.openView || 'vault'));
   document.querySelector('#back-to-memories')?.addEventListener('click', () => { state.selectedMemoryId = null; renderView(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
   document.querySelectorAll('[data-edit]').forEach(button => button.onclick = () => confirmEdit(button.dataset.edit));
@@ -698,6 +748,19 @@ function bindView() {
   document.querySelectorAll('[data-reminder-snooze]').forEach(button => button.onclick = () => toggleReminderSnooze(button.dataset.reminderSnooze));
   document.querySelectorAll('[data-reminder-edit]').forEach(button => button.onclick = () => openReminderEditor(state.items.find(item => item.id === button.dataset.reminderEdit)));
   document.querySelectorAll('[data-reminder-delete]').forEach(button => button.onclick = () => confirmDelete(button.dataset.reminderDelete));
+  document.querySelectorAll('[data-todo-tab]').forEach(button => button.onclick = () => { state.todoTab = button.dataset.todoTab; renderView(); });
+  document.querySelectorAll('[data-todo-edit]').forEach(button => button.onclick = () => openTodoEditor(state.items.find(item => item.id === button.dataset.todoEdit)));
+  document.querySelectorAll('[data-todo-toggle]').forEach(button => button.onclick = () => toggleTodoRow(button.dataset.todoToggle, button.dataset.rowId));
+  document.querySelectorAll('[data-todo-amount]').forEach(input => input.onchange = () => updateTodoAmount(input.dataset.todoAmount, input.dataset.rowId, input.value));
+  document.querySelectorAll('[data-todo-edit-row]').forEach(button => button.onclick = () => editTodoRow(button.dataset.todoEditRow, button.dataset.rowId));
+  document.querySelectorAll('[data-todo-delete-row]').forEach(button => button.onclick = () => deleteTodoRow(button.dataset.todoDeleteRow, button.dataset.rowId));
+  document.querySelectorAll('[data-todo-add-row]').forEach(button => button.onclick = () => addTodoRow(button.dataset.todoAddRow));
+  document.querySelectorAll('[data-todo-close]').forEach(button => button.onclick = () => closeTodo(button.dataset.todoClose));
+  document.querySelectorAll('[data-todo-complete]').forEach(button => button.onclick = () => completeTodo(button.dataset.todoComplete));
+  document.querySelectorAll('[data-todo-receipt]').forEach(button => button.onclick = () => openTodoReceipt(button.dataset.todoReceipt));
+  document.querySelectorAll('[data-audio-retry]').forEach(button => button.onclick = () => retryAudioTranscription(button.dataset.audioRetry));
+  document.querySelectorAll('[data-audio-transcript-edit]').forEach(button => button.onclick = () => editAudioTranscript(button.dataset.audioTranscriptEdit));
+  document.querySelectorAll('[data-provenance]').forEach(button => button.onclick = event => { event.stopPropagation(); showProvenance(button.dataset.provenance); });
   document.querySelectorAll('[data-share]').forEach(button => button.onclick = event => { event.stopPropagation(); openShareModal(button.dataset.share); });
   document.querySelector('#clear-chat')?.addEventListener('click', () => confirmBox('Clear this conversation?', 'This removes the local Rhinous conversation log. Your saved memories and reminders will not be changed.', 'Clear chat', 'Eraser', () => { state.messages = []; state.assistantLog = []; localStorage.removeItem(assistantLogKey()); renderView(); toast('Conversation cleared'); }));
 
@@ -765,10 +828,10 @@ function showGlobalSearch(query) {
   if (!query.trim()) return;
   const matches = state.items.filter(item => item.type !== 'Notification' && searchable(item).includes(query.toLowerCase())).slice(0, 12);
   const overlay = document.createElement('div'); overlay.className = 'search-overlay';
-  const groups = [['Memories', matches.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Birthday', 'Audio'].includes(item.type) && !audioAttachment(item))], ['Audio', matches.filter(item => item.type === 'Audio' || audioAttachment(item))], ['Birthdays', matches.filter(item => item.type === 'Birthday')], ['Reminders', matches.filter(item => item.type === 'Reminder')], ['Clipboard Vault', matches.filter(item => item.kind === 'clipboard')]];
+  const groups = [['Memories', matches.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Birthday', 'Audio', 'Todo'].includes(item.type) && !audioAttachment(item))], ['Audio', matches.filter(item => item.type === 'Audio' || audioAttachment(item))], ['To-do Lists', matches.filter(item => item.type === 'Todo')], ['Birthdays', matches.filter(item => item.type === 'Birthday')], ['Reminders', matches.filter(item => item.type === 'Reminder')], ['Clipboard Vault', matches.filter(item => item.kind === 'clipboard')]];
   overlay.innerHTML = groups.filter(([, rows]) => rows.length).map(([label, rows]) => `<section class="search-section"><p class="search-section-title">${label}</p>${rows.map(item => `<button class="search-result" data-result="${item.id}"><span class="icon-wrap">${icon(itemIcon(item))}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(category(item))} · ${escapeHtml(item.note || 'Matched a saved field')}</small></span>${icon('ChevronRight')}</button>`).join('')}</section>`).join('') || `<div class="empty" style="padding:30px"><p>No saved result matches “${escapeHtml(query)}”.</p></div>`;
   document.querySelector('.content').appendChild(overlay);
-  overlay.querySelectorAll('[data-result]').forEach(button => button.onclick = () => { const item = state.items.find(row => row.id === button.dataset.result); overlay.remove(); if (item.kind === 'clipboard') navigate('clipboard'); else if (item.type === 'Reminder') navigate('reminders'); else if (item.type === 'Birthday') navigate('birthdays'); else if (item.type === 'Audio' || audioAttachment(item)) openDetail(item.id, 'audio'); else openDetail(item.id); });
+  overlay.querySelectorAll('[data-result]').forEach(button => button.onclick = () => { const item = state.items.find(row => row.id === button.dataset.result); overlay.remove(); if (item.kind === 'clipboard') navigate('clipboard'); else if (item.type === 'Reminder') navigate('reminders'); else if (item.type === 'Todo') navigate('todos'); else if (item.type === 'Birthday') navigate('birthdays'); else if (item.type === 'Audio' || audioAttachment(item)) openDetail(item.id, 'audio'); else openDetail(item.id); });
 }
 function openMobileSearch() {
   modal.className = 'modal';
@@ -777,7 +840,7 @@ function openMobileSearch() {
   input.oninput = () => {
     const query = input.value.trim().toLowerCase(); const results = query ? state.items.filter(item => item.type !== 'Notification' && searchable(item).includes(query)).slice(0, 12) : [];
     document.querySelector('#mobile-results').innerHTML = results.map(item => `<button class="search-result" data-mobile-result="${item.id}"><span class="icon-wrap">${icon(itemIcon(item))}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(category(item))} · ${escapeHtml(item.note || 'Matched a saved field')}</small></span>${icon('ChevronRight')}</button>`).join('') || (query ? `<div class="empty" style="padding:28px"><p>No result found.</p></div>` : '');
-    document.querySelectorAll('[data-mobile-result]').forEach(button => button.onclick = () => { const item = state.items.find(row => row.id === button.dataset.mobileResult); closeModal(); if (item.kind === 'clipboard') navigate('clipboard'); else if (item.type === 'Reminder') navigate('reminders'); else if (item.type === 'Birthday') navigate('birthdays'); else if (item.type === 'Audio' || audioAttachment(item)) openDetail(item.id, 'audio'); else openDetail(item.id); });
+    document.querySelectorAll('[data-mobile-result]').forEach(button => button.onclick = () => { const item = state.items.find(row => row.id === button.dataset.mobileResult); closeModal(); if (item.kind === 'clipboard') navigate('clipboard'); else if (item.type === 'Reminder') navigate('reminders'); else if (item.type === 'Todo') navigate('todos'); else if (item.type === 'Birthday') navigate('birthdays'); else if (item.type === 'Audio' || audioAttachment(item)) openDetail(item.id, 'audio'); else openDetail(item.id); });
   };
 }
 
@@ -839,12 +902,81 @@ function openClipEditor(value, existing = null) {
   document.querySelector('#clip-form').onsubmit = async event => { event.preventDefault(); await withRhinoActivity(existing ? 'Updating clipboard…' : 'Saving clipboard…', () => vaultStore.save({ ...(existing || {}), kind: 'clipboard', type: 'Clipboard', title: document.querySelector('#clip-title').value.trim() || 'Untitled clip', note: document.querySelector('#clip-title').value.trim(), fields: { Content: document.querySelector('#clip-content').value.trim() } })); closeModal(); toast(existing ? 'Clipboard updated' : 'Clipboard saved'); };
 }
 
+function splitTodoInput(value) {
+  return String(value || '').split(/[,\n]+/).map(text => text.trim()).filter(Boolean).slice(0, 200);
+}
+function openTodoEditor(item = null) {
+  modal.className = 'modal todo-modal';
+  const existingText = item ? parseTodoItems(item).map(row => row.text).join('\n') : '';
+  modal.innerHTML = `<form class="modal-inner" id="todo-form"><div class="modal-head"><div><p class="eyebrow">${item ? 'Edit list' : 'New to-do list'}</p><h2>${item ? 'Update your list' : 'What are you planning?'}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><label>List title<input id="todo-title" required maxlength="160" placeholder="e.g. Grocery shopping" value="${escapeHtml(item?.title || '')}"></label><label>Items<textarea id="todo-items-input" rows="7" required placeholder="Tomato 2 kg, potato, coriander&#10;Separate items with commas or new lines">${escapeHtml(existingText)}</textarea></label><p class="todo-form-help">Every comma or new line becomes a separate checkable item. Amounts are optional and can be added later.</p><div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Check')} ${item ? 'Save list' : 'Create list'}</button></div></form>`;
+  showModal();
+  document.querySelector('#todo-form').onsubmit = async event => {
+    event.preventDefault(); const names = splitTodoInput(document.querySelector('#todo-items-input').value); if (!names.length) return toast('Add at least one list item');
+    const previous = item ? parseTodoItems(item) : []; const rows = names.map((text, index) => { const match = previous.find(row => row.text.toLowerCase() === text.toLowerCase()) || previous[index]; return { id: match?.id || crypto.randomUUID(), text, done: Boolean(match?.done), amount: match?.amount ?? '' }; });
+    const fields = { ...(item?.fields || {}), 'Todo items': JSON.stringify(rows), Status: item?.fields?.Status || 'active', Currency: 'INR' };
+    await withRhinoActivity(item ? 'Updating to-do list…' : 'Creating to-do list…', () => vaultStore.save({ ...(item || {}), kind: 'memory', type: 'Todo', title: document.querySelector('#todo-title').value.trim(), note: item?.note || '', fields }));
+    closeModal(); state.todoTab = 'active'; state.view = 'todos'; renderView(); toast(item ? 'To-do list updated' : 'To-do list created');
+  };
+}
+async function saveTodoRows(item, rows, extraFields = {}) {
+  return vaultStore.save({ ...item, fields: { ...item.fields, ...extraFields, 'Todo items': JSON.stringify(rows) } });
+}
+async function toggleTodoRow(itemId, rowId) {
+  const item = state.items.find(row => row.id === itemId); if (!item) return; const rows = parseTodoItems(item); const row = rows.find(entry => entry.id === rowId); if (!row) return; row.done = !row.done;
+  await saveTodoRows(item, rows); renderView();
+}
+async function updateTodoAmount(itemId, rowId, value) {
+  const item = state.items.find(row => row.id === itemId); if (!item) return; const rows = parseTodoItems(item); const row = rows.find(entry => entry.id === rowId); if (!row) return; row.amount = value === '' ? '' : Math.max(0, Number(value) || 0);
+  await saveTodoRows(item, rows); renderView();
+}
+function editTodoRow(itemId, rowId) {
+  const item = state.items.find(row => row.id === itemId); const row = parseTodoItems(item).find(entry => entry.id === rowId); if (!item || !row) return;
+  modal.className = 'modal confirm'; modal.innerHTML = `<form class="modal-inner" id="todo-row-form"><div class="modal-head"><div><p class="eyebrow">List item</p><h2>Edit this item</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><label>Item name<input id="todo-row-name" required maxlength="240" value="${escapeHtml(row.text)}"></label><label>Amount (optional)<input id="todo-row-amount" type="number" min="0" step="0.01" inputmode="decimal" value="${row.amount === '' ? '' : escapeHtml(row.amount)}"></label><div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Check')} Save item</button></div></form>`; showModal();
+  document.querySelector('#todo-row-form').onsubmit = async event => { event.preventDefault(); const rows = parseTodoItems(item); const target = rows.find(entry => entry.id === rowId); target.text = document.querySelector('#todo-row-name').value.trim(); const amount = document.querySelector('#todo-row-amount').value; target.amount = amount === '' ? '' : Math.max(0, Number(amount) || 0); await saveTodoRows(item, rows); closeModal(); renderView(); toast('List item updated'); };
+}
+function addTodoRow(itemId) {
+  const item = state.items.find(row => row.id === itemId); if (!item) return;
+  modal.className = 'modal confirm'; modal.innerHTML = `<form class="modal-inner" id="todo-row-form"><div class="modal-head"><div><p class="eyebrow">Add item</p><h2>What else do you need?</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><label>Item name<input id="todo-row-name" required maxlength="240" autofocus></label><label>Amount (optional)<input id="todo-row-amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"></label><div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Plus')} Add item</button></div></form>`; showModal();
+  document.querySelector('#todo-row-form').onsubmit = async event => { event.preventDefault(); const amount = document.querySelector('#todo-row-amount').value; const rows = [...parseTodoItems(item), { id: crypto.randomUUID(), text: document.querySelector('#todo-row-name').value.trim(), done: false, amount: amount === '' ? '' : Math.max(0, Number(amount) || 0) }]; await saveTodoRows(item, rows); closeModal(); renderView(); toast('Item added'); };
+}
+function deleteTodoRow(itemId, rowId) {
+  const item = state.items.find(row => row.id === itemId); if (!item) return; const row = parseTodoItems(item).find(entry => entry.id === rowId);
+  confirmBox('Delete this list item?', `“${row?.text || 'This item'}” will be removed from the list.`, 'Delete item', 'Trash2', async () => { await saveTodoRows(item, parseTodoItems(item).filter(entry => entry.id !== rowId)); renderView(); toast('List item deleted'); });
+}
+function closeTodo(itemId) {
+  const item = state.items.find(row => row.id === itemId); if (!item) return;
+  confirmBox('Close and calculate this list?', `Memoir will lock in the current ${todoCurrency(todoTotal(item))} total. You can still adjust or complete the list afterward.`, 'Close & total', 'ReceiptText', async () => { await saveTodoRows(item, parseTodoItems(item), { Closed: 'Yes', 'Closed at': new Date().toISOString(), Total: String(todoTotal(item)) }); renderView(); openTodoReceipt(itemId); });
+}
+function completeTodo(itemId) {
+  const item = state.items.find(row => row.id === itemId); if (!item) return;
+  confirmBox('Complete this to-do list?', 'The list will move to Completed. Its receipt and sharing options remain available.', 'Complete list', 'CircleCheckBig', async () => { await saveTodoRows(item, parseTodoItems(item), { Status: 'completed', Closed: 'Yes', 'Completed at': new Date().toISOString(), Total: String(todoTotal(item)) }); state.todoTab = 'completed'; renderView(); toast('To-do list completed', 'success'); });
+}
+function todoReceiptText(item) {
+  const rows = parseTodoItems(item); const date = new Date(item.fields?.['Closed at'] || item.fields?.['Completed at'] || Date.now()).toLocaleString('en-IN');
+  return [`MEMOIR · ${activeProfile().name}`, item.title, date, '', ...rows.map((row, index) => `${String(index + 1).padStart(2, '0')}. ${row.done ? '✓' : '○'} ${row.text}${row.amount === '' ? '' : ` — ${todoCurrency(row.amount)}`}`), '', `TOTAL — ${todoCurrency(todoTotal(item))}`, '', 'Created securely with Memoir'].join('\n');
+}
+async function todoReceiptBlob(item) {
+  const rows = parseTodoItems(item); const width = 900; const lineHeight = 48; const height = 360 + rows.length * lineHeight; const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fffaf8'; ctx.fillRect(0, 0, width, height); ctx.fillStyle = '#171417'; ctx.font = '700 38px system-ui'; ctx.fillText('memoir', 78, 80); ctx.fillStyle = '#f32e8b'; ctx.beginPath(); ctx.arc(43, 66, 22, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#7c7479'; ctx.font = '600 18px system-ui'; ctx.fillText(`${activeProfile().name} · ${new Date(item.fields?.['Closed at'] || item.fields?.['Completed at'] || Date.now()).toLocaleString('en-IN')}`, 42, 120);
+  ctx.fillStyle = '#171417'; ctx.font = '700 30px system-ui'; ctx.fillText(item.title.slice(0, 48), 42, 178); ctx.strokeStyle = '#e9dfe3'; ctx.beginPath(); ctx.moveTo(42, 210); ctx.lineTo(width - 42, 210); ctx.stroke();
+  let y = 260; rows.forEach((row, index) => { ctx.fillStyle = row.done ? '#6f686c' : '#171417'; ctx.font = '500 21px system-ui'; const label = `${index + 1}. ${row.done ? '✓' : '○'} ${row.text}`; ctx.fillText(label.slice(0, 58), 42, y); if (row.amount !== '') { ctx.textAlign = 'right'; ctx.font = '700 21px system-ui'; ctx.fillText(todoCurrency(row.amount), width - 42, y); ctx.textAlign = 'left'; } y += lineHeight; });
+  ctx.strokeStyle = '#e9dfe3'; ctx.beginPath(); ctx.moveTo(42, y - 18); ctx.lineTo(width - 42, y - 18); ctx.stroke(); ctx.fillStyle = '#171417'; ctx.font = '700 28px system-ui'; ctx.fillText('TOTAL', 42, y + 28); ctx.textAlign = 'right'; ctx.fillText(todoCurrency(todoTotal(item)), width - 42, y + 28); ctx.textAlign = 'left'; ctx.fillStyle = '#9a9095'; ctx.font = '500 16px system-ui'; ctx.fillText('Created securely with Memoir', 42, height - 34);
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
+}
+async function openTodoReceipt(itemId) {
+  const item = state.items.find(row => row.id === itemId); if (!item) return; const blob = await todoReceiptBlob(item); const url = URL.createObjectURL(blob);
+  modal.className = 'modal receipt-modal'; modal.innerHTML = `<div class="modal-inner"><div class="modal-head"><div><p class="eyebrow">Memoir receipt</p><h2>${escapeHtml(item.title)}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><div class="receipt-machine"><i></i><img src="${url}" alt="Generated receipt preview"></div><div class="receipt-actions"><button class="secondary" id="receipt-copy-text">${icon('Copy')} Copy text</button><button class="secondary" id="receipt-copy-image">${icon('ReceiptText')} Copy image</button><button class="primary" id="receipt-share">${icon('Share2')} Share receipt</button></div></div>`; showModal(); modal.addEventListener('close', () => URL.revokeObjectURL(url), { once: true });
+  document.querySelector('#receipt-copy-text').onclick = () => copyText(todoReceiptText(item));
+  document.querySelector('#receipt-copy-image').onclick = async () => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); toast('Receipt image copied'); } catch { toast('Image copying is not supported here. Use Share receipt.'); } };
+  document.querySelector('#receipt-share').onclick = async () => { const file = new File([blob], `memoir-${item.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`, { type: 'image/png' }); if (navigator.canShare?.({ files: [file] })) await navigator.share({ title: item.title, text: `Memoir to-do receipt · ${todoCurrency(todoTotal(item))}`, files: [file] }); else { const link = document.createElement('a'); link.href = url; link.download = file.name; link.click(); toast('Receipt image downloaded'); } };
+}
+
 function openEditor(item = null, initialType = 'Personal') {
   if (item?.type === 'Reminder' || initialType === 'Reminder') return openReminderEditor(item);
   if (item?.type === 'Birthday' || initialType === 'Birthday') return openBirthdayEditor(item);
   const selected = item?.type || initialType;
   modal.className = 'modal';
-  modal.innerHTML = `<form class="modal-inner" id="memory-form"><div class="modal-head"><div><p class="eyebrow">${item ? 'Edit memory' : 'New memory'}</p><h2>${item ? 'Update what matters' : 'Add something important'}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><label>Category<select id="memory-type">${Object.keys(fieldMap).filter(type => !['Birthday', 'Reminder'].includes(type)).map(type => `<option ${type === selected ? 'selected' : ''}>${type}</option>`).join('')}</select></label><label>Title<input id="memory-title" required placeholder="e.g. Home Wi-Fi" value="${escapeHtml(item?.title || '')}"></label><div id="dynamic-fields"></div><label>Note<textarea id="memory-note" rows="3" placeholder="Context, reminder, or anything useful">${escapeHtml(item?.note || '')}</textarea></label><div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Check')} ${item ? 'Save changes' : 'Save memory'}</button></div></form>`;
+  modal.innerHTML = `<form class="modal-inner" id="memory-form"><div class="modal-head"><div><p class="eyebrow">${item ? 'Edit memory' : 'New memory'}</p><h2>${item ? 'Update what matters' : 'Add something important'}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><label>Category<select id="memory-type">${Object.keys(fieldMap).filter(type => !['Birthday', 'Reminder', 'Audio', 'Todo'].includes(type)).map(type => `<option ${type === selected ? 'selected' : ''}>${type}</option>`).join('')}</select></label><label>Title<input id="memory-title" required placeholder="e.g. Home Wi-Fi" value="${escapeHtml(item?.title || '')}"></label><div id="dynamic-fields"></div><label>Note<textarea id="memory-note" rows="3" placeholder="Context, reminder, or anything useful">${escapeHtml(item?.note || '')}</textarea></label><div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Check')} ${item ? 'Save changes' : 'Save memory'}</button></div></form>`;
   showModal();
   const renderFields = () => {
     const type = document.querySelector('#memory-type').value;
@@ -1217,10 +1349,27 @@ async function prepareAudioAttachment(file, source = 'Memoir app') {
   return { kind: 'audio', data, mimeType: file.type || 'audio/webm', name: file.name || 'Voice memo', assetId: result.assetId, source, createdAt: recordingStartedAt || Date.now(), previewUrl: '' };
 }
 
+async function persistPendingAudio(attachment, browserTranscript = '') {
+  const recorded = new Date(attachment.createdAt || Date.now());
+  const record = await vaultStore.save({
+    kind: 'memory', type: 'Audio', title: `Voice Memo · ${recorded.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`,
+    note: browserTranscript || 'Audio saved securely. Transcription is being prepared.',
+    provenance: { source: attachment.source?.toLowerCase().includes('telegram') ? 'Telegram' : 'Memoir app', createdAt: recorded.toISOString() },
+    fields: {
+      'Audio Asset ID': attachment.assetId, 'Audio MIME type': attachment.mimeType || 'audio/webm', 'Audio File name': attachment.name || 'Voice memo',
+      'Audio Source': attachment.source || 'Memoir app', 'Recorded at': recorded.toISOString(), 'Audio Transcript': browserTranscript || 'Awaiting transcription',
+      'Transcription status': browserTranscript ? 'Browser transcript · review suggested' : 'Awaiting transcription',
+    },
+  });
+  attachment.recordId = record.id;
+  return record;
+}
+
 async function handleAudioFile(file, source = 'Memoir app') {
   try {
     toast('Encrypting audio for secure sync…');
     state.chatAttachment = await prepareAudioAttachment(file, source);
+    await persistPendingAudio(state.chatAttachment);
     renderView();
     await askAssistant('Transcribe this voice memo and save it as an audio memory');
   } catch (error) {
@@ -1304,6 +1453,7 @@ function startLiveVoiceSession(stream) {
       try {
         const file = new File([blob], `voice-memo-${new Date(recordingStartedAt).toISOString().replace(/[:.]/g, '-')}.${extension}`, { type: mimeType });
         state.chatAttachment = await prepareAudioAttachment(file, 'Memoir recording');
+        await persistPendingAudio(state.chatAttachment, voiceTranscript);
         renderView();
         await askAssistant(voiceTranscript ? `Save this audio memory. Browser transcript: ${voiceTranscript}` : 'Transcribe this voice memo and save it as an audio memory');
       } catch (error) { toast(error?.message || 'The recording could not be saved'); }
@@ -1378,6 +1528,34 @@ function stopVoiceRecording() {
   renderView();
 }
 
+async function updateAudioTranscriptEverywhere(audioItem, transcript, status = 'Completed') {
+  if (!audioItem) return;
+  const clean = String(transcript || '').trim();
+  const fields = { ...audioItem.fields, 'Audio Transcript': clean || 'No transcript available', 'Transcription status': status };
+  const updatedAudio = await vaultStore.save({ ...audioItem, note: clean || audioItem.note || 'Audio saved without a transcript.', fields });
+  const linked = reminders().filter(item => String(item.fields?.['Source audio ID'] || '') === audioItem.id || (audioItem.fields?.['Audio Asset ID'] && (item.fields?.['Audio Asset ID'] === audioItem.fields['Audio Asset ID'] || item.fields?.['Source audio asset ID'] === audioItem.fields['Audio Asset ID'])));
+  for (const reminder of linked) await vaultStore.save(normalizeReminderRecord({ ...reminder, note: clean || reminder.note, fields: { ...reminder.fields, 'Audio Transcript': clean || 'No transcript available' } }));
+  return updatedAudio;
+}
+
+function editAudioTranscript(id) {
+  const item = state.items.find(row => row.id === id); if (!item) return;
+  modal.className = 'modal'; modal.innerHTML = `<form class="modal-inner" id="audio-transcript-form"><div class="modal-head"><div><p class="eyebrow">Audio transcript</p><h2>Correct the transcript</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><p class="todo-form-help">Changes also update reminders created from this voice memo.</p><label>Transcript<textarea id="audio-transcript-text" rows="9" required>${escapeHtml(audioAttachment(item)?.transcript === 'Awaiting transcription' ? '' : audioAttachment(item)?.transcript || '')}</textarea></label><div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Check')} Save transcript</button></div></form>`; showModal();
+  document.querySelector('#audio-transcript-form').onsubmit = async event => { event.preventDefault(); const transcript = document.querySelector('#audio-transcript-text').value.trim(); await withRhinoActivity('Updating transcript and reminder…', () => updateAudioTranscriptEverywhere(item, transcript, 'Edited by user')); closeModal(); renderView(); toast('Transcript updated everywhere', 'success'); };
+}
+
+async function retryAudioTranscription(id) {
+  const item = state.items.find(row => row.id === id); const attachment = audioAttachment(item); if (!item || !attachment?.assetId) return toast('This recording is not available for transcription retry');
+  try {
+    await withRhinoActivity('Preparing audio for transcription…', async () => {
+      const token = await vaultStore.idToken(); const response = await fetch(`/api/audio?id=${encodeURIComponent(attachment.assetId)}`, { headers: vaultStore.apiHeaders(token, false) }); if (!response.ok) throw new Error('The encrypted recording could not be loaded');
+      const blob = await response.blob(); const data = await readFileAsDataUrl(new File([blob], attachment.fileName || 'voice-memo', { type: attachment.mimeType || blob.type || 'audio/webm' }));
+      state.chatAttachment = { kind: 'audio', data, mimeType: attachment.mimeType || blob.type || 'audio/webm', name: attachment.fileName || 'Voice memo', assetId: attachment.assetId, source: attachment.source, createdAt: attachment.recordedAt || item.createdAt, recordId: item.id };
+    });
+    state.view = 'assistant'; shell(); await askAssistant('Retry transcription for this saved audio memory');
+  } catch (error) { toast(error?.message || 'Transcription retry could not start'); }
+}
+
 
 
 async function askAssistant(query) {
@@ -1425,30 +1603,25 @@ async function askAssistant(query) {
     const message = buildAssistantMessage(answer, cleanQuery, protectedInput.values);
     if (attachment?.kind === 'audio') {
       const transcript = String(answer.audioTranscript || '').trim();
-      const action = message.actions?.find(item => item.op === 'create') || message.actions?.[0];
-      if (action) {
-        action.fields = {
-          ...(action.fields || {}),
-          'Audio Asset ID': attachment.assetId,
-          'Audio MIME type': attachment.mimeType || 'audio/webm',
-          'Audio File name': attachment.name || 'Voice memo',
-          'Audio Source': attachment.source || 'Memoir app',
-          'Recorded at': new Date(attachment.createdAt || Date.now()).toISOString(),
-          'Audio Transcript': transcript || action.fields?.['Audio Transcript'] || 'No transcript available',
-          'Transcription status': transcript ? 'Completed' : (action.fields?.['Transcription status'] || 'Audio only · speech unclear'),
-        };
-        if (action.type !== 'Reminder') action.type = 'Audio';
-        if (!transcript && !action.note) action.note = 'Audio saved. No transcript is available because the recording could not be understood clearly.';
+      const audioItem = state.items.find(item => item.id === attachment.recordId);
+      const audioAction = message.actions?.find(action => action.type === 'Audio');
+      const reliableTranscript = transcript || (audioAction?.fields?.['Audio Transcript'] && !/^(no transcript|awaiting)/i.test(audioAction.fields['Audio Transcript']) ? audioAction.fields['Audio Transcript'] : '');
+      if (audioItem) {
+        const updated = await updateAudioTranscriptEverywhere(audioItem, reliableTranscript, reliableTranscript ? 'Completed' : 'Audio only · transcription unavailable');
+        if (audioAction?.title) await vaultStore.save({ ...updated, title: audioAction.title, note: reliableTranscript || updated.note });
       }
+      message.actions = (message.actions || []).filter(action => action.type !== 'Audio').map(action => action.type === 'Reminder' ? { ...action, fields: { ...(action.fields || {}), 'Audio Transcript': reliableTranscript || 'No transcript available', 'Source audio ID': attachment.recordId || '', 'Created via': attachment.source || 'Memoir app' } } : action);
+      message.title = reliableTranscript ? 'Audio saved and transcribed' : 'Audio saved · transcription available later';
+      message.markdown = reliableTranscript ? 'The encrypted recording is already in Audio. Review any reminder prepared from the transcript below.' : 'The recording is safely stored. The AI transcription service is currently unavailable or could not understand the speech. Use **Try transcription again** from Audio after limits reset.';
+      if (!reliableTranscript) message.retryAudioId = attachment.recordId;
     }
     proposedActions = message.actions || [];
     state.messages.push(message);
   } catch (error) {
     if (attachment?.kind === 'audio') {
-      const recorded = new Date(attachment.createdAt || Date.now());
-      const fallbackAction = { op: 'create', id: '', type: 'Audio', title: `Voice Memo · ${recorded.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`, note: 'Audio saved. No transcript is available because the recording could not be understood clearly.', fields: { 'Audio Asset ID': attachment.assetId, 'Audio MIME type': attachment.mimeType || 'audio/webm', 'Audio File name': attachment.name || 'Voice memo', 'Audio Source': attachment.source || 'Memoir app', 'Recorded at': recorded.toISOString(), 'Audio Transcript': 'No transcript available', 'Transcription status': 'Audio only · transcription unavailable' } };
-      proposedActions = [fallbackAction];
-      state.messages.push({ role: 'assistant', title: 'Audio saved without transcript', markdown: 'The recording is safe. Speech recognition was unavailable or the audio was unclear, so I did not invent a transcript.', actions: proposedActions });
+      const audioItem = state.items.find(item => item.id === attachment.recordId);
+      if (audioItem) await updateAudioTranscriptEverywhere(audioItem, '', 'Awaiting transcription · retry available');
+      state.messages.push({ role: 'assistant', title: 'Audio saved safely', markdown: 'The recording is already visible in Audio. Transcription could not run because the selected AI is unavailable or its limit was reached. You can retry later without recording again.', retryAudioId: attachment.recordId });
     } else {
       const fallback = localRoute(cleanQuery);
       state.messages.push(fallback || { role: 'assistant', markdown: `### Assistant response\nI couldn’t process this capture request: ${error?.message || 'Check your network connection'}.` });
@@ -1516,7 +1689,7 @@ function rehydrateAction(action, privateValues) {
 function assistantActionName(action) { return action.title || state.items.find(item => item.id === action.id)?.title || 'Saved memory'; }
 async function confirmAssistantActions(actions) {
   modal.className = 'modal confirm ai-confirm';
-  modal.innerHTML = `<div class="modal-inner"><img class="assistant-logo confirm-rhino" src="/brand/memoir-rhino-ui.png" alt=""><div class="modal-head"><div><p class="eyebrow">Rhinous prepared ${actions.length} change${actions.length === 1 ? '' : 's'}</p><h2>Review before applying</h2></div></div><div class="ai-review-list">${actions.map(action => { const visibleFields = Object.entries(action.fields || {}).filter(([label]) => !audioDataLabels.has(label) && !audioMetadataLabels.has(label)); return `<article><span>${escapeHtml(action.op.toUpperCase())}</span><strong>${escapeHtml(assistantActionName(action))}</strong>${action.fields?.['Audio Asset ID'] ? `<div class="audio-review-badge">${icon('AudioLines')} Encrypted audio attached</div>` : ''}${visibleFields.length ? `<dl>${visibleFields.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>` : ''}</article>`; }).join('')}</div><p class="ai-review-note">Nothing changes until you confirm. Secret values shown here remain inside this browser.</p><div class="modal-actions"><button class="secondary modal-cancel">No, cancel</button><button class="primary modal-confirm">${icon('Check')} Apply ${actions.length === 1 ? 'change' : 'changes'}</button></div></div>`;
+  modal.innerHTML = `<div class="modal-inner"><img class="assistant-logo confirm-rhino" src="/brand/memoir-rhino-ui.png" alt=""><div class="modal-head"><div><p class="eyebrow">Rhinous prepared ${actions.length} change${actions.length === 1 ? '' : 's'}</p><h2>Review before applying</h2></div></div><div class="ai-review-list">${actions.map(action => { const todoPreview = action.type === 'Todo' ? todoItemsFromFields(action.fields) : []; const visibleFields = Object.entries(action.fields || {}).filter(([label]) => !audioDataLabels.has(label) && !audioMetadataLabels.has(label) && !(action.type === 'Todo' && label === 'Todo items')); return `<article><span>${escapeHtml(action.op.toUpperCase())}</span><strong>${escapeHtml(assistantActionName(action))}</strong>${action.fields?.['Audio Asset ID'] ? `<div class="audio-review-badge">${icon('AudioLines')} Encrypted audio attached</div>` : ''}${todoPreview.length ? `<ul class="ai-todo-preview">${todoPreview.map(text => `<li>${icon('Circle')}<span>${escapeHtml(text)}</span></li>`).join('')}</ul>` : ''}${visibleFields.length ? `<dl>${visibleFields.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>` : ''}</article>`; }).join('')}</div><p class="ai-review-note">Nothing changes until you confirm. Secret values shown here remain inside this browser.</p><div class="modal-actions"><button class="secondary modal-cancel">No, cancel</button><button class="primary modal-confirm">${icon('Check')} Apply ${actions.length === 1 ? 'change' : 'changes'}</button></div></div>`;
   modal.showModal();
   const approved = await new Promise(resolve => {
     let settled = false; const finish = value => { if (settled) return; settled = true; resolve(value); };
@@ -1531,12 +1704,12 @@ async function confirmAssistantActions(actions) {
       if (action.op === 'create') {
         const type = action.type || 'Personal';
         const record = { kind: type === 'Clipboard' ? 'clipboard' : 'memory', type, title: action.title || (type === 'Reminder' ? 'Untitled reminder' : 'Untitled memory'), note: action.note || '', fields: action.fields || {} };
-        await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : record); applied += 1;
+        await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : type === 'Todo' ? normalizeTodoRecord(record) : record); applied += 1;
       } else if (action.op === 'update') {
         const item = state.items.find(row => row.id === action.id); if (!item) continue;
         const type = action.type || item.type;
         const record = { ...item, kind: type === 'Clipboard' ? 'clipboard' : 'memory', type, title: action.title || item.title, note: action.note || item.note || '', fields: { ...allFields(item), ...(action.fields || {}) } };
-        await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : record); applied += 1;
+        await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : type === 'Todo' ? normalizeTodoRecord(record) : record); applied += 1;
       } else if (action.op === 'delete' && state.items.some(row => row.id === action.id)) { const item = state.items.find(row => row.id === action.id); await deleteAudioAssetForItem(item); await vaultStore.remove(action.id); applied += 1; }
     }
   });
@@ -1653,15 +1826,21 @@ async function applyTelegramActions() {
     if (queued.length) await withRhinoActivity('Syncing Telegram changes…', async () => {
       for (const entry of queued) {
         const action = entry?.action; if (!action || !['create', 'update', 'delete'].includes(action.op)) { acknowledged.push(entry.queueId); continue; }
+        if (action.fields?.['Audio Recording'] && !action.fields?.['Audio Asset ID']) {
+          const token = await vaultStore.idToken(); const dataUrl = String(action.fields['Audio Recording']); const mimeType = dataUrl.match(/^data:([^;,]+)/i)?.[1] || 'audio/ogg';
+          const response = await fetch('/api/audio', { method: 'POST', headers: vaultStore.apiHeaders(token), body: JSON.stringify({ data: dataUrl, mimeType, fileName: `telegram-voice-${entry.queueId}.ogg`, createdAt: Date.now() }) });
+          const saved = await response.json().catch(() => ({})); if (!response.ok || !saved.assetId) throw new Error(saved.error || 'Telegram audio migration failed');
+          delete action.fields['Audio Recording']; action.fields['Audio Asset ID'] = saved.assetId; action.fields['Audio MIME type'] = mimeType; action.fields['Audio File name'] = `telegram-voice-${entry.queueId}.ogg`; action.fields['Audio Source'] = 'Telegram';
+        }
         if (action.op === 'delete') {
           if (state.items.some(item => item.id === action.id)) await vaultStore.remove(action.id);
         } else if (action.op === 'update') {
           const item = state.items.find(row => row.id === action.id); if (!item) continue;
-          const type = action.type || item.type; const record = { ...item, type, kind: type === 'Clipboard' ? 'clipboard' : 'memory', title: action.title || item.title, note: action.note || item.note || '', fields: { ...allFields(item), ...(action.fields || {}) } };
-          await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : record);
+          const type = action.type || item.type; const record = { ...item, type, kind: type === 'Clipboard' ? 'clipboard' : 'memory', title: action.title || item.title, note: action.note || item.note || '', provenance: item.provenance || { source: 'Telegram', createdAt: new Date(item.createdAt || Date.now()).toISOString() }, fields: { ...allFields(item), ...(action.fields || {}) } };
+          await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : type === 'Todo' ? normalizeTodoRecord(record) : record);
         } else {
-          const type = action.type || 'Personal'; const record = { id: entry.queueId, type, kind: type === 'Clipboard' ? 'clipboard' : 'memory', title: action.title || (type === 'Reminder' ? 'Untitled reminder' : 'Untitled memory'), note: action.note || '', fields: action.fields || {} };
-          await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : record);
+          const type = action.type || 'Personal'; const record = { id: entry.queueId, type, kind: type === 'Clipboard' ? 'clipboard' : 'memory', title: action.title || (type === 'Reminder' ? 'Untitled reminder' : 'Untitled memory'), note: action.note || '', provenance: { source: 'Telegram', createdAt: new Date().toISOString() }, fields: action.fields || {} };
+          await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : type === 'Todo' ? normalizeTodoRecord(record) : record);
         }
         acknowledged.push(entry.queueId);
       }

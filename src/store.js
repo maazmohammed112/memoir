@@ -71,7 +71,15 @@ async function idb(store, mode, action) {
   });
 }
 
-const bytesToB64 = bytes => btoa(String.fromCharCode(...bytes));
+function bytesToB64(bytes) {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let offset = 0; offset < view.length; offset += chunkSize) {
+    binary += String.fromCharCode(...view.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
 const b64ToBytes = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
 
 async function getVaultKey() {
@@ -474,7 +482,7 @@ class VaultStore {
   async save(item) {
     if (this.session.status !== 'signedIn' || this.uid !== this.profile?.uid) throw new Error('Owner sign-in is required');
     const now = Date.now();
-    const next = { ...item, id: item.id || crypto.randomUUID(), createdAt: item.createdAt || now, updatedAt: now };
+    const next = { ...item, id: item.id || crypto.randomUUID(), createdAt: item.createdAt || now, updatedAt: now, provenance: item.provenance || { source: 'Memoir app', createdAt: new Date(item.createdAt || now).toISOString() } };
     const payload = await localPut(next);
     this.items = [next, ...this.items.filter(row => row.id !== next.id)].sort((a, b) => b.updatedAt - a.updatedAt);
     await idb('queue', 'readwrite', store => store.put({ id: next.id, op: 'put', updatedAt: now, payload }));
@@ -488,7 +496,7 @@ class VaultStore {
     if (this.session.status !== 'signedIn' || this.uid !== this.profile?.uid) throw new Error('Owner sign-in is required');
     const saved = []; const baseTime = Date.now();
     for (const [index, record] of (Array.isArray(records) ? records : []).entries()) {
-      const now = baseTime + index; const next = { ...record, id: record.id || crypto.randomUUID(), createdAt: record.createdAt || now, updatedAt: now };
+      const now = baseTime + index; const next = { ...record, id: record.id || crypto.randomUUID(), createdAt: record.createdAt || now, updatedAt: now, provenance: record.provenance || { source: 'Memoir app', createdAt: new Date(record.createdAt || now).toISOString() } };
       const payload = await localPut(next);
       await idb('queue', 'readwrite', store => store.put({ id: next.id, op: 'put', updatedAt: now, payload })); saved.push(next);
     }

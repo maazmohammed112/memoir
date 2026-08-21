@@ -214,17 +214,29 @@ async function processTelegramUpdateOnce(update, profile = getUserByChatId(updat
   }
   let responseText;
   if (route.kind === 'actions' && route.actions?.length) {
-    const actions = rehydrateActions(route.actions, protectedInput.values);
+    let actions = rehydrateActions(route.actions, protectedInput.values);
     if (audioPayload?.data) {
+      const recordedAt = Number(message.date || 0) * 1000 || Date.now();
+      const transcript = cleanTelegramText(route.audioTranscript || actions.find(act => act.fields?.['Audio Transcript'])?.fields?.['Audio Transcript'] || '');
+      let audioAction = actions.find(act => act.type === 'Audio');
+      if (!audioAction) {
+        const recordedLabel = new Date(recordedAt).toLocaleString('en-IN', { timeZone: process.env.APP_TIMEZONE || 'Asia/Calcutta', day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        audioAction = { op: 'create', id: '', type: 'Audio', title: transcript ? (transcript.length > 50 ? `${transcript.slice(0, 47)}…` : transcript) : `Voice Memo · ${recordedLabel}`, note: transcript || 'Audio saved. Transcription can be retried later.', fields: { 'Recorded at': new Date(recordedAt).toISOString(), 'Audio Transcript': transcript || 'No transcript available', 'Transcription status': transcript ? 'Completed' : 'Awaiting transcription · retry available' } };
+        actions = [audioAction, ...actions];
+      }
       actions.forEach(act => {
         if (!act.fields) act.fields = {};
-        if (audioAsset?.assetId) {
-          act.fields['Audio Asset ID'] = audioAsset.assetId;
-          act.fields['Audio MIME type'] = audioAsset.mimeType;
-          act.fields['Audio File name'] = audioAsset.fileName;
-          act.fields['Audio Source'] = 'Telegram';
+        if (act === audioAction) {
+          if (audioAsset?.assetId) {
+            act.fields['Audio Asset ID'] = audioAsset.assetId;
+            act.fields['Audio MIME type'] = audioAsset.mimeType;
+            act.fields['Audio File name'] = audioAsset.fileName;
+            act.fields['Audio Source'] = 'Telegram';
+          } else act.fields['Audio Recording'] = `data:${audioPayload.mimeType};base64,${audioPayload.data}`;
         } else {
-          act.fields['Audio Recording'] = `data:${audioPayload.mimeType};base64,${audioPayload.data}`;
+          act.fields['Audio Transcript'] = transcript || act.fields['Audio Transcript'] || 'No transcript available';
+          if (audioAsset?.assetId) act.fields['Source audio asset ID'] = audioAsset.assetId;
+          act.fields['Created via'] = 'Telegram';
         }
       });
     }
