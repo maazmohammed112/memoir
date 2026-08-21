@@ -76,6 +76,7 @@ No demo records are included. Every displayed record belongs to the currently se
 
 - One-time and recurring daily, weekly, monthly, or yearly reminders.
 - **Temporal Context Awareness**: Rhinous analyzes the current date, time, and upcoming calendar days to schedule accurate dates.
+- **Exact-but-natural retrieval**: The signed-in device deterministically locks the intended record ID and requested field names, while Gemini or Mistral still composes the conversational response. This prevents a generic field such as `Password` from switching to another account without reducing Rhinous to predefined replies.
   - If a daily or weekly reminder time has already passed today (e.g., *"every Friday at 11 AM"* when it is currently 2 PM on Friday), Rhinous automatically sets `Due at` to the upcoming Friday.
 - Telegram notification schedule: 1 day, 5 hours, 3 hours, 2 hours, 30 minutes, 10 minutes, and exactly at the due time.
 - Atomic delivery deduplication prevents duplicate notifications.

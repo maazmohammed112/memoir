@@ -644,7 +644,7 @@ function todoCard(item) {
     <div class="todo-progress"><i style="width:${rows.length ? Math.round(done / rows.length * 100) : 0}%"></i></div>
     <div class="todo-items">${rows.map(row => `<div class="todo-item ${row.done ? 'done' : ''}" data-todo-row="${row.id}"><button class="todo-check" data-todo-toggle="${item.id}" data-row-id="${row.id}" title="${row.done ? 'Mark not done' : 'Mark done'}">${icon(row.done ? 'CircleCheckBig' : 'Circle')}</button><span>${escapeHtml(row.text)}</span><label class="todo-amount"><b>₹</b><input type="number" min="0" step="0.01" inputmode="decimal" placeholder="Amount" value="${row.amount === '' ? '' : escapeHtml(row.amount)}" data-todo-amount="${item.id}" data-row-id="${row.id}" ${completed ? 'disabled' : ''}></label>${!completed ? `<button class="todo-mini" data-todo-edit-row="${item.id}" data-row-id="${row.id}" title="Edit item">${icon('Pencil')}</button><button class="todo-mini danger" data-todo-delete-row="${item.id}" data-row-id="${row.id}" title="Delete item">${icon('Trash2')}</button>` : ''}</div>`).join('')}</div>
     <div class="todo-total"><span>Total amount</span><strong>${todoCurrency(total)}</strong></div>
-    <div class="todo-card-actions">${!completed ? `<button class="secondary" data-todo-add-row="${item.id}">${icon('Plus')} Add item</button><button class="secondary" data-todo-close="${item.id}">${icon('ReceiptText')} Close & total</button><button class="primary" data-todo-complete="${item.id}">${icon('CircleCheckBig')} Complete list</button>` : `<button class="primary" data-todo-receipt="${item.id}">${icon('Share2')} Share receipt</button>`}</div>
+    <div class="todo-card-actions">${!completed ? `<button class="secondary" data-todo-add-row="${item.id}">${icon('Plus')} Add item</button>${closed ? `<button class="secondary" data-todo-receipt="${item.id}">${icon('ReceiptText')} View receipt</button>` : `<button class="secondary" data-todo-close="${item.id}">${icon('ReceiptText')} Close & total</button>`}<button class="primary" data-todo-complete="${item.id}">${icon('CircleCheckBig')} Complete list</button>` : `<button class="primary" data-todo-receipt="${item.id}">${icon('Share2')} Share receipt</button>`}</div>
   </article>`;
 }
 function todosView() {
@@ -985,14 +985,19 @@ async function todoReceiptBlob(item) {
   ctx.fillStyle = '#171417'; ctx.font = '800 31px system-ui'; ctx.fillText(item.title.slice(0, 48), 42, 171); ctx.fillStyle = '#8b8085'; ctx.font = '600 16px system-ui'; ctx.fillText(`${rows.filter(row => row.done).length} of ${rows.length} items completed`, 42, 201);
   ctx.setLineDash([7, 7]); ctx.strokeStyle = '#d9cdd1'; ctx.beginPath(); ctx.moveTo(42, 229); ctx.lineTo(width - 42, 229); ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle = '#9a8d92'; ctx.font = '700 13px system-ui'; ctx.fillText('ITEM', 42, 260); ctx.textAlign = 'right'; ctx.fillText('AMOUNT', width - 42, 260); ctx.textAlign = 'left';
-  let y = 305; rows.forEach((row, index) => { if (index % 2 === 0) { ctx.fillStyle = '#f8f2ee'; ctx.roundRect(30, y - 34, width - 60, 45, 10); ctx.fill(); } ctx.fillStyle = row.done ? '#6f686c' : '#171417'; ctx.font = '600 20px system-ui'; const label = `${String(index + 1).padStart(2, '0')}  ${row.done ? '✓' : '○'}  ${row.text}`; ctx.fillText(label.slice(0, 56), 42, y); if (row.amount !== '') { ctx.textAlign = 'right'; ctx.font = '800 20px system-ui'; ctx.fillText(todoCurrency(row.amount), width - 42, y); ctx.textAlign = 'left'; } y += lineHeight; });
+  let y = 305; rows.forEach((row, index) => { ctx.save(); if (index % 2 === 0) { ctx.fillStyle = '#f8f2ee'; ctx.fillRect(30, y - 34, width - 60, 45); } ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = row.done ? '#6f686c' : '#171417'; ctx.font = '600 20px system-ui'; const label = `${String(index + 1).padStart(2, '0')}  ${row.done ? '✓' : '○'}  ${String(row.text || 'Untitled item')}`; ctx.fillText(label.slice(0, 56), 42, y); if (row.amount !== '') { ctx.textAlign = 'right'; ctx.font = '800 20px system-ui'; ctx.fillText(todoCurrency(row.amount), width - 42, y); } ctx.restore(); y += lineHeight; });
   ctx.setLineDash([7, 7]); ctx.strokeStyle = '#d9cdd1'; ctx.beginPath(); ctx.moveTo(42, y - 22); ctx.lineTo(width - 42, y - 22); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#171417'; ctx.font = '800 29px system-ui'; ctx.fillText('TOTAL', 42, y + 27); ctx.textAlign = 'right'; ctx.fillText(todoCurrency(todoTotal(item)), width - 42, y + 27); ctx.textAlign = 'left';
   ctx.fillStyle = '#9a9095'; ctx.font = '600 15px system-ui'; ctx.fillText('Encrypted, organised and shared from Memoir', 42, height - 46); ctx.textAlign = 'right'; ctx.fillText(`RECEIPT · ${String(item.id || '').slice(-8).toUpperCase()}`, width - 42, height - 46); ctx.textAlign = 'left';
   return new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
 }
 async function openTodoReceipt(itemId) {
-  const item = state.items.find(row => row.id === itemId); if (!item) return; const blob = await withRhinoActivity('Printing your receipt…', () => todoReceiptBlob(item)); if (!blob) return toast('Receipt could not be generated'); const url = URL.createObjectURL(blob);
-  modal.className = 'modal receipt-modal'; modal.innerHTML = `<div class="modal-inner"><div class="modal-head"><div><p class="eyebrow">Memoir paper receipt</p><h2>${escapeHtml(item.title)}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><div class="receipt-printer"><div class="printer-body"><img src="/brand/memoir-rhino-ui.png" alt=""><span><b>MEMOIR</b><small>PRINTING RECEIPT</small></span><i></i><em></em></div><div class="printer-slot"></div><div class="receipt-paper"><img src="${url}" alt="Generated receipt preview"></div></div><div class="receipt-actions"><button class="secondary" id="receipt-copy-text">${icon('Copy')} Copy text</button><button class="secondary" id="receipt-copy-image">${icon('ReceiptText')} Copy image</button><button class="primary" id="receipt-share">${icon('Share2')} Share receipt</button></div></div>`; showModal(); modal.addEventListener('close', () => URL.revokeObjectURL(url), { once: true });
+  const item = state.items.find(row => row.id === itemId); if (!item) return;
+  modal.className = 'modal receipt-modal'; modal.innerHTML = `<div class="modal-inner"><div class="modal-head"><div><p class="eyebrow">Memoir paper receipt</p><h2>${escapeHtml(item.title)}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><div class="receipt-printer is-preparing"><div class="printer-body"><img src="/brand/memoir-rhino-ui.png" alt=""><span><b>MEMOIR</b><small>PREPARING RECEIPT</small></span><i></i><em></em></div><div class="printer-slot"></div><div class="receipt-paper receipt-paper-loading"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div></div><div class="receipt-actions"><button class="secondary" id="receipt-copy-text" disabled>${icon('Copy')} Copy text</button><button class="secondary" id="receipt-copy-image" disabled>${icon('ReceiptText')} Copy image</button><button class="primary" id="receipt-share" disabled>${icon('Share2')} Share receipt</button></div></div>`; showModal();
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const blob = await todoReceiptBlob(item); if (!blob) { closeModal(); return toast('Receipt could not be generated'); } const url = URL.createObjectURL(blob);
+  if (!modal.open) { URL.revokeObjectURL(url); return; }
+  const printer = modal.querySelector('.receipt-printer'); printer.classList.remove('is-preparing'); printer.querySelector('.printer-body small').textContent = 'RECEIPT READY'; printer.querySelector('.receipt-paper').outerHTML = `<div class="receipt-paper"><img src="${url}" alt="Generated receipt preview"></div>`;
+  modal.querySelectorAll('.receipt-actions button').forEach(button => { button.disabled = false; }); modal.addEventListener('close', () => URL.revokeObjectURL(url), { once: true });
   document.querySelector('#receipt-copy-text').onclick = () => copyText(todoReceiptText(item));
   document.querySelector('#receipt-copy-image').onclick = async () => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); toast('Receipt image copied'); } catch { toast('Image copying is not supported here. Use Share receipt.'); } };
   document.querySelector('#receipt-share').onclick = async () => { const file = new File([blob], `memoir-${item.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`, { type: 'image/png' }); if (navigator.canShare?.({ files: [file] })) await navigator.share({ title: item.title, text: `Memoir to-do receipt · ${todoCurrency(todoTotal(item))}`, files: [file] }); else { const link = document.createElement('a'); link.href = url; link.download = file.name; link.click(); toast('Receipt image downloaded'); } };
@@ -1603,11 +1608,11 @@ async function askAssistant(query) {
   state.chatLoading = true;
   renderView();
   scrollChat();
+  const localLookupRequested = !attachment && isSavedLookupRequest(cleanQuery);
+  const localAnswer = localLookupRequested ? localRoute(cleanQuery) : null;
 
   try {
-    const localLookupRequested = !attachment && isSavedLookupRequest(cleanQuery);
-    const localAnswer = localLookupRequested ? localRoute(cleanQuery) : null;
-    if (localLookupRequested) {
+    if (localLookupRequested && !localAnswer?._lookupHint) {
       state.messages.push(localAnswer || { role: 'assistant', title: 'Which saved memory?', markdown: 'I will not guess when private records could overlap. Please include the saved title or owner, for example **Home Wi-Fi password** or **EPFO password**.' });
       return;
     }
@@ -1621,6 +1626,7 @@ async function askAssistant(query) {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Calcutta',
       now: new Date().toISOString(),
     };
+    if (localAnswer?._lookupHint) payload.lookupHint = localAnswer._lookupHint;
     if (attachment?.kind === 'audio') {
       payload.audio = {
         data: attachment.data,
@@ -1658,7 +1664,7 @@ async function askAssistant(query) {
       if (audioItem) await updateAudioTranscriptEverywhere(audioItem, '', 'Awaiting transcription · retry available');
       state.messages.push({ role: 'assistant', title: 'Audio saved safely', markdown: 'The recording is already visible in Audio. Transcription could not run because the selected AI is unavailable or its limit was reached. You can retry later without recording again.', retryAudioId: attachment.recordId });
     } else {
-      const fallback = localRoute(cleanQuery);
+      const fallback = localAnswer || localRoute(cleanQuery);
       state.messages.push(fallback || { role: 'assistant', markdown: `### Assistant response\nI couldn’t process this capture request: ${error?.message || 'Check your network connection'}.` });
     }
   } finally {
@@ -1676,16 +1682,17 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
     if (actions.length) return { role: 'assistant', title: answer.title || 'Review vault changes', markdown: answer.markdown || 'Review these changes before I apply them.', actions };
   }
   if (answer.kind !== 'lookup' || !answer.matches?.length) return { role: 'assistant', title: answer.title || 'Rhinous', markdown: answer.markdown || answer.message || 'I could not create a response.' };
-  const fields = []; const audios = []; let firstResolvedId = '';
+  const fields = []; const audios = []; const resolvedTitles = []; let firstResolvedId = '';
   answer.matches.forEach(match => {
     const item = state.items.find(row => row.id === match.id); if (!item) return;
     if (!firstResolvedId) firstResolvedId = item.id;
+    resolvedTitles.push(item.title);
     const attachment = audioAttachment(item); if (attachment) audios.push({ ...attachment, title: item.title });
     const requested = match.fields?.length ? match.fields : Object.keys(allFields(item));
     requested.forEach(label => { const actual = Object.keys(allFields(item)).find(key => key.toLowerCase() === String(label).toLowerCase()); if (actual && !audioDataLabels.has(actual) && !audioMetadataLabels.has(actual)) fields.push({ label: actual, value: allFields(item)[actual] }); });
   });
   if (firstResolvedId) state.lastResolvedItemId = firstResolvedId;
-  return fields.length || audios.length ? { role: 'assistant', title: answer.title || 'Saved information', markdown: answer.markdown, fields, audios } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
+  return fields.length || audios.length ? { role: 'assistant', title: resolvedTitles.length === 1 ? resolvedTitles[0] : (answer.title || 'Saved information'), markdown: answer.markdown, fields, audios } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
 }
 function protectPrivateInput(input) {
   let text = String(input || ''); const values = {}; let tokenIndex = 0;
@@ -1786,7 +1793,7 @@ function fieldIntentPatterns(needle) {
 }
 function recordLookupScore(item, needle, queryTokens) {
   const title = normalizedLookupText(item.title); const titleTokens = lookupTokens(item.title); const note = normalizedLookupText(item.note); const type = normalizedLookupText(category(item));
-  let score = 0; let identityMatches = 0; let genericMatches = 0;
+  let score = 0; let identityMatches = 0; let genericMatches = 0; let contextualMatch = false;
   if (title && needle.includes(title)) { score += 220; identityMatches += 3; }
   titleTokens.forEach(token => {
     if (!needle.includes(token)) return;
@@ -1795,10 +1802,11 @@ function recordLookupScore(item, needle, queryTokens) {
   });
   if (!identityMatches && genericMatches >= 2) identityMatches = 1;
   queryTokens.forEach(token => { if (note.includes(token) && !genericRecordWords.has(token)) { score += 10; identityMatches += .25; } });
-  if ((needle.includes('wifi') && type.includes('wifi')) || (needle.includes('birthday') && type.includes('birthday')) || (needle.includes('audio') && type.includes('audio'))) score += 28;
+  const explicitCategory = (needle.includes('wifi') && type.includes('wifi')) || (needle.includes('birthday') && type.includes('birthday')) || (needle.includes('audio') && type.includes('audio'));
+  if (explicitCategory) { score += 42; identityMatches += 1; }
   if (fieldIntentPatterns(needle).some(pattern => Object.keys(allFields(item)).some(label => pattern.test(label)))) score += 10;
-  if (!identityMatches && item.id === state.lastResolvedItemId && /\b(only|it|that|same|its|password|pin|cvv|number|details|info)\b/.test(needle)) score += 75;
-  if (!identityMatches && item.id !== state.lastResolvedItemId) return 0;
+  if (!identityMatches && item.id === state.lastResolvedItemId && /\b(only|it|that|same|its|one)\b/.test(needle)) { score += 75; contextualMatch = true; }
+  if (!identityMatches && !contextualMatch) return 0;
   return score;
 }
 function localRoute(query) {
@@ -1818,7 +1826,8 @@ function localRoute(query) {
   const attachment = audioAttachment(item);
   entries = entries.filter(([label]) => !audioDataLabels.has(label) && !audioMetadataLabels.has(label));
   state.lastResolvedItemId = item.id;
-  return { role: 'assistant', title: item.title, markdown: `Matched **${item.title}** in your encrypted vault. Values were resolved only on this device.`, fields: entries.map(([label, value]) => ({ label, value })), ...(attachment ? { audios: [{ ...attachment, title: item.title }] } : {}) };
+  const requestedFields = entries.map(([label]) => label);
+  return { role: 'assistant', title: item.title, markdown: `Matched **${item.title}** in your encrypted vault. Values were resolved only on this device.`, fields: entries.map(([label, value]) => ({ label, value })), ...(attachment ? { audios: [{ ...attachment, title: item.title }] } : {}), _lookupHint: { id: item.id, fields: requestedFields } };
 }
 function scrollChat() { requestAnimationFrame(() => { const node = document.querySelector('#messages'); if (node) node.scrollTop = node.scrollHeight; }); }
 function generateBirthdayMessage(id) { const item = state.items.find(row => row.id === id); state.view = 'assistant'; shell(); askAssistant(`Write a warm, natural birthday message for the person in my saved birthday record titled "${item.title}". Do not reveal or request any private vault values.`); }

@@ -1,4 +1,4 @@
-const CACHE = 'memoir-shell-v7-rhinous-planner';
+const CACHE = 'memoir-shell-v8-smart-rhinous';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/brand/favicon-32.png', '/brand/apple-touch-icon.png', '/brand/pwa-192.png', '/brand/pwa-512.png', '/brand/memoir-rhino-ui.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())));
