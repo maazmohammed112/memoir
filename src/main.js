@@ -293,8 +293,11 @@ function showWhatsNewModal() {
   modal.innerHTML = `
     <div class="modal-inner whats-new-container">
       <div class="whats-new-hero">
-        <div class="whats-new-hero-badge"><span class="pulse-dot"></span><span>VAULT INTELLIGENCE RELEASE</span></div>
-        <img class="whats-new-rhino-logo" src="/brand/memoir-rhino-ui.png" alt="Rhinous">
+        <button type="button" class="modal-close whats-new-close" aria-label="Close">${icon('X')}</button>
+        <div class="whats-new-badge-pill"><span class="pulse-dot"></span><span>VAULT INTELLIGENCE 2.4</span></div>
+        <div class="whats-new-emblem">
+          <img src="/brand/pwa-192.png" alt="Memoir">
+        </div>
         <h2>What’s New in Memoir</h2>
         <p class="whats-new-subtitle">A major upgrade built for ${escapeHtml(profile?.name || 'you')} — high-resolution attachments, AI retrieval, zero-knowledge privacy, and smart capture.</p>
       </div>
@@ -303,40 +306,60 @@ function showWhatsNewModal() {
         <div class="whats-new-feature-card">
           <div class="feature-card-header">
             <span class="icon-wrap violet">${icon('Paperclip')}</span>
-            <div>
-              <h3>Universal PDF & High-Res Image Attachments</h3>
-              <small>Available across all memories (Logins, Cards, Documents, Wi-Fi, Personal & Reminders)</small>
+            <div class="feature-title-group">
+              <h3>Universal PDF & High-Res Attachments</h3>
+              <small>Photos (up to 5) · PDFs (up to 3) across all memories</small>
             </div>
           </div>
-          <p>You can now attach up to <strong>5 crystal-clear photos</strong> (≤ 6 MB each) and <strong>3 PDFs</strong> (≤ 10 MB each) to any memory. All files are encrypted on your device with <code>AES-256-GCM</code> before cloud storage.</p>
-          <div class="feature-card-steps">
-            <div class="step-item"><b>1</b><span>Open or edit any memory → Drag & drop or select your photos/PDFs.</span></div>
-            <div class="step-item"><b>2</b><span>Tap <b>Save changes</b>. Your files are encrypted with zero-knowledge keys.</span></div>
-            <div class="step-item"><b>3</b><span>Remove or swap images anytime by clicking the <b>(X)</b> button on the attachment chip.</span></div>
+          <p>Attach crystal-clear photos (≤ 6 MB each) and PDFs (≤ 10 MB each) to any memory. All files are encrypted on your device with <code>AES-256-GCM</code> before cloud storage.</p>
+          
+          <div class="feature-steps-list">
+            <div class="feature-step-row">
+              <span class="step-badge">1</span>
+              <div class="step-text">Open or edit any memory and drag & drop your photos or PDFs.</div>
+            </div>
+            <div class="feature-step-row">
+              <span class="step-badge">2</span>
+              <div class="step-text">Tap <strong>Save changes</strong>. Your files are encrypted with zero-knowledge keys.</div>
+            </div>
+            <div class="feature-step-row">
+              <span class="step-badge">3</span>
+              <div class="step-text">Remove or swap attachments anytime by clicking the delete button on any chip.</div>
+            </div>
           </div>
-          <div class="feature-card-tip">
-            ${icon('Zap')} <span><strong>Instant 0ms Reload:</strong> Decrypted documents are securely cached in local IndexedDB, so opening them again consumes zero network data.</span>
+
+          <div class="feature-callout-pill">
+            <span class="callout-icon">${icon('Zap')}</span>
+            <div class="callout-text">
+              <strong>Instant 0ms Reload:</strong> Decrypted documents are securely cached in local IndexedDB, so viewing them again consumes zero network data.
+            </div>
           </div>
         </div>
 
         <div class="whats-new-feature-card">
           <div class="feature-card-header">
-            <span class="icon-wrap rose">${icon('Sparkles')}</span>
-            <div>
+            <span class="icon-wrap coral">${icon('MessageCircle')}</span>
+            <div class="feature-title-group">
               <h3>Rhinous In-Chat Document Retrieval</h3>
               <small>Ask Rhinous for your documents & PDFs directly in conversation</small>
             </div>
           </div>
-          <p>No need to search through menus. Just chat with Rhinous naturally:</p>
-          <div class="chat-example-box">
-            <div class="chat-bubble user">“Can you please give my birth certificate PDF?”</div>
-            <div class="chat-bubble bot">
-              <span>RHINOUS</span>
+          <p>No need to search through menus. Just ask Rhinous naturally in chat:</p>
+          
+          <div class="chat-demo-card">
+            <div class="chat-demo-bubble user">
+              <span>“Can you please give my birth certificate PDF?”</span>
+            </div>
+            <div class="chat-demo-bubble bot">
+              <div class="demo-bot-tag">RHINOUS</div>
               <p>Here is your attached document from vault:</p>
-              <div class="example-doc-chip">
-                <span class="icon-wrap coral">${icon('FileText')}</span>
-                <div><strong>Birth_Certificate.pdf</strong><small>1.4 MB · Tap to view</small></div>
-                <span class="btn-preview">${icon('Share2')}</span>
+              <div class="demo-doc-chip">
+                <span class="demo-doc-icon">${icon('FileText')}</span>
+                <div class="demo-doc-meta">
+                  <strong>Birth_Certificate.pdf</strong>
+                  <small>1.4 MB · Tap to view</small>
+                </div>
+                <span class="demo-doc-action">${icon('Share2')}</span>
               </div>
             </div>
           </div>
@@ -345,7 +368,7 @@ function showWhatsNewModal() {
         <div class="whats-new-feature-card">
           <div class="feature-card-header">
             <span class="icon-wrap green">${icon('ReceiptText')}</span>
-            <div>
+            <div class="feature-title-group">
               <h3>Smart INR (₹) Invoice & Warranty Capture</h3>
               <small>Multimodal AI auto-detects prices, GSTIN & expiry</small>
             </div>
@@ -356,7 +379,7 @@ function showWhatsNewModal() {
         <div class="whats-new-feature-card">
           <div class="feature-card-header">
             <span class="icon-wrap onyx">${icon('ShieldCheck')}</span>
-            <div>
+            <div class="feature-title-group">
               <h3>Safe Decryption & Sharing Warnings</h3>
               <small>Protect your private data when exporting outside Memoir</small>
             </div>
@@ -365,7 +388,8 @@ function showWhatsNewModal() {
         </div>
 
         <div class="whats-new-footer-note">
-          <p>${icon('Info')} <strong>Want to see this tutorial again?</strong> You can reopen this guide anytime by tapping the Notification bell at the top of your vault.</p>
+          <span class="footer-note-icon">${icon('Info')}</span>
+          <p><strong>Want to see this tutorial again?</strong> You can reopen this guide anytime by tapping the Notification bell at the top of your vault.</p>
         </div>
 
         <div class="signature-section">
