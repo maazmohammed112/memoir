@@ -107,9 +107,46 @@ function telegramLocalDateTime(timestamp) {
 
 async function handleReminderCallback(profile, callback) {
   const allowedChat = profile.telegramChatId; if (String(callback?.message?.chat?.id) !== allowedChat) return;
-  const match = /^m:(done|snooze):([a-zA-Z0-9-]{8,100}):(\d{10,15})$/.exec(String(callback.data || ''));
-  if (!match) return telegram(profile, 'answerCallbackQuery', { callback_query_id: callback.id, text: 'This Memoir action is no longer available.' });
-  const [, action, id, dueValue] = match; const items = await loadVault(profile); const item = items.find(row => row.id === id && row.type === 'Reminder'); const originalDue = Number(dueValue);
+  const data = String(callback.data || '');
+  const cosMatch = /^m:cos-(done|tmr|dismiss):([a-zA-Z0-9-]{8,100})$/.exec(data);
+  const remMatch = /^m:(done|snooze):([a-zA-Z0-9-]{8,100}):(\d{10,15})$/.exec(data);
+
+  if (cosMatch) {
+    const [, action, id] = cosMatch;
+    const items = await loadVault(profile);
+    const item = items.find(row => row.id === id && row.type === 'Reminder');
+    if (!item) return telegram(profile, 'answerCallbackQuery', { callback_query_id: callback.id, text: 'This reminder was not found.', show_alert: false });
+
+    const now = Date.now();
+    let fields;
+    let toastText = '';
+
+    if (action === 'done') {
+      fields = { ...(item.fields || {}), Status: 'completed', Completion: 'user', 'Completed at': new Date(now).toISOString(), Snoozed: 'No' };
+      toastText = `Marked "${item.title}" completed!`;
+    } else if (action === 'tmr') {
+      const tomorrow = new Date(now + 24 * 60 * 60 * 1000);
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: process.env.APP_TIMEZONE || 'Asia/Calcutta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(tomorrow);
+      const obj = Object.fromEntries(parts.map(p => [p.type, p.value]));
+      const tmrIso = `${obj.year}-${obj.month}-${obj.day}T10:00`;
+      const tmrTimestamp = new Date(`${obj.year}-${obj.month}-${obj.day}T10:00:00+05:30`).getTime();
+      fields = { ...(item.fields || {}), 'Due at': tmrIso, 'Due timestamp': String(tmrTimestamp), Status: 'upcoming', Snoozed: 'No' };
+      toastText = `Rescheduled to tomorrow at 10:00 AM!`;
+    } else if (action === 'dismiss') {
+      fields = { ...(item.fields || {}), Status: 'completed', Completion: 'dismissed', 'Completed at': new Date(now).toISOString(), Snoozed: 'No' };
+      toastText = 'Dismissed.';
+    }
+
+    const updated = { ...item, fields, updatedAt: now };
+    putRuntimeItem(profile.uid, updated);
+    const queued = queueRuntimeActions(profile.uid, [{ op: 'update', id: item.id, type: 'Reminder', title: item.title, note: item.note || '', fields }], 'telegram-chief-of-staff');
+    await persistQueuedActions(profile, queued);
+    await telegram(profile, 'answerCallbackQuery', { callback_query_id: callback.id, text: toastText, show_alert: false });
+    return;
+  }
+
+  if (!remMatch) return telegram(profile, 'answerCallbackQuery', { callback_query_id: callback.id, text: 'This Memoir action is no longer available.' });
+  const [, action, id, dueValue] = remMatch; const items = await loadVault(profile); const item = items.find(row => row.id === id && row.type === 'Reminder'); const originalDue = Number(dueValue);
   if (!item || Math.abs(telegramDue(item) - originalDue) > 1000) return telegram(profile, 'answerCallbackQuery', { callback_query_id: callback.id, text: 'This reminder was already updated.', show_alert: false });
   const now = Date.now(); let fields;
   if (action === 'snooze') {

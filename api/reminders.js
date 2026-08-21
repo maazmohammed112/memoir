@@ -198,6 +198,335 @@ async function performExpirySweep(profile, now = Date.now()) {
   return { checked: expiring.length, delivered };
 }
 
+export function getZonedParts(timestamp = Date.now(), timeZone = process.env.APP_TIMEZONE || 'Asia/Calcutta') {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    weekday: 'long',
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map(p => [p.type, p.value]));
+  const hour = Number(parts.hour);
+  const minute = Number(parts.minute);
+  const year = Number(parts.year);
+  const month = Number(parts.month);
+  const day = Number(parts.day);
+  const dateKey = `${parts.year}-${parts.month}-${parts.day}`;
+
+  const displayFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const formattedDate = displayFormatter.format(new Date(timestamp));
+
+  return {
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    weekday: parts.weekday,
+    dateKey,
+    formattedDate,
+  };
+}
+
+async function loadAllVaultItems(profile) {
+  let items = listRuntimeItems(profile.uid);
+  if (!items.length && hasAdminMirror()) {
+    const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
+    items = snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
+    replaceRuntimeItems(profile.uid, items);
+  }
+  return items;
+}
+
+function generateMorningBriefing(profile, allItems, zonedNow) {
+  const name = profile.name || 'Maaz';
+  const lines = [
+    `Hello, good morning, ${name}! Hope you are doing good.`,
+    '',
+    `Chief of Staff Daily Briefing`,
+    `${zonedNow.formattedDate} · 10:00 AM`,
+    '────────────────────',
+  ];
+
+  const nowMs = Date.now();
+  const reminders = allItems.filter(item => item.type === 'Reminder' && !isCompleted(item));
+  const todayReminders = [];
+
+  for (const item of reminders) {
+    const due = dueTimestamp(item);
+    if (!due) continue;
+    const itemZoned = getZonedParts(due);
+    if (itemZoned.dateKey === zonedNow.dateKey || due < nowMs) {
+      const timeStr = new Date(due).toLocaleTimeString('en-IN', {
+        timeZone: process.env.APP_TIMEZONE || 'Asia/Calcutta',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+      todayReminders.push({ item, due, timeStr, isOverdue: due < nowMs });
+    }
+  }
+
+  lines.push("TODAY'S REMINDERS");
+  if (todayReminders.length > 0) {
+    todayReminders.forEach(({ item, timeStr, isOverdue }) => {
+      lines.push(`• ${item.title} — ${timeStr}${isOverdue ? ' (Overdue)' : ''}${item.note ? `\n  Note: ${String(item.note).slice(0, 100)}` : ''}`);
+    });
+  } else {
+    lines.push('• No active reminders scheduled for today.');
+  }
+  lines.push('');
+
+  const todoLists = allItems.filter(item => item.type === 'Todo');
+  const pendingTodos = [];
+  todoLists.forEach(list => {
+    try {
+      const raw = list.fields?.['Todo items'];
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (Array.isArray(parsed)) {
+        const unchecked = parsed.filter(t => !t.done);
+        if (unchecked.length > 0) {
+          pendingTodos.push({ title: list.title, items: unchecked.map(t => t.text || 'Item') });
+        }
+      }
+    } catch {}
+  });
+
+  if (pendingTodos.length > 0) {
+    lines.push('PENDING TO-DO TASKS');
+    pendingTodos.slice(0, 3).forEach(list => {
+      lines.push(`• ${list.title} (${list.items.length} pending)`);
+      list.items.slice(0, 3).forEach(task => {
+        lines.push(`  - ${task}`);
+      });
+      if (list.items.length > 3) {
+        lines.push(`  - …and ${list.items.length - 3} more`);
+      }
+    });
+    lines.push('');
+  }
+
+  const birthdays = allItems.filter(item => item.type === 'Birthday');
+  const upcomingBirthdays = [];
+  birthdays.forEach(item => {
+    const rawDate = String(item.fields?.Date || '').trim();
+    if (!rawDate) return;
+    const parts = rawDate.split('-').map(Number);
+    const m = parts.length === 3 ? parts[1] : parts[0];
+    const d = parts.length === 3 ? parts[2] : parts[1];
+    if (m && d) {
+      if (m === zonedNow.month && d === zonedNow.day) {
+        upcomingBirthdays.push(`• Today is ${item.title}'s Birthday!`);
+      } else {
+        for (let dayOffset = 1; dayOffset <= 3; dayOffset++) {
+          const checkZoned = getZonedParts(nowMs + dayOffset * 86400000);
+          if (m === checkZoned.month && d === checkZoned.day) {
+            upcomingBirthdays.push(`• ${item.title}'s Birthday in ${dayOffset} day${dayOffset === 1 ? '' : 's'} (${checkZoned.weekday})`);
+          }
+        }
+      }
+    }
+  });
+
+  if (upcomingBirthdays.length > 0) {
+    lines.push('BIRTHDAYS & OCCASIONS');
+    upcomingBirthdays.forEach(b => lines.push(b));
+    lines.push('');
+  }
+
+  const expiring = allItems.map(item => extractItemExpiry(item, nowMs)).filter(Boolean);
+  const urgentExpiring = expiring.filter(exp => {
+    const diffDays = Math.ceil((exp.expiryTimestamp - nowMs) / (86400000));
+    return diffDays > 0 && diffDays <= 14;
+  });
+
+  if (urgentExpiring.length > 0) {
+    lines.push('DOCUMENT & CARD EXPIRY ALERTS');
+    urgentExpiring.forEach(exp => {
+      const diffDays = Math.ceil((exp.expiryTimestamp - nowMs) / (86400000));
+      lines.push(`• ${exp.title} expires in ${diffDays} day${diffDays === 1 ? '' : 's'}`);
+    });
+    lines.push('');
+  }
+
+  lines.push('────────────────────');
+  lines.push('Have an energetic and productive day ahead! You can reply anytime or send a voice note to add memories, to-dos, or notes.');
+
+  const inline_keyboard = [];
+  if (todayReminders.length > 0) {
+    todayReminders.slice(0, 3).forEach(({ item, due }) => {
+      inline_keyboard.push([
+        { text: `Done: ${item.title.slice(0, 18)}`, callback_data: `m:done:${item.id}:${due}` },
+        { text: 'Snooze 30m', callback_data: `m:snooze:${item.id}:${due}` },
+      ]);
+    });
+  }
+
+  return {
+    text: lines.join('\n').slice(0, 4000),
+    reply_markup: inline_keyboard.length ? { inline_keyboard } : undefined,
+  };
+}
+
+function generateEveningReview(profile, allItems, zonedNow) {
+  const name = profile.name || 'Maaz';
+  const lines = [
+    `Good evening, ${name}! How was your day?`,
+    '',
+    `Chief of Staff Evening Review`,
+    `${zonedNow.formattedDate} · 9:30 PM`,
+    '────────────────────',
+  ];
+
+  const nowMs = Date.now();
+  const reminders = allItems.filter(item => item.type === 'Reminder');
+  const todayReminders = [];
+  const completedToday = [];
+
+  for (const item of reminders) {
+    const due = dueTimestamp(item);
+    if (!due) continue;
+    const itemZoned = getZonedParts(due);
+    if (itemZoned.dateKey === zonedNow.dateKey || due < nowMs) {
+      if (isCompleted(item)) {
+        completedToday.push(item);
+      } else {
+        const timeStr = new Date(due).toLocaleTimeString('en-IN', {
+          timeZone: process.env.APP_TIMEZONE || 'Asia/Calcutta',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        });
+        todayReminders.push({ item, due, timeStr });
+      }
+    }
+  }
+
+  lines.push("TODAY'S REMINDERS CHECK");
+  if (completedToday.length > 0) {
+    completedToday.forEach(item => {
+      lines.push(`• Completed: ${item.title}`);
+    });
+  }
+
+  const inline_keyboard = [];
+
+  if (todayReminders.length > 0) {
+    if (completedToday.length > 0) lines.push('');
+    lines.push('Have you completed these reminders from today?');
+    todayReminders.forEach(({ item, timeStr }) => {
+      lines.push(`• Pending: ${item.title} (due ${timeStr})`);
+      inline_keyboard.push([
+        { text: `Done: ${item.title.slice(0, 16)}`, callback_data: `m:cos-done:${item.id}` },
+        { text: 'Tomorrow 10 AM', callback_data: `m:cos-tmr:${item.id}` },
+        { text: 'Dismiss', callback_data: `m:cos-dismiss:${item.id}` },
+      ]);
+    });
+  } else if (completedToday.length === 0) {
+    lines.push('• No reminders were set for today.');
+  }
+  lines.push('');
+
+  lines.push('DAILY REFLECTION');
+  lines.push('Would you like to log a quick thought, highlight, or memory from today? Simply reply here with a message or voice note—I will transcribe and store it securely in your vault.');
+  lines.push('');
+  lines.push('────────────────────');
+  lines.push('Hope you are feeling good. Please have a good dinner and have a peaceful sleep. Good night!');
+
+  return {
+    text: lines.join('\n').slice(0, 4000),
+    reply_markup: inline_keyboard.length ? { inline_keyboard } : undefined,
+  };
+}
+
+async function performChiefOfStaffSweep(profile, now = Date.now()) {
+  if (!profile?.telegramToken || !profile.telegramChatId) return { morningSent: false, eveningSent: false };
+
+  const zonedNow = getZonedParts(now, process.env.APP_TIMEZONE || 'Asia/Calcutta');
+  let morningSent = false;
+  let eveningSent = false;
+
+  // 1. Morning Briefing: Target 10:00 AM IST (Window: 10:00 AM - 11:30 AM)
+  if (zonedNow.hour === 10 || (zonedNow.hour === 11 && zonedNow.minute < 30)) {
+    const morningKey = `briefing:morning:${zonedNow.dateKey}`;
+    if (await reserveDelivery(profile, morningKey)) {
+      try {
+        const allItems = await loadAllVaultItems(profile);
+        const briefing = generateMorningBriefing(profile, allItems, zonedNow);
+        await telegram(profile, 'sendMessage', {
+          chat_id: profile.telegramChatId,
+          text: briefing.text,
+          reply_markup: briefing.reply_markup,
+        });
+        await queuePersistedAction(profile, {
+          op: 'create',
+          type: 'Notification',
+          title: 'Chief of Staff Morning Briefing',
+          note: `Morning daily briefing sent to Telegram (${zonedNow.formattedDate})`,
+          fields: {
+            Category: 'Briefing',
+            'Scheduled at': String(now),
+            'Sent at': String(Date.now()),
+            'Delivery key': morningKey,
+            Status: 'sent',
+          },
+        }, 'notification-engine');
+        await finishDelivery(profile, morningKey);
+        morningSent = true;
+      } catch (err) {
+        await releaseDelivery(profile, morningKey);
+        console.warn('Chief of Staff Morning Briefing failed:', err?.message);
+      }
+    }
+  }
+
+  // 2. Evening Review: Target 9:30 PM - 10:00 PM IST (Window: 21:30 - 23:30)
+  if ((zonedNow.hour === 21 && zonedNow.minute >= 30) || zonedNow.hour === 22 || (zonedNow.hour === 23 && zonedNow.minute < 30)) {
+    const eveningKey = `briefing:evening:${zonedNow.dateKey}`;
+    if (await reserveDelivery(profile, eveningKey)) {
+      try {
+        const allItems = await loadAllVaultItems(profile);
+        const review = generateEveningReview(profile, allItems, zonedNow);
+        await telegram(profile, 'sendMessage', {
+          chat_id: profile.telegramChatId,
+          text: review.text,
+          reply_markup: review.reply_markup,
+        });
+        await queuePersistedAction(profile, {
+          op: 'create',
+          type: 'Notification',
+          title: 'Chief of Staff Evening Review',
+          note: `Evening daily review sent to Telegram (${zonedNow.formattedDate})`,
+          fields: {
+            Category: 'Briefing',
+            'Scheduled at': String(now),
+            'Sent at': String(Date.now()),
+            'Delivery key': eveningKey,
+            Status: 'sent',
+          },
+        }, 'notification-engine');
+        await finishDelivery(profile, eveningKey);
+        eveningSent = true;
+      } catch (err) {
+        await releaseDelivery(profile, eveningKey);
+        console.warn('Chief of Staff Evening Review failed:', err?.message);
+      }
+    }
+  }
+
+  return { morningSent, eveningSent };
+}
+
 export async function runReminderSweep(now = Date.now(), targetUid = '') {
   const profiles = targetUid ? [getUserByUid(targetUid)].filter(Boolean) : listUserProfiles();
   const results = await Promise.all(profiles.map(async profile => {
@@ -205,10 +534,13 @@ export async function runReminderSweep(now = Date.now(), targetUid = '') {
     const sweep = Promise.all([
       performReminderSweep(profile, now),
       performExpirySweep(profile, now),
-    ]).then(([remindersResult, expiryResult]) => ({
+      performChiefOfStaffSweep(profile, now),
+    ]).then(([remindersResult, expiryResult, cosResult]) => ({
       checked: remindersResult.checked + expiryResult.checked,
       delivered: remindersResult.delivered + expiryResult.delivered,
       autoCompleted: remindersResult.autoCompleted,
+      morningBriefing: cosResult.morningSent,
+      eveningReview: cosResult.eveningSent,
     })).finally(() => activeSweeps.delete(profile.uid));
 
     activeSweeps.set(profile.uid, sweep);
@@ -219,7 +551,9 @@ export async function runReminderSweep(now = Date.now(), targetUid = '') {
     checked: total.checked + result.checked,
     delivered: total.delivered + result.delivered,
     autoCompleted: total.autoCompleted + (result.autoCompleted || 0),
-  }), { checked: 0, delivered: 0, autoCompleted: 0 });
+    morningBriefings: (total.morningBriefings || 0) + (result.morningBriefing ? 1 : 0),
+    eveningReviews: (total.eveningReviews || 0) + (result.eveningReview ? 1 : 0),
+  }), { checked: 0, delivered: 0, autoCompleted: 0, morningBriefings: 0, eveningReviews: 0 });
 }
 
 export default async function handler(req, res) {
