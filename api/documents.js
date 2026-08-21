@@ -1,4 +1,4 @@
-﻿import { deviceIdFrom, verifyOwnerToken } from '../lib/firebaseAdmin.js';
+import { deviceIdFrom, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 import { deleteVaultDocument, loadVaultDocument, saveVaultDocument } from '../lib/r2Storage.js';
 
 function bearer(req) {
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
     console.error('Document vault request failed:', error?.message);
-    const status = /50 MB|invalid document/i.test(error?.message || '') ? 400 : Number(error?.status || 503);
-    return res.status(status).json({ error: status === 400 ? error.message : 'The encrypted document vault is temporarily unavailable' });
+    const status = /50 MB|invalid document/i.test(error?.message || '') ? 400 : Number(error?.status || 500);
+    return res.status(status).json({ error: error?.message || 'The encrypted document vault is temporarily unavailable' });
   }
 }

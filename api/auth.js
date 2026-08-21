@@ -3,14 +3,14 @@ import { deviceHash, deviceIdFrom, deviceNameFrom, getAdmin, verifyApprovedToken
 import { getUserByCode, getUserByUid, SESSION_LENGTH_MS } from '../lib/users.js';
 import { telegramRequest } from '../lib/telegramClient.js';
 
-const OTP_LIFETIME_MS = 5 * 60 * 1000;
-const OTP_RESEND_MS = 2 * 60 * 1000;
-const OTP_REQUEST_LIMIT = 3;
-const OTP_REQUEST_BLOCK_MS = 12 * 60 * 60 * 1000;
-const OTP_VERIFY_LIMIT = 3;
-const OTP_VERIFY_LOCK_MS = 4 * 60 * 60 * 1000;
-const ACCOUNT_CODE_LIMIT = 3;
-const ACCOUNT_CODE_LOCK_MS = 4 * 60 * 60 * 1000;
+const OTP_LIFETIME_MS = 10 * 60 * 1000;
+const OTP_RESEND_MS = 20 * 1000;
+const OTP_REQUEST_LIMIT = 10;
+const OTP_REQUEST_BLOCK_MS = 15 * 60 * 1000;
+const OTP_VERIFY_LIMIT = 5;
+const OTP_VERIFY_LOCK_MS = 15 * 60 * 1000;
+const ACCOUNT_CODE_LIMIT = 8;
+const ACCOUNT_CODE_LOCK_MS = 15 * 60 * 1000;
 
 function secret() {
   const value = process.env.OTP_SECRET || process.env.VAULT_SERVER_KEY;

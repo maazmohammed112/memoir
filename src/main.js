@@ -1319,18 +1319,25 @@ function openEditor(item = null, initialType = 'Personal') {
     const countEl = document.querySelector('#att-count');
     if (countEl) countEl.textContent = pendingAttachments.length;
     if (!chipsContainer) return;
-    chipsContainer.innerHTML = pendingAttachments.map(att => `
-      <span class="attachment-chip" data-att-id="${escapeHtml(att.assetId)}">
-        ${icon(isPdf(att.mimeType, att.fileName) ? 'FileText' : 'Image')}
-        <span>${escapeHtml(att.fileName)} (${formatFileSize(att.byteLength)})</span>
-        <button type="button" data-remove-att="${escapeHtml(att.assetId)}" title="Remove">${icon('X')}</button>
-      </span>
-    `).join('');
+    chipsContainer.innerHTML = pendingAttachments.map(att => {
+      const isPdfDoc = isPdf(att.mimeType, att.fileName);
+      return `
+        <span class="attachment-chip" data-att-id="${escapeHtml(att.assetId)}">
+          ${icon(isPdfDoc ? 'FileText' : 'Image')}
+          <span>${escapeHtml(att.fileName)} (${formatFileSize(att.byteLength)})</span>
+          <button type="button" data-remove-att="${escapeHtml(att.assetId)}" title="Remove attachment" aria-label="Remove attachment">${icon('X')}</button>
+        </span>
+      `;
+    }).join('');
+
     chipsContainer.querySelectorAll('[data-remove-att]').forEach(btn => {
-      btn.onclick = () => {
+      btn.onclick = event => {
+        event.stopPropagation();
+        event.preventDefault();
         const idToRemove = btn.dataset.removeAtt;
         pendingAttachments = pendingAttachments.filter(att => att.assetId !== idToRemove);
         renderAttachmentChips();
+        toast('Attachment removed');
       };
     });
   };
@@ -1353,7 +1360,7 @@ function openEditor(item = null, initialType = 'Personal') {
   }
 
   async function handleFiles(fileList) {
-    const files = Array.from(fileList);
+    const files = Array.from(fileList || []);
     let imageCount = pendingAttachments.filter(a => !isPdf(a.mimeType, a.fileName)).length;
     let pdfCount = pendingAttachments.filter(a => isPdf(a.mimeType, a.fileName)).length;
 
@@ -1372,13 +1379,19 @@ function openEditor(item = null, initialType = 'Personal') {
         continue;
       }
 
-      await withRhinoActivity('🔒 Encrypting & saving to vault…', async () => {
-        const saved = await vaultStore.uploadDocument({ file, fileName: file.name, mimeType: file.type });
-        pendingAttachments.push(saved);
-        renderAttachmentChips();
-        toast(`“${file.name}” encrypted & attached`);
-      });
+      try {
+        await withRhinoActivity('🔒 Encrypting & saving to vault…', async () => {
+          const saved = await vaultStore.uploadDocument({ file, fileName: file.name, mimeType: file.type });
+          pendingAttachments.push(saved);
+          renderAttachmentChips();
+          toast(`“${file.name}” encrypted & attached`);
+        });
+      } catch (uploadErr) {
+        console.error('Upload failed:', uploadErr);
+        toast(`Could not attach “${file.name}”: ${uploadErr.message || 'Upload error'}`);
+      }
     }
+    if (fileInput) fileInput.value = '';
   }
 
   const renderFields = () => {
