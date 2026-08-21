@@ -8,6 +8,7 @@ import ArrowUpRight from 'lucide/dist/esm/icons/arrow-up-right.mjs';
 import AlarmClock from 'lucide/dist/esm/icons/alarm-clock.mjs';
 import AudioLines from 'lucide/dist/esm/icons/audio-lines.mjs';
 import BadgeCheck from 'lucide/dist/esm/icons/badge-check.mjs';
+import Bell from 'lucide/dist/esm/icons/bell.mjs';
 import BellRing from 'lucide/dist/esm/icons/bell-ring.mjs';
 import CakeSlice from 'lucide/dist/esm/icons/cake-slice.mjs';
 import Calendar from 'lucide/dist/esm/icons/calendar.mjs';
@@ -23,6 +24,7 @@ import ClipboardPaste from 'lucide/dist/esm/icons/clipboard-paste.mjs';
 import Clock from 'lucide/dist/esm/icons/clock.mjs';
 import Copy from 'lucide/dist/esm/icons/copy.mjs';
 import CreditCard from 'lucide/dist/esm/icons/credit-card.mjs';
+import Download from 'lucide/dist/esm/icons/download.mjs';
 import Ellipsis from 'lucide/dist/esm/icons/ellipsis.mjs';
 import Eraser from 'lucide/dist/esm/icons/eraser.mjs';
 import Eye from 'lucide/dist/esm/icons/eye.mjs';
@@ -32,6 +34,8 @@ import FileBadge from 'lucide/dist/esm/icons/file-badge.mjs';
 import FileText from 'lucide/dist/esm/icons/file-text.mjs';
 import Gem from 'lucide/dist/esm/icons/gem.mjs';
 import House from 'lucide/dist/esm/icons/house.mjs';
+import Image from 'lucide/dist/esm/icons/image.mjs';
+import Info from 'lucide/dist/esm/icons/info.mjs';
 import KeyRound from 'lucide/dist/esm/icons/key-round.mjs';
 import Landmark from 'lucide/dist/esm/icons/landmark.mjs';
 import LockKeyhole from 'lucide/dist/esm/icons/lock-keyhole.mjs';
@@ -53,9 +57,11 @@ import ShieldCheck from 'lucide/dist/esm/icons/shield-check.mjs';
 import Sparkles from 'lucide/dist/esm/icons/sparkles.mjs';
 import Trash2 from 'lucide/dist/esm/icons/trash-2.mjs';
 import TriangleAlert from 'lucide/dist/esm/icons/triangle-alert.mjs';
+import CloudUpload from 'lucide/dist/esm/icons/cloud-upload.mjs';
 import WandSparkles from 'lucide/dist/esm/icons/wand-sparkles.mjs';
 import Wifi from 'lucide/dist/esm/icons/wifi.mjs';
 import X from 'lucide/dist/esm/icons/x.mjs';
+import Zap from 'lucide/dist/esm/icons/zap.mjs';
 import { vaultStore } from './store.js';
 
 const nav = [
@@ -69,11 +75,11 @@ const customBrandIcons = {
   Instagram: '<rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>',
 };
 const iconSet = {
-  AlarmClock, AudioLines, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Calendar, Camera,
+  AlarmClock, AudioLines, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, Bell, BellRing, CakeSlice, Calendar, Camera,
   Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Clock,
-  Copy, CreditCard, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, House, KeyRound, Landmark,
+  CloudUpload, Copy, CreditCard, Download, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, House, Image, Info, KeyRound, Landmark,
   LockKeyhole, LogOut, ListTodo, Mail, MessageCircle, Mic, NotebookText, Paperclip, Pencil, Plus, ReceiptText, Search,
-  Send, Share2, ShieldAlert, ShieldCheck, Sparkles, Trash2, TriangleAlert, WandSparkles, Wifi, X,
+  Send, Share2, ShieldAlert, ShieldCheck, Sparkles, Trash2, TriangleAlert, UploadCloud: CloudUpload, WandSparkles, Wifi, X, Zap,
 };
 
 const fieldMap = {
@@ -246,7 +252,22 @@ function notificationRows(rows, sent = false) {
 function notificationCenterMarkup() {
   const { upcoming, sent } = notificationCenterData(); const reminderUpcoming = upcoming.filter(item => item.category === 'Reminder'); const birthdayUpcoming = upcoming.filter(item => item.category === 'Birthday');
   const section = (title, rows, isSent = false) => `<section class="notification-section"><div class="notification-section-head"><strong>${title}</strong><span>${rows.length}</span></div>${rows.length ? notificationRows(rows, isSent) : `<p class="notification-empty">Nothing here right now.</p>`}</section>`;
-  return `<div class="notification-head"><div><p class="eyebrow">Telegram delivery center</p><h2>Notifications</h2></div><button class="modal-close" id="close-notifications">${icon('X')}</button></div><p class="notification-note">Only deliveries due within the next 14 hours appear here. Sent entries stay for the previous 14 hours, then are securely removed from the vault.</p>${section('Next 14 hours · reminders', reminderUpcoming)}${section('Next 14 hours · birthdays', birthdayUpcoming)}${section('Sent in the last 14 hours', sent, true)}`;
+  const whatsNewBanner = `
+    <section class="notification-section notification-whats-new-banner" id="open-whats-new-from-notif">
+      <div class="notification-whats-new-card">
+        <div class="whats-new-icon-wrap">
+          <img src="/brand/memoir-rhino-ui.png" alt="Rhinous">
+        </div>
+        <div class="whats-new-copy">
+          <span class="chip-mini">NEW RELEASE</span>
+          <strong>What's New in Memoir: Vault Intelligence & Attachments</strong>
+          <small>Tap to read the full guide & tutorial from Maaz</small>
+        </div>
+        ${icon('ChevronRight')}
+      </div>
+    </section>
+  `;
+  return `<div class="notification-head"><div><p class="eyebrow">Telegram delivery center</p><h2>Notifications</h2></div><button class="modal-close" id="close-notifications">${icon('X')}</button></div><p class="notification-note">Only deliveries due within the next 14 hours appear here. Sent entries stay for the previous 14 hours, then are securely removed from the vault.</p>${whatsNewBanner}${section('Next 14 hours · reminders', reminderUpcoming)}${section('Next 14 hours · birthdays', birthdayUpcoming)}${section('Sent in the last 14 hours', sent, true)}`;
 }
 function toggleNotificationCenter(force) {
   let popover = document.querySelector('.notification-popover'); const shouldOpen = force ?? !popover;
@@ -254,12 +275,130 @@ function toggleNotificationCenter(force) {
   if (!popover) { popover = document.createElement('aside'); popover.className = 'notification-popover'; document.body.appendChild(popover); }
   const trigger = document.querySelector('#notification-center'); const triggerRect = trigger?.getBoundingClientRect();
   if (triggerRect) popover.style.setProperty('--notification-top', `${Math.round(triggerRect.bottom + 10)}px`);
-  popover.innerHTML = notificationCenterMarkup(); popover.querySelector('#close-notifications').onclick = () => popover.remove();
+  popover.innerHTML = notificationCenterMarkup();
+  popover.querySelector('#close-notifications').onclick = () => popover.remove();
+  popover.querySelector('#open-whats-new-from-notif')?.addEventListener('click', () => {
+    popover.remove();
+    showWhatsNewModal();
+  });
 }
 function updateNotificationBadge() {
   const badge = document.querySelector('.notification-badge'); if (!badge) return; const { upcoming, sent } = notificationCenterData(); const count = upcoming.length + sent.length; badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = count === 0;
   if (document.querySelector('.notification-popover')) toggleNotificationCenter(true);
 }
+
+function showWhatsNewModal() {
+  const profile = activeProfile();
+  modal.className = 'modal whats-new-modal';
+  modal.innerHTML = `
+    <div class="modal-inner whats-new-container">
+      <div class="whats-new-hero">
+        <div class="whats-new-hero-badge"><span class="pulse-dot"></span><span>VAULT INTELLIGENCE RELEASE</span></div>
+        <img class="whats-new-rhino-logo" src="/brand/memoir-rhino-ui.png" alt="Rhinous">
+        <h2>What’s New in Memoir</h2>
+        <p class="whats-new-subtitle">A major upgrade built for ${escapeHtml(profile?.name || 'you')} — high-resolution attachments, AI retrieval, zero-knowledge privacy, and smart capture.</p>
+      </div>
+
+      <div class="whats-new-scroll-body">
+        <div class="whats-new-feature-card">
+          <div class="feature-card-header">
+            <span class="icon-wrap violet">${icon('Paperclip')}</span>
+            <div>
+              <h3>Universal PDF & High-Res Image Attachments</h3>
+              <small>Available across all memories (Logins, Cards, Documents, Wi-Fi, Personal & Reminders)</small>
+            </div>
+          </div>
+          <p>You can now attach up to <strong>5 crystal-clear photos</strong> (≤ 6 MB each) and <strong>3 PDFs</strong> (≤ 10 MB each) to any memory. All files are encrypted on your device with <code>AES-256-GCM</code> before cloud storage.</p>
+          <div class="feature-card-steps">
+            <div class="step-item"><b>1</b><span>Open or edit any memory → Drag & drop or select your photos/PDFs.</span></div>
+            <div class="step-item"><b>2</b><span>Tap <b>Save changes</b>. Your files are encrypted with zero-knowledge keys.</span></div>
+            <div class="step-item"><b>3</b><span>Remove or swap images anytime by clicking the <b>(X)</b> button on the attachment chip.</span></div>
+          </div>
+          <div class="feature-card-tip">
+            ${icon('Zap')} <span><strong>Instant 0ms Reload:</strong> Decrypted documents are securely cached in local IndexedDB, so opening them again consumes zero network data.</span>
+          </div>
+        </div>
+
+        <div class="whats-new-feature-card">
+          <div class="feature-card-header">
+            <span class="icon-wrap rose">${icon('Sparkles')}</span>
+            <div>
+              <h3>Rhinous In-Chat Document Retrieval</h3>
+              <small>Ask Rhinous for your documents & PDFs directly in conversation</small>
+            </div>
+          </div>
+          <p>No need to search through menus. Just chat with Rhinous naturally:</p>
+          <div class="chat-example-box">
+            <div class="chat-bubble user">“Can you please give my birth certificate PDF?”</div>
+            <div class="chat-bubble bot">
+              <span>RHINOUS</span>
+              <p>Here is your attached document from vault:</p>
+              <div class="example-doc-chip">
+                <span class="icon-wrap coral">${icon('FileText')}</span>
+                <div><strong>Birth_Certificate.pdf</strong><small>1.4 MB · Tap to view</small></div>
+                <span class="btn-preview">${icon('Share2')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="whats-new-feature-card">
+          <div class="feature-card-header">
+            <span class="icon-wrap green">${icon('ReceiptText')}</span>
+            <div>
+              <h3>Smart INR (₹) Invoice & Warranty Capture</h3>
+              <small>Multimodal AI auto-detects prices, GSTIN & expiry</small>
+            </div>
+          </div>
+          <p>Snap any bill, receipt, or warranty card using the camera in Rhinous. Rhinous extracts prices formatted as <strong>₹XX,XXX.XX (INR)</strong>, vendor names, dates, and warranty periods automatically.</p>
+        </div>
+
+        <div class="whats-new-feature-card">
+          <div class="feature-card-header">
+            <span class="icon-wrap onyx">${icon('ShieldCheck')}</span>
+            <div>
+              <h3>Safe Decryption & Sharing Warnings</h3>
+              <small>Protect your private data when exporting outside Memoir</small>
+            </div>
+          </div>
+          <p>Whenever you share or export a decrypted PDF or photo to WhatsApp, Telegram, or device storage, Memoir presents a security warning confirming you intend to share decrypted vault contents.</p>
+        </div>
+
+        <div class="whats-new-footer-note">
+          <p>${icon('Info')} <strong>Want to see this tutorial again?</strong> You can reopen this guide anytime by tapping the 🔔 Notification bell at the top of your vault.</p>
+        </div>
+
+        <div class="signature-section">
+          <p>Crafted with privacy and love for your vault,</p>
+          <div class="handwritten-signature">Maaz</div>
+          <small>Memoir Architect & Developer</small>
+        </div>
+      </div>
+
+      <div class="modal-actions whats-new-actions">
+        <button type="button" class="primary whats-new-dismiss-btn" id="whats-new-dismiss-btn">${icon('Check')} Got it, Explore Memoir</button>
+      </div>
+    </div>
+  `;
+  showModal();
+  document.querySelector('#whats-new-dismiss-btn').onclick = () => {
+    if (profile?.uid) localStorage.setItem(`memoir-seen-announcement-v2.4-${profile.uid}`, 'true');
+    closeModal();
+    toast('Welcome to Memoir v2.4!');
+  };
+}
+
+function checkWhatsNewAnnouncement() {
+  const profile = activeProfile();
+  if (!profile) return;
+  const key = `memoir-seen-announcement-v2.4-${profile.uid}`;
+  if (!localStorage.getItem(key)) {
+    setTimeout(() => {
+      showWhatsNewModal();
+    }, 600);
+  }
+}
+
 function syncLabel() { return state.status === 'synced' ? 'Synced' : state.status === 'connecting' ? 'Syncing' : state.status === 'loading' ? 'Opening' : 'Offline ready'; }
 function updateSyncUi() { const pill = document.querySelector('.sync-pill'); if (pill) pill.innerHTML = `<i class="sync-dot ${state.status === 'synced' ? '' : 'offline'}"></i>${syncLabel()}`; }
 function navHtml() { return nav.map(([id, glyph, label]) => `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-view="${id}">${glyph === 'Rhino' ? '<img class="nav-rhino" src="/brand/memoir-rhino-ui.png" alt="">' : icon(glyph)}<span>${label}</span></button>`).join(''); }
@@ -294,6 +433,7 @@ function shell() {
     <nav class="mobile-nav">${navHtml()}</nav>
   </div>`;
   bindShell();
+  checkWhatsNewAnnouncement();
 }
 
 function renderAuthGate() {
@@ -489,23 +629,26 @@ async function promptSecureShare(assetId, fileName, mimeType) {
 
 async function openDocumentViewer(assetId, fileName, mimeType) {
   const isPdfDoc = isPdf(mimeType, fileName);
-  modal.className = 'modal';
+  modal.className = 'modal document-viewer-modal-wrap';
   modal.innerHTML = `<div class="modal-inner document-viewer-modal">
     <div class="document-viewer-head">
       <div class="document-viewer-title">
-        <span class="icon-wrap ${isPdfDoc ? 'coral' : 'violet'}">${icon(isPdfDoc ? 'FileText' : 'Image')}</span>
-        <div><strong>${escapeHtml(fileName)}</strong><small>Encrypted vault document</small></div>
+        <span class="doc-type-badge ${isPdfDoc ? 'pdf' : 'image'}">${icon(isPdfDoc ? 'FileText' : 'Image')}</span>
+        <div class="doc-title-text"><strong title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</strong><small>${isPdfDoc ? 'PDF Document' : 'Image'} · Encrypted in Vault</small></div>
       </div>
       <div class="document-viewer-actions">
-        <button type="button" class="secondary" id="doc-share-btn">${icon('Share2')} Share</button>
-        <button type="button" class="secondary" id="doc-download-btn">${icon('Download')} Download</button>
-        <button type="button" class="modal-close">${icon('X')}</button>
+        <button type="button" class="secondary doc-action-btn" id="doc-share-btn">${icon('Share2')} <span>Share</span></button>
+        <button type="button" class="secondary doc-action-btn" id="doc-download-btn">${icon('Download')} <span>Download</span></button>
+        <button type="button" class="modal-close" aria-label="Close">${icon('X')}</button>
       </div>
     </div>
     <div class="document-viewer-body" id="doc-viewer-content">
       <div class="doc-loading-spinner">
-        <span class="rhino-pulse"></span>
-        <p>Retrieving and decrypting safely from your vault…</p>
+        <div class="rhino-pulse-ring">
+          <img src="/brand/memoir-rhino-ui.png" class="upload-rhino-spinner" alt="">
+        </div>
+        <strong>🔒 Retrieving & Decrypting Document…</strong>
+        <p>Safely fetching from your encrypted vault storage. Please wait a moment.</p>
       </div>
     </div>
   </div>`;
@@ -1304,6 +1447,15 @@ function openEditor(item = null, initialType = 'Personal') {
   <div class="document-attachments-section">
     <h4>${icon('Paperclip')} Attached Documents & Photos (<span id="att-count">${pendingAttachments.length}</span>/8)</h4>
     <div class="attachment-chips-list" id="editor-attachment-chips"></div>
+    <div class="uploading-progress-banner" id="editor-upload-banner" style="display:none">
+      <div class="rhino-pulse-ring">
+        <img src="/brand/memoir-rhino-ui.png" class="upload-rhino-spinner" alt="">
+      </div>
+      <div class="uploading-copy">
+        <strong>🔒 Encrypting & Securing Document…</strong>
+        <p>Encrypting with AES-256-GCM and saving into your private vault. Please wait…</p>
+      </div>
+    </div>
     <div class="attachment-dropzone" id="editor-dropzone">
       <input type="file" id="editor-file-input" multiple accept="image/*,application/pdf" hidden>
       ${icon('UploadCloud')}
@@ -1363,6 +1515,7 @@ function openEditor(item = null, initialType = 'Personal') {
     const files = Array.from(fileList || []);
     let imageCount = pendingAttachments.filter(a => !isPdf(a.mimeType, a.fileName)).length;
     let pdfCount = pendingAttachments.filter(a => isPdf(a.mimeType, a.fileName)).length;
+    const uploadBanner = document.querySelector('#editor-upload-banner');
 
     for (const file of files) {
       const isPdfFile = isPdf(file.type, file.name);
@@ -1380,6 +1533,7 @@ function openEditor(item = null, initialType = 'Personal') {
       }
 
       try {
+        if (uploadBanner) uploadBanner.style.display = 'flex';
         await withRhinoActivity('🔒 Encrypting & saving to vault…', async () => {
           const saved = await vaultStore.uploadDocument({ file, fileName: file.name, mimeType: file.type });
           pendingAttachments.push(saved);
@@ -1389,6 +1543,8 @@ function openEditor(item = null, initialType = 'Personal') {
       } catch (uploadErr) {
         console.error('Upload failed:', uploadErr);
         toast(`Could not attach “${file.name}”: ${uploadErr.message || 'Upload error'}`);
+      } finally {
+        if (uploadBanner) uploadBanner.style.display = 'none';
       }
     }
     if (fileInput) fileInput.value = '';
