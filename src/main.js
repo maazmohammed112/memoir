@@ -415,6 +415,138 @@ function audioPlayerMarkup(attachment, title = 'Voice memo') {
     ${attachment.assetId ? '<span class="audio-load-state">Loading encrypted recording…</span>' : ''}
   </div>`;
 }
+
+const documentDataLabels = new Set(['Document Attachments', 'Attachments']);
+
+function parseItemAttachments(item) {
+  try {
+    const raw = item?.fields?.['Document Attachments'] || item?.attachments;
+    if (!raw) return [];
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(att => ({
+      assetId: String(att.assetId || att.id || ''),
+      fileName: String(att.fileName || att.name || 'document'),
+      mimeType: String(att.mimeType || att.type || 'application/pdf'),
+      byteLength: Number(att.byteLength || att.size || 0),
+      createdAt: Number(att.createdAt || 0) || Date.now(),
+    })).filter(att => att.assetId);
+  } catch {
+    return [];
+  }
+}
+
+function formatFileSize(bytes) {
+  if (!bytes || bytes < 1024) return `${bytes || 0} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isPdf(mimeType = '', fileName = '') {
+  return /pdf/i.test(mimeType) || /\.pdf$/i.test(fileName);
+}
+
+async function promptSecureShare(assetId, fileName, mimeType) {
+  modal.className = 'modal confirm';
+  modal.innerHTML = `<div class="modal-inner">
+    <div class="confirm-icon">${icon('ShieldAlert')}</div>
+    <div class="modal-head"><div><p class="eyebrow">Privacy Warning</p><h2>Share decrypted document?</h2></div></div>
+    <p>You are about to export <strong>${escapeHtml(fileName)}</strong> outside Memoir. Anyone with this file will be able to view its contents without entering your vault code.</p>
+    <div class="modal-actions">
+      <button type="button" class="secondary modal-cancel">Cancel</button>
+      <button type="button" class="primary modal-confirm" id="confirm-share-action">${icon('Share2')} Share securely</button>
+    </div>
+  </div>`;
+  showModal();
+
+  modal.querySelector('#confirm-share-action').onclick = async () => {
+    closeModal();
+    try {
+      await withRhinoActivity('Decrypting document for share…', async () => {
+        const doc = await vaultStore.getDocument(assetId, mimeType, fileName);
+        const file = new File([doc.blob], fileName, { type: doc.mimeType });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: fileName,
+            text: `Decrypted document from Memoir Vault: ${fileName}`,
+            files: [file],
+          });
+        } else {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(doc.blob);
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          toast(`“${fileName}” downloaded to device`);
+        }
+      });
+    } catch (err) {
+      if (err.name !== 'AbortError') toast(err.message || 'Share failed');
+    }
+  };
+}
+
+async function openDocumentViewer(assetId, fileName, mimeType) {
+  const isPdfDoc = isPdf(mimeType, fileName);
+  modal.className = 'modal';
+  modal.innerHTML = `<div class="modal-inner document-viewer-modal">
+    <div class="document-viewer-head">
+      <div class="document-viewer-title">
+        <span class="icon-wrap ${isPdfDoc ? 'coral' : 'violet'}">${icon(isPdfDoc ? 'FileText' : 'Image')}</span>
+        <div><strong>${escapeHtml(fileName)}</strong><small>Encrypted vault document</small></div>
+      </div>
+      <div class="document-viewer-actions">
+        <button type="button" class="secondary" id="doc-share-btn">${icon('Share2')} Share</button>
+        <button type="button" class="secondary" id="doc-download-btn">${icon('Download')} Download</button>
+        <button type="button" class="modal-close">${icon('X')}</button>
+      </div>
+    </div>
+    <div class="document-viewer-body" id="doc-viewer-content">
+      <div class="doc-loading-spinner">
+        <span class="rhino-pulse"></span>
+        <p>Retrieving and decrypting safely from your vault…</p>
+      </div>
+    </div>
+  </div>`;
+  showModal();
+
+  try {
+    const doc = await vaultStore.getDocument(assetId, mimeType, fileName);
+    const objectUrl = URL.createObjectURL(doc.blob);
+    const container = document.querySelector('#doc-viewer-content');
+    if (!container) return;
+
+    if (isPdfDoc) {
+      container.innerHTML = `<iframe src="${objectUrl}#toolbar=1" class="pdf-frame" title="${escapeHtml(fileName)}"></iframe>`;
+    } else {
+      container.innerHTML = `<img src="${objectUrl}" alt="${escapeHtml(fileName)}" class="doc-preview-image">`;
+    }
+
+    document.querySelector('#doc-download-btn').onclick = () => {
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast(`“${fileName}” downloaded`);
+    };
+
+    document.querySelector('#doc-share-btn').onclick = () => {
+      closeModal();
+      promptSecureShare(assetId, fileName, mimeType);
+    };
+  } catch (err) {
+    const container = document.querySelector('#doc-viewer-content');
+    if (container) {
+      container.innerHTML = `<div class="doc-loading-spinner" style="color:var(--danger)">
+        <p>Could not open document: ${escapeHtml(err.message || 'Decryption failed')}</p>
+      </div>`;
+    }
+  }
+}
+
 function normalizedField(fields, names) { const entries = Object.entries(fields || {}); for (const name of names) { const match = entries.find(([label]) => label.toLowerCase().replace(/[^a-z]/g, '') === name.toLowerCase().replace(/[^a-z]/g, '')); if (match) return match[1]; } return ''; }
 function cardDetails(fields = {}) {
   return {
@@ -595,11 +727,36 @@ function detailMarkup(item) {
   const fields = allFields(item);
   const attachment = audioAttachment(item);
   const audioPlayer = audioPlayerMarkup(attachment, 'Voice Memo Audio');
+  const documents = parseItemAttachments(item);
+  const documentsMarkup = documents.length ? `
+    <div class="document-attachments-section">
+      <h4>${icon('Paperclip')} Attached Documents (${documents.length})</h4>
+      <div class="document-attachments-grid">
+        ${documents.map(att => {
+          const isPdfDoc = isPdf(att.mimeType, att.fileName);
+          return `
+            <div class="doc-card" data-doc-view="${escapeHtml(att.assetId)}" data-doc-name="${escapeHtml(att.fileName)}" data-doc-mime="${escapeHtml(att.mimeType)}">
+              <div class="doc-card-icon ${isPdfDoc ? 'pdf' : 'image'}">
+                ${icon(isPdfDoc ? 'FileText' : 'Image')}
+              </div>
+              <div class="doc-card-meta">
+                <strong>${escapeHtml(att.fileName)}</strong>
+                <small>${formatFileSize(att.byteLength)} · ${isPdfDoc ? 'PDF Document' : 'Image'}</small>
+              </div>
+              <div class="doc-card-actions">
+                <button type="button" class="icon-btn-mini" data-doc-share="${escapeHtml(att.assetId)}" data-doc-name="${escapeHtml(att.fileName)}" data-doc-mime="${escapeHtml(att.mimeType)}" title="Share securely">${icon('Share2')}</button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  ` : '';
 
-  const displayFields = Object.entries(fields).filter(([k]) => !audioDataLabels.has(k) && !audioMetadataLabels.has(k));
+  const displayFields = Object.entries(fields).filter(([k]) => !audioDataLabels.has(k) && !audioMetadataLabels.has(k) && !documentDataLabels.has(k));
 
   const backLabel = state.view === 'audio' ? 'Back to audio' : 'Back to memories';
-  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} ${backLabel}</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div>${provenanceBadge(item)}</div>${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button>${attachment ? `<button class="secondary" data-audio-retry="${item.id}">${icon('AudioLines')} Transcribe again</button><button class="secondary" data-audio-transcript-edit="${item.id}">${icon('Pencil')} Edit transcript</button>` : `<button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button>`}<button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
+  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} ${backLabel}</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div>${provenanceBadge(item)}</div>${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div>${documentsMarkup}<p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button>${attachment ? `<button class="secondary" data-audio-retry="${item.id}">${icon('AudioLines')} Transcribe again</button><button class="secondary" data-audio-transcript-edit="${item.id}">${icon('Pencil')} Edit transcript</button>` : `<button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button>`}<button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
 }
 
 function vaultView() {
@@ -711,9 +868,26 @@ function assistantView() {
 
 function renderMessage(message, messageIndex = 0) {
   if (message.role === 'user') return `<div class="message user">${escapeHtml(message.text)}</div>`;
-  if (message.fields?.length || message.audios?.length) {
+  if (message.fields?.length || message.audios?.length || message.documents?.length) {
     const fields = message.fields || []; const fieldObject = Object.fromEntries(fields.map(field => [field.label, field.value])); const card = paymentCard(message.title || 'Saved card', fieldObject, true);
-    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}${(message.audios || []).map(audio => audioPlayerMarkup(audio, audio.title || 'Voice memo')).join('')}${fields.length ? `<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${fields.map((field, fieldIndex) => { const revealKey = `${messageIndex}:${fieldIndex}`; const visible = !state.hidden || state.assistantReveals.has(revealKey); return `<tr><td>${escapeHtml(field.label)}</td><td><span class="assistant-value ${visible ? 'visible' : 'protected'}">${visible ? escapeHtml(field.value) : '••••••••'}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-ai-reveal="${revealKey}" title="${visible ? 'Hide value' : 'Reveal value'}" aria-label="${visible ? 'Hide value' : 'Reveal value'}">${icon(visible ? 'Eye' : 'EyeOff')}</button><button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy">${icon('Copy')}</button></span></td></tr>`; }).join('')}</tbody></table>` : ''}</div>`;
+    const docsMarkup = (message.documents || []).length ? `
+      <div class="ai-documents-list">
+        ${message.documents.map(doc => {
+          const isPdfDoc = isPdf(doc.mimeType, doc.fileName);
+          return `
+            <div class="ai-doc-chip" data-doc-view="${escapeHtml(doc.assetId)}" data-doc-name="${escapeHtml(doc.fileName)}" data-doc-mime="${escapeHtml(doc.mimeType)}">
+              <span class="icon-wrap ${isPdfDoc ? 'coral' : 'violet'}">${icon(isPdfDoc ? 'FileText' : 'Image')}</span>
+              <div class="ai-doc-info">
+                <strong>${escapeHtml(doc.fileName)}</strong>
+                <small>${formatFileSize(doc.byteLength)} · ${isPdfDoc ? 'PDF Document' : 'Image'} · Tap to open</small>
+              </div>
+              <button type="button" class="icon-btn-mini" data-doc-share="${escapeHtml(doc.assetId)}" data-doc-name="${escapeHtml(doc.fileName)}" data-doc-mime="${escapeHtml(doc.mimeType)}" title="Share securely">${icon('Share2')}</button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    ` : '';
+    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}${(message.audios || []).map(audio => audioPlayerMarkup(audio, audio.title || 'Voice memo')).join('')}${docsMarkup}${fields.length ? `<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${fields.map((field, fieldIndex) => { const revealKey = `${messageIndex}:${fieldIndex}`; const visible = !state.hidden || state.assistantReveals.has(revealKey); return `<tr><td>${escapeHtml(field.label)}</td><td><span class="assistant-value ${visible ? 'visible' : 'protected'}">${visible ? escapeHtml(field.value) : '••••••••'}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-ai-reveal="${revealKey}" title="${visible ? 'Hide value' : 'Reveal value'}" aria-label="${visible ? 'Hide value' : 'Reveal value'}">${icon(visible ? 'Eye' : 'EyeOff')}</button><button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy">${icon('Copy')}</button></span></td></tr>`; }).join('')}</tbody></table>` : ''}</div>`;
   }
   if (message.actions?.length) {
     const isSmartCapture = message.actions.some(a => a.fields && (a.fields['Audio Transcript'] || a.fields['Expiry date'] || a.fields['Serial'] || a.fields['Brand'] || a.fields['Model']));
@@ -784,6 +958,18 @@ function bindView() {
   document.querySelectorAll('[data-audio-transcript-edit]').forEach(button => button.onclick = () => editAudioTranscript(button.dataset.audioTranscriptEdit));
   document.querySelectorAll('[data-provenance]').forEach(button => button.onclick = event => { event.stopPropagation(); showProvenance(button.dataset.provenance); });
   document.querySelectorAll('[data-share]').forEach(button => button.onclick = event => { event.stopPropagation(); openShareModal(button.dataset.share); });
+  document.querySelectorAll('[data-doc-view]').forEach(el => {
+    el.onclick = event => {
+      if (event.target.closest('[data-doc-share]')) return;
+      openDocumentViewer(el.dataset.docView, el.dataset.docName, el.dataset.docMime);
+    };
+  });
+  document.querySelectorAll('[data-doc-share]').forEach(button => {
+    button.onclick = event => {
+      event.stopPropagation();
+      promptSecureShare(button.dataset.docShare, button.dataset.docName, button.dataset.docMime);
+    };
+  });
   document.querySelector('#clear-chat')?.addEventListener('click', () => confirmBox('Clear this conversation?', 'This removes the local Rhinous conversation log. Your saved memories and reminders will not be changed.', 'Clear chat', 'Eraser', () => { state.messages = []; state.assistantLog = []; localStorage.removeItem(assistantLogKey()); renderView(); toast('Conversation cleared'); }));
 
   document.querySelector('#vault-filter')?.addEventListener('input', event => document.querySelectorAll('[data-searchable]').forEach(row => row.hidden = !row.dataset.searchable.includes(event.target.value.toLowerCase())));
@@ -1111,17 +1297,115 @@ function openEditor(item = null, initialType = 'Personal') {
   if (item?.type === 'Reminder' || initialType === 'Reminder') return openReminderEditor(item);
   if (item?.type === 'Birthday' || initialType === 'Birthday') return openBirthdayEditor(item);
   const selected = item?.type || initialType;
+  let pendingAttachments = parseItemAttachments(item);
+
   modal.className = 'modal';
-  modal.innerHTML = `<form class="modal-inner" id="memory-form"><div class="modal-head"><div><p class="eyebrow">${item ? 'Edit memory' : 'New memory'}</p><h2>${item ? 'Update what matters' : 'Add something important'}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><label>Category<select id="memory-type">${Object.keys(fieldMap).filter(type => !['Birthday', 'Reminder', 'Audio', 'Todo'].includes(type)).map(type => `<option ${type === selected ? 'selected' : ''}>${type}</option>`).join('')}</select></label><label>Title<input id="memory-title" required placeholder="e.g. Home Wi-Fi" value="${escapeHtml(item?.title || '')}"></label><div id="dynamic-fields"></div><label>Note<textarea id="memory-note" rows="3" placeholder="Context, reminder, or anything useful">${escapeHtml(item?.note || '')}</textarea></label><div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Check')} ${item ? 'Save changes' : 'Save memory'}</button></div></form>`;
+  modal.innerHTML = `<form class="modal-inner" id="memory-form"><div class="modal-head"><div><p class="eyebrow">${item ? 'Edit memory' : 'New memory'}</p><h2>${item ? 'Update what matters' : 'Add something important'}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><label>Category<select id="memory-type">${Object.keys(fieldMap).filter(type => !['Birthday', 'Reminder', 'Audio', 'Todo'].includes(type)).map(type => `<option ${type === selected ? 'selected' : ''}>${type}</option>`).join('')}</select></label><label>Title<input id="memory-title" required placeholder="e.g. Home Wi-Fi" value="${escapeHtml(item?.title || '')}"></label><div id="dynamic-fields"></div><label>Note<textarea id="memory-note" rows="3" placeholder="Context, reminder, or anything useful">${escapeHtml(item?.note || '')}</textarea></label>
+  <div class="document-attachments-section">
+    <h4>${icon('Paperclip')} Attached Documents & Photos (<span id="att-count">${pendingAttachments.length}</span>/8)</h4>
+    <div class="attachment-chips-list" id="editor-attachment-chips"></div>
+    <div class="attachment-dropzone" id="editor-dropzone">
+      <input type="file" id="editor-file-input" multiple accept="image/*,application/pdf" hidden>
+      ${icon('UploadCloud')}
+      <span>Click or drag images / PDFs here</span>
+      <small>Up to 5 images (≤ 6 MB each) · Up to 3 PDFs (≤ 10 MB each)</small>
+    </div>
+  </div>
+  <div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Check')} ${item ? 'Save changes' : 'Save memory'}</button></div></form>`;
   showModal();
+
+  const renderAttachmentChips = () => {
+    const chipsContainer = document.querySelector('#editor-attachment-chips');
+    const countEl = document.querySelector('#att-count');
+    if (countEl) countEl.textContent = pendingAttachments.length;
+    if (!chipsContainer) return;
+    chipsContainer.innerHTML = pendingAttachments.map(att => `
+      <span class="attachment-chip" data-att-id="${escapeHtml(att.assetId)}">
+        ${icon(isPdf(att.mimeType, att.fileName) ? 'FileText' : 'Image')}
+        <span>${escapeHtml(att.fileName)} (${formatFileSize(att.byteLength)})</span>
+        <button type="button" data-remove-att="${escapeHtml(att.assetId)}" title="Remove">${icon('X')}</button>
+      </span>
+    `).join('');
+    chipsContainer.querySelectorAll('[data-remove-att]').forEach(btn => {
+      btn.onclick = () => {
+        const idToRemove = btn.dataset.removeAtt;
+        pendingAttachments = pendingAttachments.filter(att => att.assetId !== idToRemove);
+        renderAttachmentChips();
+      };
+    });
+  };
+  renderAttachmentChips();
+
+  const dropzone = document.querySelector('#editor-dropzone');
+  const fileInput = document.querySelector('#editor-file-input');
+  if (dropzone && fileInput) {
+    dropzone.onclick = () => fileInput.click();
+    dropzone.ondragover = e => { e.preventDefault(); dropzone.classList.add('dragover'); };
+    dropzone.ondragleave = () => dropzone.classList.remove('dragover');
+    dropzone.ondrop = async e => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files?.length) await handleFiles(e.dataTransfer.files);
+    };
+    fileInput.onchange = async e => {
+      if (e.target.files?.length) await handleFiles(e.target.files);
+    };
+  }
+
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList);
+    let imageCount = pendingAttachments.filter(a => !isPdf(a.mimeType, a.fileName)).length;
+    let pdfCount = pendingAttachments.filter(a => isPdf(a.mimeType, a.fileName)).length;
+
+    for (const file of files) {
+      const isPdfFile = isPdf(file.type, file.name);
+      if (isPdfFile) {
+        if (pdfCount >= 3) { toast('Maximum 3 PDFs allowed per memory'); continue; }
+        if (file.size > 10 * 1024 * 1024) { toast(`“${file.name}” is too large (max 10 MB for PDF)`); continue; }
+        pdfCount++;
+      } else if (file.type.startsWith('image/')) {
+        if (imageCount >= 5) { toast('Maximum 5 images allowed per memory'); continue; }
+        if (file.size > 6 * 1024 * 1024) { toast(`“${file.name}” is too large (max 6 MB for images)`); continue; }
+        imageCount++;
+      } else {
+        toast(`“${file.name}” is not an image or PDF`);
+        continue;
+      }
+
+      await withRhinoActivity('🔒 Encrypting & saving to vault…', async () => {
+        const saved = await vaultStore.uploadDocument({ file, fileName: file.name, mimeType: file.type });
+        pendingAttachments.push(saved);
+        renderAttachmentChips();
+        toast(`“${file.name}” encrypted & attached`);
+      });
+    }
+  }
+
   const renderFields = () => {
     const type = document.querySelector('#memory-type').value;
-    const names = [...new Set([...(fieldMap[type] || []), ...Object.keys(item?.fields || {})])];
+    const names = [...new Set([...(fieldMap[type] || []), ...Object.keys(item?.fields || {})])].filter(n => !documentDataLabels.has(n));
     document.querySelector('#dynamic-fields').innerHTML = `<div class="field-grid">${names.map(name => memoryFieldInput(name, item?.fields?.[name] || '')).join('')}</div><div id="custom-memory-fields"></div><button type="button" class="ghost add-custom-field" id="add-custom-field">${icon('Plus')} Add custom field</button>${type === 'Government Document' || type === 'Identity' ? `<p class="document-field-help">${icon('ShieldCheck')} Add an HTTPS Google Drive, OneDrive, or other private cloud link. Memoir stores the link as an encrypted field and Rhinous can retrieve it by document name.</p>` : ''}`;
     document.querySelector('#add-custom-field').onclick = () => document.querySelector('#custom-memory-fields').insertAdjacentHTML('beforeend', `<div class="custom-memory-field"><label>Field name<input data-custom-label maxlength="100" placeholder="e.g. Application number"></label><label>Field value<input data-custom-value maxlength="5000" placeholder="Enter the protected value"></label></div>`);
   };
   renderFields(); document.querySelector('#memory-type').onchange = renderFields;
-  document.querySelector('#memory-form').onsubmit = async event => { event.preventDefault(); const fields = {}; document.querySelectorAll('[data-field]').forEach(input => { if (input.value.trim()) fields[input.dataset.field] = input.value.trim(); }); document.querySelectorAll('.custom-memory-field').forEach(row => { const label = row.querySelector('[data-custom-label]').value.trim(); const value = row.querySelector('[data-custom-value]').value.trim(); if (label && value) fields[label.slice(0, 100)] = value.slice(0, 5000); }); await withRhinoActivity(item ? 'Updating memory…' : 'Saving memory…', () => vaultStore.save({ ...(item || {}), kind: 'memory', type: document.querySelector('#memory-type').value, title: document.querySelector('#memory-title').value.trim(), note: document.querySelector('#memory-note').value.trim(), fields })); closeModal(); toast(item ? 'Memory updated instantly' : 'Memory saved securely'); };
+  document.querySelector('#memory-form').onsubmit = async event => {
+    event.preventDefault();
+    const fields = {};
+    document.querySelectorAll('[data-field]').forEach(input => { if (input.value.trim()) fields[input.dataset.field] = input.value.trim(); });
+    document.querySelectorAll('.custom-memory-field').forEach(row => {
+      const label = row.querySelector('[data-custom-label]').value.trim();
+      const value = row.querySelector('[data-custom-value]').value.trim();
+      if (label && value) fields[label.slice(0, 100)] = value.slice(0, 5000);
+    });
+    if (pendingAttachments.length) {
+      fields['Document Attachments'] = JSON.stringify(pendingAttachments);
+    } else {
+      delete fields['Document Attachments'];
+    }
+    await withRhinoActivity(item ? 'Updating memory…' : 'Saving memory…', () => vaultStore.save({ ...(item || {}), kind: 'memory', type: document.querySelector('#memory-type').value, title: document.querySelector('#memory-title').value.trim(), note: document.querySelector('#memory-note').value.trim(), fields }));
+    closeModal();
+    toast(item ? 'Memory updated instantly' : 'Memory saved securely');
+  };
 }
 function openBirthdayEditor(item = null) {
   const parsed = parseBirthday(item?.fields?.Date) || { year: 0, month: '', day: '', hasYear: false };
@@ -1779,17 +2063,18 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
     if (actions.length) return { role: 'assistant', title: answer.title || 'Review vault changes', markdown: answer.markdown || 'Review these changes before I apply them.', actions };
   }
   if (answer.kind !== 'lookup' || !answer.matches?.length) return { role: 'assistant', title: answer.title || 'Rhinous', markdown: answer.markdown || answer.message || 'I could not create a response.' };
-  const fields = []; const audios = []; const resolvedTitles = []; let firstResolvedId = '';
+  const fields = []; const audios = []; const documents = []; const resolvedTitles = []; let firstResolvedId = '';
   answer.matches.forEach(match => {
     const item = state.items.find(row => row.id === match.id); if (!item) return;
     if (!firstResolvedId) firstResolvedId = item.id;
     resolvedTitles.push(item.title);
     const attachment = audioAttachment(item); if (attachment) audios.push({ ...attachment, title: item.title });
+    const docs = parseItemAttachments(item); if (docs.length) documents.push(...docs);
     const requested = match.fields?.length ? match.fields : Object.keys(allFields(item));
-    requested.forEach(label => { const actual = Object.keys(allFields(item)).find(key => key.toLowerCase() === String(label).toLowerCase()); if (actual && !audioDataLabels.has(actual) && !audioMetadataLabels.has(actual)) fields.push({ label: actual, value: allFields(item)[actual] }); });
+    requested.forEach(label => { const actual = Object.keys(allFields(item)).find(key => key.toLowerCase() === String(label).toLowerCase()); if (actual && !audioDataLabels.has(actual) && !audioMetadataLabels.has(actual) && !documentDataLabels.has(actual)) fields.push({ label: actual, value: allFields(item)[actual] }); });
   });
   if (firstResolvedId) state.lastResolvedItemId = firstResolvedId;
-  return fields.length || audios.length ? { role: 'assistant', title: resolvedTitles.length === 1 ? resolvedTitles[0] : (answer.title || 'Saved information'), markdown: answer.markdown, fields, audios } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
+  return fields.length || audios.length || documents.length ? { role: 'assistant', title: resolvedTitles.length === 1 ? resolvedTitles[0] : (answer.title || 'Saved information'), markdown: answer.markdown, fields, audios, documents } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
 }
 function protectPrivateInput(input) {
   let text = String(input || ''); const values = {}; let tokenIndex = 0;

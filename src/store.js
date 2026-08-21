@@ -8,7 +8,7 @@ const firebaseConfig = {
   measurementId: 'G-E4CM9P974R',
 };
 
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 export const ACCOUNT_PROFILES = [
   { uid: 'uQE6xqhWhQWhOlGmfT2br5HnCEq2', email: 'maaz@memo.com', name: 'Maaz', initials: 'MM' },
   { uid: 'GQ4lxeAWoPTlyJ4W1jxU8bxk6qS2', email: 'deepti@memo.com', name: 'Deepti', initials: 'DM' },
@@ -54,6 +54,7 @@ function openLocalDb() {
       if (!db.objectStoreNames.contains('records')) db.createObjectStore('records', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('keys')) db.createObjectStore('keys');
       if (!db.objectStoreNames.contains('queue')) db.createObjectStore('queue', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('documents')) db.createObjectStore('documents', { keyPath: 'assetId' });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -563,6 +564,128 @@ class VaultStore {
       const token = await this.idToken(); if (!token || !queueIds?.length) return;
       await fetch('/api/telegram', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify({ action: 'ack', queueIds }) });
     } catch { /* retrying a mutation is safe because record IDs are stable */ }
+  }
+
+  async getCachedDocument(assetId) {
+    try {
+      if (!assetId) return null;
+      return await idb('documents', 'readonly', store => store.get(assetId));
+    } catch {
+      return null;
+    }
+  }
+
+  async cacheDocument(assetId, { data, mimeType, fileName, byteLength }) {
+    try {
+      if (!assetId || !data) return;
+      await idb('documents', 'readwrite', store => store.put({
+        assetId,
+        data,
+        mimeType: mimeType || 'application/octet-stream',
+        fileName: fileName || 'document',
+        byteLength: byteLength || (data.byteLength || data.size || 0),
+        cachedAt: Date.now(),
+      }));
+    } catch (e) {
+      console.warn('Failed to cache document in IndexedDB:', e);
+    }
+  }
+
+  async deleteDocument(assetId) {
+    try {
+      if (!assetId) return;
+      await idb('documents', 'readwrite', store => store.delete(assetId)).catch(() => {});
+      const token = await this.idToken();
+      if (token) {
+        await fetch(`/api/documents?id=${encodeURIComponent(assetId)}`, {
+          method: 'DELETE',
+          headers: this.apiHeaders(token, false),
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Delete document failed:', e);
+    }
+  }
+
+  async uploadDocument({ file, fileName, mimeType }) {
+    const token = await this.idToken();
+    if (!token) throw new Error('You must be signed in to upload documents');
+    
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = bytesToB64(new Uint8Array(arrayBuffer));
+    
+    const response = await fetch('/api/documents', {
+      method: 'POST',
+      headers: this.apiHeaders(token),
+      body: JSON.stringify({
+        data: base64,
+        fileName: fileName || file.name || 'document',
+        mimeType: mimeType || file.type || 'application/pdf',
+        createdAt: Date.now(),
+      }),
+    });
+    
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(err.error || `Upload failed with status ${response.status}`);
+    }
+    
+    const saved = await response.json();
+    await this.cacheDocument(saved.assetId, {
+      data: arrayBuffer,
+      mimeType: saved.mimeType,
+      fileName: saved.fileName,
+      byteLength: saved.byteLength,
+    });
+    
+    return saved;
+  }
+
+  async getDocument(assetId, mimeType = 'application/pdf', fileName = 'document') {
+    if (!assetId) throw new Error('Missing document asset ID');
+    
+    const cached = await this.getCachedDocument(assetId);
+    if (cached?.data) {
+      return {
+        assetId,
+        data: cached.data,
+        mimeType: cached.mimeType || mimeType,
+        fileName: cached.fileName || fileName,
+        blob: new Blob([cached.data], { type: cached.mimeType || mimeType }),
+        fromCache: true,
+      };
+    }
+    
+    const token = await this.idToken();
+    if (!token) throw new Error('Identity session expired. Please sign in again.');
+    
+    const res = await fetch(`/api/documents?id=${encodeURIComponent(assetId)}`, {
+      method: 'GET',
+      headers: this.apiHeaders(token, false),
+    });
+    
+    if (!res.ok) {
+      throw new Error(`Failed to retrieve document (${res.status})`);
+    }
+    
+    const arrayBuffer = await res.arrayBuffer();
+    const resolvedMime = res.headers.get('Content-Type') || mimeType;
+    
+    await this.cacheDocument(assetId, {
+      data: arrayBuffer,
+      mimeType: resolvedMime,
+      fileName,
+      byteLength: arrayBuffer.byteLength,
+    });
+    
+    return {
+      assetId,
+      data: arrayBuffer,
+      mimeType: resolvedMime,
+      fileName,
+      blob: new Blob([arrayBuffer], { type: resolvedMime }),
+      fromCache: false,
+    };
   }
 }
 

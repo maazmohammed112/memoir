@@ -13,7 +13,7 @@
     "test:retrieval": "node tests/retrieval-ranking.test.mjs",
     "start": "node server.js",
     "preview": "vite preview --host 0.0.0.0",
-    "check": "node --check src/main.js && node --check src/store.js && node --check public/sw.js && node --check api/health.js && node --check api/assistant.js && node --check api/auth.js && node --check api/telegram.js && node --check api/reminders.js && node --check api/sync.js && node --check api/alexa.js && node --check api/audio.js && node --check lib/audioVault.js && node --check lib/r2Storage.js && node --check lib/firebaseAdmin.js && node --check lib/users.js && node --check lib/telegramClient.js && node --check lib/runtimeVault.js && node --check server.js"
+    "check": "node --check src/main.js && node --check src/store.js && node --check public/sw.js && node --check api/health.js && node --check api/assistant.js && node --check api/auth.js && node --check api/telegram.js && node --check api/reminders.js && node --check api/sync.js && node --check api/alexa.js && node --check api/audio.js && node --check api/documents.js && node --check lib/audioVault.js && node --check lib/r2Storage.js && node --check lib/firebaseAdmin.js && node --check lib/users.js && node --check lib/telegramClient.js && node --check lib/runtimeVault.js && node --check server.js"
   },
   "dependencies": {
     "@google/genai": "latest",
