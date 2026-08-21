@@ -992,16 +992,61 @@ async function todoReceiptBlob(item) {
 }
 async function openTodoReceipt(itemId) {
   const item = state.items.find(row => row.id === itemId); if (!item) return;
-  modal.className = 'modal receipt-modal'; modal.innerHTML = `<div class="modal-inner"><div class="modal-head"><div><p class="eyebrow">Memoir paper receipt</p><h2>${escapeHtml(item.title)}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><div class="receipt-printer is-preparing"><div class="printer-body"><img src="/brand/memoir-rhino-ui.png" alt=""><span><b>MEMOIR</b><small>PREPARING RECEIPT</small></span><i></i><em></em></div><div class="printer-slot"></div><div class="receipt-paper receipt-paper-loading"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div></div><div class="receipt-actions"><button class="secondary" id="receipt-copy-text" disabled>${icon('Copy')} Copy text</button><button class="secondary" id="receipt-copy-image" disabled>${icon('ReceiptText')} Copy image</button><button class="primary" id="receipt-share" disabled>${icon('Share2')} Share receipt</button></div></div>`; showModal();
-  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  const blob = await todoReceiptBlob(item); if (!blob) { closeModal(); return toast('Receipt could not be generated'); } const url = URL.createObjectURL(blob);
-  if (!modal.open) { URL.revokeObjectURL(url); return; }
-  const printer = modal.querySelector('.receipt-printer'); printer.classList.remove('is-preparing'); printer.querySelector('.printer-body small').textContent = 'RECEIPT READY'; printer.querySelector('.receipt-paper').outerHTML = `<div class="receipt-paper"><img src="${url}" alt="Generated receipt preview"></div>`;
-  modal.querySelectorAll('.receipt-actions button').forEach(button => { button.disabled = false; }); modal.addEventListener('close', () => URL.revokeObjectURL(url), { once: true });
+  const blob = await todoReceiptBlob(item);
+  if (!blob) return toast('Receipt could not be generated');
+  const url = URL.createObjectURL(blob);
+  modal.className = 'modal receipt-modal';
+  modal.innerHTML = `
+    <div class="modal-inner">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">Memoir paper receipt</p>
+          <h2>${escapeHtml(item.title)}</h2>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close">${icon('X')}</button>
+      </div>
+      <div class="receipt-printer">
+        <div class="printer-body">
+          <img src="/brand/memoir-rhino-ui.png" alt="">
+          <span><b>MEMOIR</b><small>RECEIPT READY</small></span>
+        </div>
+        <div class="printer-slot"></div>
+        <div class="receipt-paper">
+          <img src="${url}" alt="Generated receipt preview">
+        </div>
+      </div>
+      <div class="receipt-actions">
+        <button class="secondary" id="receipt-copy-text">${icon('Copy')} Copy text</button>
+        <button class="secondary" id="receipt-copy-image">${icon('ReceiptText')} Copy image</button>
+        <button class="primary" id="receipt-share">${icon('Share2')} Share receipt</button>
+      </div>
+    </div>
+  `;
+  showModal();
+  modal.addEventListener('close', () => URL.revokeObjectURL(url), { once: true });
   document.querySelector('#receipt-copy-text').onclick = () => copyText(todoReceiptText(item));
-  document.querySelector('#receipt-copy-image').onclick = async () => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); toast('Receipt image copied'); } catch { toast('Image copying is not supported here. Use Share receipt.'); } };
-  document.querySelector('#receipt-share').onclick = async () => { const file = new File([blob], `memoir-${item.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`, { type: 'image/png' }); if (navigator.canShare?.({ files: [file] })) await navigator.share({ title: item.title, text: `Memoir to-do receipt · ${todoCurrency(todoTotal(item))}`, files: [file] }); else { const link = document.createElement('a'); link.href = url; link.download = file.name; link.click(); toast('Receipt image downloaded'); } };
+  document.querySelector('#receipt-copy-image').onclick = async () => {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      toast('Receipt image copied');
+    } catch {
+      toast('Image copying is not supported here. Use Share receipt.');
+    }
+  };
+  document.querySelector('#receipt-share').onclick = async () => {
+    const file = new File([blob], `memoir-${item.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ title: item.title, text: `Memoir to-do receipt · ${todoCurrency(todoTotal(item))}`, files: [file] });
+    } else {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.name;
+      link.click();
+      toast('Receipt image downloaded');
+    }
+  };
 }
+
 
 function openEditor(item = null, initialType = 'Personal') {
   if (item?.type === 'Reminder' || initialType === 'Reminder') return openReminderEditor(item);
@@ -1608,14 +1653,8 @@ async function askAssistant(query) {
   state.chatLoading = true;
   renderView();
   scrollChat();
-  const localLookupRequested = !attachment && isSavedLookupRequest(cleanQuery);
-  const localAnswer = localLookupRequested ? localRoute(cleanQuery) : null;
 
   try {
-    if (localLookupRequested && !localAnswer?._lookupHint) {
-      state.messages.push(localAnswer || { role: 'assistant', title: 'Which saved memory?', markdown: 'I will not guess when private records could overlap. Please include the saved title or owner, for example **Home Wi-Fi password** or **EPFO password**.' });
-      return;
-    }
     const catalog = state.items.filter(item => item.type !== 'Notification').map(item => ({ id: item.id, type: category(item), title: item.title, fieldNames: Object.keys(allFields(item)) }));
     const identityToken = await vaultStore.idToken();
     const payload = {
@@ -1626,7 +1665,6 @@ async function askAssistant(query) {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Calcutta',
       now: new Date().toISOString(),
     };
-    if (localAnswer?._lookupHint) payload.lookupHint = localAnswer._lookupHint;
     if (attachment?.kind === 'audio') {
       payload.audio = {
         data: attachment.data,
@@ -1664,8 +1702,8 @@ async function askAssistant(query) {
       if (audioItem) await updateAudioTranscriptEverywhere(audioItem, '', 'Awaiting transcription · retry available');
       state.messages.push({ role: 'assistant', title: 'Audio saved safely', markdown: 'The recording is already visible in Audio. Transcription could not run because the selected AI is unavailable or its limit was reached. You can retry later without recording again.', retryAudioId: attachment.recordId });
     } else {
-      const fallback = localAnswer || localRoute(cleanQuery);
-      state.messages.push(fallback || { role: 'assistant', markdown: `### Assistant response\nI couldn’t process this capture request: ${error?.message || 'Check your network connection'}.` });
+      const fallback = localRoute(cleanQuery);
+      state.messages.push(fallback || { role: 'assistant', markdown: `### Assistant response\nI couldn’t process this request: ${error?.message || 'Check your network connection'}.` });
     }
   } finally {
     state.chatLoading = false;
@@ -1794,14 +1832,15 @@ function fieldIntentPatterns(needle) {
 function recordLookupScore(item, needle, queryTokens) {
   const title = normalizedLookupText(item.title); const titleTokens = lookupTokens(item.title); const note = normalizedLookupText(item.note); const type = normalizedLookupText(category(item));
   let score = 0; let identityMatches = 0; let genericMatches = 0; let contextualMatch = false;
-  if (title && needle.includes(title)) { score += 220; identityMatches += 3; }
+  if (title && (needle === title || new RegExp(`\\b${title}\\b`).test(needle))) { score += 220; identityMatches += 3; }
   titleTokens.forEach(token => {
-    if (!needle.includes(token)) return;
+    const isWordMatch = queryTokens.includes(token) || new RegExp(`\\b${token}\\b`).test(needle);
+    if (!isWordMatch) return;
     const weight = genericRecordWords.has(token) ? 12 : 52;
     score += weight; if (!genericRecordWords.has(token)) identityMatches += 1; else genericMatches += 1;
   });
   if (!identityMatches && genericMatches >= 2) identityMatches = 1;
-  queryTokens.forEach(token => { if (note.includes(token) && !genericRecordWords.has(token)) { score += 10; identityMatches += .25; } });
+  queryTokens.forEach(token => { if (new RegExp(`\\b${token}\\b`).test(note) && !genericRecordWords.has(token)) { score += 10; identityMatches += .25; } });
   const explicitCategory = (needle.includes('wifi') && type.includes('wifi')) || (needle.includes('birthday') && type.includes('birthday')) || (needle.includes('audio') && type.includes('audio'));
   if (explicitCategory) { score += 42; identityMatches += 1; }
   if (fieldIntentPatterns(needle).some(pattern => Object.keys(allFields(item)).some(label => pattern.test(label)))) score += 10;
