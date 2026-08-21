@@ -687,13 +687,23 @@ function openBirthdayEditor(item = null) {
   };
 }
 function normalizeReminderRecord(record) {
-  const fields = { ...(record.fields || {}) }; const dueAt = String(fields['Due at'] || '').trim(); const due = Number(fields['Due timestamp']) || new Date(dueAt).getTime();
+  const fields = { ...(record.fields || {}) };
+  let dueAt = String(fields['Due at'] || '').trim();
+  let due = Number(fields['Due timestamp']) || new Date(dueAt).getTime();
+  const repeat = ['daily', 'weekly', 'monthly', 'yearly'].includes(String(fields.Repeat || '').toLowerCase()) ? String(fields.Repeat).toLowerCase() : 'none';
+  const now = Date.now();
+  if (Number.isFinite(due) && repeat !== 'none' && due <= now) {
+    due = advanceRecurringDue(due, repeat, now);
+    dueAt = localDateTimeValue(due);
+    fields['Due at'] = dueAt;
+  }
   if (dueAt && Number.isFinite(due)) fields['Due timestamp'] = String(due);
   fields.Status = String(fields.Status || 'upcoming').toLowerCase() === 'completed' ? 'completed' : 'upcoming';
   fields.Snoozed = /^(yes|true|snoozed)$/i.test(String(fields.Snoozed || '')) ? 'Yes' : 'No';
-  fields.Repeat = ['daily', 'weekly', 'monthly', 'yearly'].includes(String(fields.Repeat || '').toLowerCase()) ? String(fields.Repeat).toLowerCase() : 'none';
+  fields.Repeat = repeat;
   return { ...record, kind: 'memory', type: 'Reminder', fields };
 }
+
 function openReminderEditor(item = null) {
   const due = reminderDue(item); const dueValue = Number.isFinite(due) ? localDateTimeValue(due) : localDateTimeValue();
   modal.className = 'modal reminder-modal';

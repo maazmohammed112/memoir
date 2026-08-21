@@ -297,9 +297,42 @@ function parseSpokenReminder(rawText, explicitDue) {
 
   const tz = getAppTimezone();
   const localNow = getNowInTimezone(tz);
-  const d = new Date(Date.UTC(localNow.year, localNow.month - 1, localNow.day));
-  if (isTomorrow) d.setUTCDate(d.getUTCDate() + 1);
-  if (isDayAfter) d.setUTCDate(d.getUTCDate() + 2);
+
+  const WEEKDAYS = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+  let targetWeekday = -1;
+  for (const [dayName, dayIndex] of Object.entries(WEEKDAYS)) {
+    if (new RegExp(`\\b${dayName}\\b`, 'i').test(text)) {
+      targetWeekday = dayIndex;
+      break;
+    }
+  }
+
+  const isDaily = /\b(daily|every day|each day)\b/i.test(text);
+  const isWeekly = /\b(weekly|every week|each week)\b/i.test(text) || /\bevery\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(text);
+  const isMonthly = /\b(monthly|every month|each month)\b/i.test(text);
+  const repeat = isDaily ? 'daily' : isWeekly ? 'weekly' : isMonthly ? 'monthly' : 'none';
+
+  let d = new Date(Date.UTC(localNow.year, localNow.month - 1, localNow.day));
+
+  if (isTomorrow) {
+    d.setUTCDate(d.getUTCDate() + 1);
+  } else if (isDayAfter) {
+    d.setUTCDate(d.getUTCDate() + 2);
+  } else if (targetWeekday !== -1) {
+    const currentWeekday = new Date(Date.UTC(localNow.year, localNow.month - 1, localNow.day)).getUTCDay();
+    let diffDays = targetWeekday - currentWeekday;
+    if (diffDays < 0) diffDays += 7;
+    else if (diffDays === 0) {
+      if (hours < localNow.hour || (hours === localNow.hour && minutes <= localNow.minute)) {
+        diffDays = 7;
+      }
+    }
+    d.setUTCDate(d.getUTCDate() + diffDays);
+  } else if (!isTonight && !isMorning && !isAfternoon && !isEvening && !isNight) {
+    if (hours < localNow.hour || (hours === localNow.hour && minutes <= localNow.minute)) {
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+  }
 
   if (isTonight && !foundTime) { hours = 20; minutes = 0; }
 
@@ -314,7 +347,7 @@ function parseSpokenReminder(rawText, explicitDue) {
   // Timezone offset for Asia/Calcutta is +05:30
   const timestamp = new Date(`${localIso}:00+05:30`).getTime();
 
-  return { title: cleanSpokenTitle(text), timestamp, localIso };
+  return { title: cleanSpokenTitle(text), timestamp, localIso, repeat };
 }
 
 function getNowInTimezone(tz = getAppTimezone()) {
@@ -354,9 +387,9 @@ async function handleAddReminder(profile, { title, dueAt, note }) {
     fields: {
       'Due at': localDue,
       'Due timestamp': timestamp,
-      Status: 'pending',
-      Repeat: 'none',
-      Snoozed: 'no',
+      Status: 'upcoming',
+      Repeat: parsed.repeat || 'none',
+      Snoozed: 'No',
     },
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -367,9 +400,11 @@ async function handleAddReminder(profile, { title, dueAt, note }) {
   const date = new Date(timestamp);
   const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: getAppTimezone() });
   const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: getAppTimezone() });
+  const repeatText = parsed.repeat && parsed.repeat !== 'none' ? ` (${parsed.repeat})` : '';
 
-  return `I have added a reminder to ${parsed.title} for ${dateStr} at ${timeStr}.`;
+  return `I have added a reminder to ${parsed.title} for ${dateStr} at ${timeStr}${repeatText}.`;
 }
+
 
 
 

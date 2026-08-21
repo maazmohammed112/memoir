@@ -10,7 +10,34 @@ You NEVER receive saved secret values. You receive only record IDs, titles, cate
 Use the conversation log to resolve follow-ups such as "only the password", "the other one", or "edit that" without starting over.
 For saved-information requests, choose only the exact record and fields necessary. If the user says details/info/all/everything, choose every field in the matching record. If the user asks for one field such as Password, CVV, ATM PIN, Debit card number, Document number, Expiry date, or Soft copy link, return only that exact field. Selecting sensitive fields and private document links is allowed; their values are attached on-device later.
 For explicit add/create/save, edit/update, or delete/remove requests, return one or more actions. Use an exact catalog ID for update/delete. Keep every [[PRIVATE_N]] placeholder unchanged. Never invent a credential, PIN, CVV, password, account/card number, or saved value. Changes are reviewed on-device before execution.
-For reminders, use type "Reminder" and fields named exactly "Due at", "Status", "Snoozed", "Repeat", and optionally "Completion" and "Completed at". "Due at" must use the user's local YYYY-MM-DDTHH:mm format. Repeat must be one of "none", "daily", "weekly", "monthly", or "yearly". New reminders default to Status "upcoming", Snoozed "No", and Repeat "none". Understand phrases such as every day, each week, monthly, annually, and every birthday. You may create multiple reminder actions in one response. If the title, date, time, recurrence, or intended reminder is genuinely ambiguous, ask one short clarifying question and return kind "general" with no actions instead of guessing.
+
+FOR REMINDERS AND TEMPORAL INTELLIGENCE:
+- Use type "Reminder" and fields: "Due at" (YYYY-MM-DDTHH:mm format in user local time), "Status" ("upcoming"), "Snoozed" ("No"), "Repeat" ("none"|"daily"|"weekly"|"monthly"|"yearly"), and optionally "Completion" and "Completed at".
+- Understand natural recurrence:
+  - "daily" / "every day" / "each day" -> Repeat: "daily"
+  - "every week" / "weekly" / "every Friday" / "every Monday" -> Repeat: "weekly"
+  - "monthly" / "every month" / "on the 1st of every month" -> Repeat: "monthly"
+  - "yearly" / "annually" / "every year" -> Repeat: "yearly"
+- TIME & CALENDAR REASONING RULES (CRITICAL):
+  1. Always consult the UPCOMING DATES list provided in the user time context.
+  2. Compare the requested target time with the CURRENT LOCAL TIME.
+  3. If the user requests a reminder for a time that has ALREADY PASSED today:
+     - For daily reminders ("daily at 11am", "every day at 9am"): Set the first "Due at" to TOMORROW at that time with Repeat: "daily".
+     - For weekly reminders on today's weekday ("every Friday at 11am" when today is Friday and current time is past 11:00 AM): Set the first "Due at" to NEXT FRIDAY (e.g. 7 days ahead) with Repeat: "weekly".
+     - For one-off reminders with no date specified ("remind me at 10am"): Set "Due at" to TOMORROW at 10:00.
+  4. If the requested target time is in the FUTURE today:
+     - Set the first "Due at" to TODAY with the appropriate Repeat value.
+  5. For weekly reminders on a different day ("every Monday at 10am", "every Sunday at 5pm"): Use the upcoming occurrence of that weekday from the UPCOMING DATES list with Repeat: "weekly".
+  6. For monthly reminders ("every 1st at 9am", "15th of every month"): If that day/time has already passed this month, schedule for next month on that day.
+  7. Recognized routine and prayer terms:
+     - Fajr / Sehri / Tahajjud: 05:00 (Tahajjud: 04:00)
+     - Dhuhr / Zuhr / Zohar / Jumma / Friday prayer: 13:30 (1:30 PM)
+     - Asr / Asar: 17:00 (5:00 PM)
+     - Maghrib / Iftar: 18:45 (6:45 PM)
+     - Isha / Ishaa: 20:30 (8:30 PM)
+     - Morning: 09:00, Afternoon: 14:00, Evening: 18:00, Night: 21:00.
+  8. NEVER schedule a new reminder with a "Due at" in the past!
+
 For a vault-related writing request such as a birthday wish, use polished Markdown with headings and lists where helpful. Do not use raw # characters in prose.
 Return ONLY valid JSON in this schema:
 {"kind":"lookup"|"general"|"actions"|"refusal","title":"short polished title","markdown":"brief supporting text or Markdown answer","matches":[{"id":"exact catalog id","fields":["exact field name"]}],"actions":[{"op":"create"|"update"|"delete","id":"exact catalog id for update/delete","type":"Login|Finance|Identity|Government Document|Personal|Birthday|Wi-Fi|Clipboard|Reminder","title":"record title","note":"optional note","fields":{"exact field label":"value or unchanged [[PRIVATE_N]] placeholder"}}]}
@@ -119,13 +146,31 @@ export async function routeQuery({ provider = 'gemini', query, catalog, history,
     hour12: true,
     timeZone: userTz,
   });
+  const local24HourTime = nowObj.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: userTz,
+  });
   const localIsoDate = nowObj.toLocaleDateString('en-CA', { timeZone: userTz });
 
-  const prompt = `USER LOCAL TIME CONTEXT:
-Today's Date: ${localDateString} (${localIsoDate})
-Current Time: ${localTimeString}
-User Timezone: ${userTz}
-UTC Instant: ${nowObj.toISOString()}
+  const upcomingDays = [];
+  for (let i = 0; i <= 8; i++) {
+    const d = new Date(nowObj.getTime() + i * 24 * 60 * 60 * 1000);
+    const weekday = d.toLocaleDateString('en-US', { weekday: 'long', timeZone: userTz });
+    const isoDate = d.toLocaleDateString('en-CA', { timeZone: userTz });
+    const label = i === 0 ? `Today (${weekday})` : i === 1 ? `Tomorrow (${weekday})` : (i === 7 ? `Next ${weekday}` : weekday);
+    upcomingDays.push(`- ${label}: ${isoDate}`);
+  }
+
+  const prompt = `USER LOCAL TIME & CALENDAR CONTEXT:
+- Today's Date: ${localDateString} (${localIsoDate})
+- Current Time: ${localTimeString} (24-hour: ${local24HourTime})
+- User Timezone: ${userTz}
+- UTC Instant: ${nowObj.toISOString()}
+
+UPCOMING DATES FOR ACCURATE SCHEDULING:
+${upcomingDays.join('\n')}
 
 PRIVACY-SAFE CONVERSATION LOG:
 ${JSON.stringify(cleanHistory)}
@@ -139,6 +184,7 @@ ${JSON.stringify(cleanCatalog)}`;
   const response = provider === 'mistral' ? await callMistral(prompt) : await callGemini(prompt);
   return { ...normalize(parseJson(response.result), cleanCatalog), provider, model: response.model };
 }
+
 
 
 export default async function handler(req, res) {
