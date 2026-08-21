@@ -816,14 +816,14 @@ async function openDocumentViewer(assetId, fileName, mimeType) {
 
       <div class="document-viewer-toolbar-row">
         <div class="doc-zoom-controls" id="doc-zoom-controls" style="${isPdfDoc ? 'display:none;' : ''}">
-          <button type="button" class="secondary doc-zoom-btn" id="zoom-out-btn" title="Zoom Out" aria-label="Zoom Out">${icon('Minus')}</button>
+          <button type="button" class="doc-zoom-btn" id="zoom-out-btn" title="Zoom Out" aria-label="Zoom Out">${icon('Minus')}</button>
           <span class="zoom-level-text" id="zoom-level-indicator">100%</span>
-          <button type="button" class="secondary doc-zoom-btn" id="zoom-in-btn" title="Zoom In" aria-label="Zoom In">${icon('Plus')}</button>
-          <button type="button" class="secondary doc-zoom-btn" id="zoom-reset-btn" title="Reset to Fit">Fit</button>
+          <button type="button" class="doc-zoom-btn" id="zoom-in-btn" title="Zoom In" aria-label="Zoom In">${icon('Plus')}</button>
+          <button type="button" class="doc-zoom-btn reset-btn" id="zoom-reset-btn" title="Reset to Fit">Fit</button>
         </div>
         <div class="doc-share-actions">
-          <button type="button" class="secondary doc-action-btn" id="doc-share-btn">${icon('Share2')} <span>Share</span></button>
-          <button type="button" class="secondary doc-action-btn" id="doc-download-btn">${icon('Download')} <span>Download</span></button>
+          <button type="button" class="doc-action-icon-btn" id="doc-share-btn" title="Share file" aria-label="Share">${icon('Share2')}</button>
+          <button type="button" class="doc-action-icon-btn" id="doc-download-btn" title="Download file" aria-label="Download">${icon('Download')}</button>
         </div>
       </div>
     </div>
