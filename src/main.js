@@ -44,6 +44,7 @@ import ListTodo from 'lucide/dist/esm/icons/list-todo.mjs';
 import Mail from 'lucide/dist/esm/icons/mail.mjs';
 import MessageCircle from 'lucide/dist/esm/icons/message-circle.mjs';
 import Mic from 'lucide/dist/esm/icons/mic.mjs';
+import Minus from 'lucide/dist/esm/icons/minus.mjs';
 import NotebookText from 'lucide/dist/esm/icons/notebook-text.mjs';
 import Paperclip from 'lucide/dist/esm/icons/paperclip.mjs';
 import Pencil from 'lucide/dist/esm/icons/pencil.mjs';
@@ -78,7 +79,7 @@ const iconSet = {
   AlarmClock, AudioLines, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, Bell, BellRing, CakeSlice, Calendar, Camera,
   Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Clock,
   CloudUpload, Copy, CreditCard, Download, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, House, Image, Info, KeyRound, Landmark,
-  LockKeyhole, LogOut, ListTodo, Mail, MessageCircle, Mic, NotebookText, Paperclip, Pencil, Plus, ReceiptText, Search,
+  LockKeyhole, LogOut, ListTodo, Mail, MessageCircle, Mic, Minus, NotebookText, Paperclip, Pencil, Plus, ReceiptText, Search,
   Send, Share2, ShieldAlert, ShieldCheck, Sparkles, Trash2, TriangleAlert, UploadCloud: CloudUpload, WandSparkles, Wifi, X, Zap,
 };
 
@@ -665,19 +666,165 @@ async function promptSecureShare(assetId, fileName, mimeType) {
   };
 }
 
+function attachImageZoomControls(imageEl, viewportEl) {
+  if (!imageEl || !viewportEl) return;
+  let scale = 1;
+  let posX = 0;
+  let posY = 0;
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let initialPinchDistance = 0;
+  let initialPinchScale = 1;
+
+  const indicator = document.querySelector('#zoom-level-indicator');
+
+  const updateTransform = (animate = false) => {
+    if (animate) {
+      imageEl.style.transition = 'transform 0.22s cubic-bezier(0.2, 0, 0, 1)';
+      setTimeout(() => { imageEl.style.transition = 'none'; }, 220);
+    } else {
+      imageEl.style.transition = 'none';
+    }
+    imageEl.style.transform = `translate3d(${posX}px, ${posY}px, 0) scale(${scale})`;
+    if (indicator) indicator.textContent = `${Math.round(scale * 100)}%`;
+    viewportEl.style.cursor = scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default';
+  };
+
+  const setScale = (newScale, animate = true) => {
+    const clamped = Math.min(Math.max(newScale, 0.5), 4.5);
+    if (clamped <= 1) {
+      posX = 0;
+      posY = 0;
+    }
+    scale = clamped;
+    updateTransform(animate);
+  };
+
+  document.querySelector('#zoom-in-btn')?.addEventListener('click', () => setScale(scale + 0.35, true));
+  document.querySelector('#zoom-out-btn')?.addEventListener('click', () => setScale(scale - 0.35, true));
+  document.querySelector('#zoom-reset-btn')?.addEventListener('click', () => {
+    scale = 1; posX = 0; posY = 0;
+    updateTransform(true);
+  });
+
+  // Double click / tap to toggle zoom
+  let lastTap = 0;
+  viewportEl.addEventListener('click', () => {
+    const now = Date.now();
+    if (now - lastTap < 320) {
+      if (scale > 1) {
+        scale = 1; posX = 0; posY = 0;
+      } else {
+        scale = 2.2;
+      }
+      updateTransform(true);
+    }
+    lastTap = now;
+  });
+
+  // Wheel zoom
+  viewportEl.addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.22 : -0.22;
+    setScale(scale + delta, false);
+  }, { passive: false });
+
+  // Mouse Drag / Pan
+  viewportEl.addEventListener('mousedown', e => {
+    if (scale <= 1) return;
+    isDragging = true;
+    startX = e.clientX - posX;
+    startY = e.clientY - posY;
+    updateTransform(false);
+    e.preventDefault();
+  });
+
+  const onMouseMove = e => {
+    if (!isDragging) return;
+    posX = e.clientX - startX;
+    posY = e.clientY - startY;
+    updateTransform(false);
+  };
+
+  const onMouseUp = () => {
+    if (isDragging) {
+      isDragging = false;
+      updateTransform(false);
+    }
+  };
+
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+
+  // Touch Pinch-to-Zoom & Pan (Mobile / Tablet)
+  viewportEl.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      initialPinchDistance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      initialPinchScale = scale;
+    } else if (e.touches.length === 1 && scale > 1) {
+      isDragging = true;
+      startX = e.touches[0].clientX - posX;
+      startY = e.touches[0].clientY - posY;
+    }
+  }, { passive: false });
+
+  viewportEl.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      if (initialPinchDistance > 0) {
+        const factor = currentDist / initialPinchDistance;
+        setScale(initialPinchScale * factor, false);
+      }
+    } else if (e.touches.length === 1 && isDragging) {
+      e.preventDefault();
+      posX = e.touches[0].clientX - startX;
+      posY = e.touches[0].clientY - startY;
+      updateTransform(false);
+    }
+  }, { passive: false });
+
+  viewportEl.addEventListener('touchend', e => {
+    if (e.touches.length < 2) initialPinchDistance = 0;
+    if (e.touches.length === 0) isDragging = false;
+  });
+}
+
 async function openDocumentViewer(assetId, fileName, mimeType) {
   const isPdfDoc = isPdf(mimeType, fileName);
   modal.className = 'modal document-viewer-modal-wrap';
   modal.innerHTML = `<div class="modal-inner document-viewer-modal">
     <div class="document-viewer-head">
-      <div class="document-viewer-title">
-        <span class="doc-type-badge ${isPdfDoc ? 'pdf' : 'image'}">${icon(isPdfDoc ? 'FileText' : 'Image')}</span>
-        <div class="doc-title-text"><strong title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</strong><small>${isPdfDoc ? 'PDF Document' : 'Image'} · Encrypted in Vault</small></div>
+      <div class="document-viewer-top-row">
+        <div class="document-viewer-title">
+          <span class="doc-type-badge ${isPdfDoc ? 'pdf' : 'image'}">${icon(isPdfDoc ? 'FileText' : 'Image')}</span>
+          <div class="doc-title-text">
+            <strong title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</strong>
+            <small>${isPdfDoc ? 'PDF Document' : 'High-Res Photo'} · Encrypted in Vault</small>
+          </div>
+        </div>
+        <button type="button" class="modal-close doc-close-btn" id="doc-viewer-close-btn" aria-label="Close">${icon('X')}</button>
       </div>
-      <div class="document-viewer-actions">
-        <button type="button" class="secondary doc-action-btn" id="doc-share-btn">${icon('Share2')} <span>Share</span></button>
-        <button type="button" class="secondary doc-action-btn" id="doc-download-btn">${icon('Download')} <span>Download</span></button>
-        <button type="button" class="modal-close" aria-label="Close">${icon('X')}</button>
+
+      <div class="document-viewer-toolbar-row">
+        <div class="doc-zoom-controls" id="doc-zoom-controls" style="${isPdfDoc ? 'display:none;' : ''}">
+          <button type="button" class="secondary doc-zoom-btn" id="zoom-out-btn" title="Zoom Out" aria-label="Zoom Out">${icon('Minus')}</button>
+          <span class="zoom-level-text" id="zoom-level-indicator">100%</span>
+          <button type="button" class="secondary doc-zoom-btn" id="zoom-in-btn" title="Zoom In" aria-label="Zoom In">${icon('Plus')}</button>
+          <button type="button" class="secondary doc-zoom-btn" id="zoom-reset-btn" title="Reset to Fit">Fit</button>
+        </div>
+        <div class="doc-share-actions">
+          <button type="button" class="secondary doc-action-btn" id="doc-share-btn">${icon('Share2')} <span>Share</span></button>
+          <button type="button" class="secondary doc-action-btn" id="doc-download-btn">${icon('Download')} <span>Download</span></button>
+        </div>
       </div>
     </div>
     <div class="document-viewer-body" id="doc-viewer-content">
@@ -692,6 +839,8 @@ async function openDocumentViewer(assetId, fileName, mimeType) {
   </div>`;
   showModal();
 
+  document.querySelector('#doc-viewer-close-btn')?.addEventListener('click', closeModal);
+
   try {
     const doc = await vaultStore.getDocument(assetId, mimeType, fileName);
     const objectUrl = URL.createObjectURL(doc.blob);
@@ -701,7 +850,15 @@ async function openDocumentViewer(assetId, fileName, mimeType) {
     if (isPdfDoc) {
       container.innerHTML = `<iframe src="${objectUrl}#toolbar=1" class="pdf-frame" title="${escapeHtml(fileName)}"></iframe>`;
     } else {
-      container.innerHTML = `<img src="${objectUrl}" alt="${escapeHtml(fileName)}" class="doc-preview-image">`;
+      container.innerHTML = `
+        <div class="image-zoom-viewport" id="image-zoom-viewport">
+          <img src="${objectUrl}" alt="${escapeHtml(fileName)}" class="doc-preview-image" id="zoomable-preview-img">
+          <div class="zoom-hint-overlay">Pinch or scroll to zoom · Drag to pan</div>
+        </div>
+      `;
+      const img = container.querySelector('#zoomable-preview-img');
+      const viewport = container.querySelector('#image-zoom-viewport');
+      attachImageZoomControls(img, viewport);
     }
 
     document.querySelector('#doc-download-btn').onclick = () => {
