@@ -60,7 +60,7 @@ import { vaultStore } from './store.js';
 
 const nav = [
   ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['assistant', 'Rhino', 'Rhinous'],
-  ['audio', 'AudioLines', 'Audio'], ['todos', 'ListTodo', 'To-do'], ['reminders', 'AlarmClock', 'Reminders'], ['clipboard', 'Clipboard', 'Clipboard'], ['birthdays', 'CakeSlice', 'Birthdays'],
+  ['planner', 'ListTodo', 'Planner'], ['capture', 'AudioLines', 'Capture'], ['birthdays', 'CakeSlice', 'Birthdays'],
 ];
 const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', 'Government Document': 'FileBadge', Personal: 'NotebookText', Audio: 'AudioLines', Todo: 'ListTodo', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
 const customBrandIcons = {
@@ -90,7 +90,7 @@ const state = {
   view: 'home', items: [], status: 'loading', hidden: true,
   provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, vaultCategory: 'all', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', todoTab: 'active', telegramSyncing: false,
   auth: { status: 'checking', email: '', message: '', profile: null }, authError: '',
-  chatAttachment: null, isRecordingVoice: false,
+  chatAttachment: null, isRecordingVoice: false, plannerSection: 'todos', captureSection: 'audio', lastResolvedItemId: '', assistantReveals: new Set(),
 };
 
 marked.setOptions({ gfm: true, breaks: true });
@@ -133,7 +133,7 @@ async function withRhinoActivity(label, task) {
   finally { await new Promise(resolve => setTimeout(resolve, Math.max(0, 320 - (Date.now() - started)))); activityDepth = Math.max(0, activityDepth - 1); if (!activityDepth) { node.classList.remove('show'); setTimeout(() => { if (!activityDepth) node.remove(); }, 220); } }
 }
 function activeProfile() { return state.auth.profile || { name: 'Owner', initials: 'ME', email: state.auth.email || '' }; }
-function titleForView() { return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', assistant: 'Ask Rhinous', audio: 'Audio memories', todos: 'Your to-do lists', reminders: 'Your reminders', clipboard: 'Clipboard vault', birthdays: 'Meaningful moments' }[state.view]; }
+function titleForView() { return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', assistant: 'Ask Rhinous', planner: 'Plan and complete', capture: 'Capture library', birthdays: 'Meaningful moments' }[state.view]; }
 function category(item) { return item.kind === 'clipboard' ? 'Clipboard' : item.type || 'Personal'; }
 function itemIcon(item) { return typeIcons[category(item)] || 'Gem'; }
 function allFields(item) { return item.fields || {}; }
@@ -368,7 +368,7 @@ function bindAuthGate() {
 }
 
 function skeleton() { return `<section class="vault-opening"><div class="vault-opening-head"><span class="vault-opening-mark"><img src="/brand/memoir-rhino-ui.png" alt=""></span><div><p class="eyebrow">Encrypted cloud vault</p><h2>Loading your memories…</h2><p>Downloading and decrypting this owner’s latest records. Cached memories will appear instantly on future visits.</p></div><span class="opening-live"><i></i> Secure sync</span></div><div class="opening-grid"><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article></div><div class="opening-list">${Array.from({ length: 4 }, () => `<div class="opening-row"><div class="skeleton opening-avatar"></div><div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></div><div class="skeleton opening-action"></div></div>`).join('')}</div></section>`; }
-function currentView() { return ({ home: homeView, vault: vaultView, assistant: assistantView, audio: audioView, todos: todosView, reminders: remindersView, clipboard: clipboardView, birthdays: birthdaysView }[state.view] || homeView)(); }
+function currentView() { return ({ home: homeView, vault: vaultView, assistant: assistantView, planner: plannerView, capture: captureView, birthdays: birthdaysView }[state.view] || homeView)(); }
 function memories() { return state.items.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Notification', 'Todo'].includes(item.type)); }
 function vaultMemories() { return memories().filter(item => item.type !== 'Birthday' && item.type !== 'Audio'); }
 function memoryFilterGroup(item) {
@@ -674,6 +674,17 @@ function remindersView() {
   ${active.length ? `<div class="reminder-list">${active.map(item => reminderCard(item)).join('')}</div>` : emptyState('AlarmClock', `No ${state.reminderTab} reminders`, state.reminderTab === 'upcoming' ? 'Add a due date and Memoir will build the smart notification schedule automatically.' : state.reminderTab === 'overdue' ? 'Nothing is waiting for your response.' : 'Completed reminders will collect here.', state.reminderTab === 'upcoming' ? 'Add reminder' : 'Create reminder', 'reminder')}
   <div class="reminder-policy">${icon('ShieldCheck')}<span>After 12 hours without a response, an overdue reminder moves to Completed in red as “no response.” Confirming it later changes the completion to green.</span></div>`;
 }
+function workspaceSwitch(kind, active, options) {
+  return `<div class="workspace-switch" role="tablist" aria-label="${kind}">${options.map(([id, glyph, label, detail]) => `<button type="button" role="tab" aria-selected="${active === id}" class="${active === id ? 'active' : ''}" data-workspace-kind="${kind}" data-workspace-section="${id}"><span>${icon(glyph)}</span><b>${label}</b><small>${detail}</small></button>`).join('')}</div>`;
+}
+function plannerView() {
+  const switcher = workspaceSwitch('planner', state.plannerSection, [['todos', 'ListTodo', 'To-do lists', 'Lists, totals and receipts'], ['reminders', 'AlarmClock', 'Reminders', 'Due dates and Telegram alerts']]);
+  return `${switcher}<div class="workspace-body">${state.plannerSection === 'reminders' ? remindersView() : todosView()}</div>`;
+}
+function captureView() {
+  const switcher = workspaceSwitch('capture', state.captureSection, [['audio', 'AudioLines', 'Audio', 'Recordings and transcripts'], ['clipboard', 'Clipboard', 'Clipboard', 'Quick saved snippets']]);
+  return `${switcher}<div class="workspace-body">${state.captureSection === 'clipboard' ? clipboardView() : audioView()}</div>`;
+}
 function birthdaysView() {
   const birthdays = memories().filter(item => item.type === 'Birthday').sort((a, b) => (nextBirthday(a)?.occurrence?.getTime() || Infinity) - (nextBirthday(b)?.occurrence?.getTime() || Infinity));
   return `<section class="birthday-hero"><p class="eyebrow">Thoughtful reminders</p><h2>Never miss their moment.</h2><p>Memoir plans Telegram reminders two days before, one day before, five hours before, two hours before, and exactly at midnight.</p><button class="primary" style="margin-top:18px" data-add="birthday">${icon('Plus')} Add birthday</button></section>
@@ -698,11 +709,11 @@ function assistantView() {
   <aside class="panel"><p class="eyebrow">Smart Multi-Modal</p><h3>Capture, snap & transcribe</h3><div class="suggestions">${['📸 Snap a warranty card or invoice to auto-extract fields', '🎙️ Dictate: “Remember my appliance warranty with 2 years validity”', 'Remind me to renew my passport tomorrow at 6 PM', 'Give me only my EPFO password'].map(text => `<button class="suggestion" data-ask="${escapeHtml(text.replace(/^[📸🎙️]\s*/, ''))}">${escapeHtml(text)}</button>`).join('')}</div><div class="privacy-line">${icon('ShieldCheck')}<span>Smart Capture extracts structured records on device. Credentials stay encrypted in your isolated vault.</span></div></aside></div>`;
 }
 
-function renderMessage(message) {
+function renderMessage(message, messageIndex = 0) {
   if (message.role === 'user') return `<div class="message user">${escapeHtml(message.text)}</div>`;
   if (message.fields?.length || message.audios?.length) {
     const fields = message.fields || []; const fieldObject = Object.fromEntries(fields.map(field => [field.label, field.value])); const card = paymentCard(message.title || 'Saved card', fieldObject, true);
-    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}${(message.audios || []).map(audio => audioPlayerMarkup(audio, audio.title || 'Voice memo')).join('')}${fields.length ? `<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${fields.map(field => `<tr><td>${escapeHtml(field.label)}</td><td><span class="${state.hidden ? 'blur' : ''}">${escapeHtml(field.value)}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy">${icon('Copy')}</button></span></td></tr>`).join('')}</tbody></table>` : ''}</div>`;
+    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}${(message.audios || []).map(audio => audioPlayerMarkup(audio, audio.title || 'Voice memo')).join('')}${fields.length ? `<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${fields.map((field, fieldIndex) => { const revealKey = `${messageIndex}:${fieldIndex}`; const visible = !state.hidden || state.assistantReveals.has(revealKey); return `<tr><td>${escapeHtml(field.label)}</td><td><span class="assistant-value ${visible ? 'visible' : 'protected'}">${visible ? escapeHtml(field.value) : '••••••••'}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-ai-reveal="${revealKey}" title="${visible ? 'Hide value' : 'Reveal value'}" aria-label="${visible ? 'Hide value' : 'Reveal value'}">${icon(visible ? 'Eye' : 'EyeOff')}</button><button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy">${icon('Copy')}</button></span></td></tr>`; }).join('')}</tbody></table>` : ''}</div>`;
   }
   if (message.actions?.length) {
     const isSmartCapture = message.actions.some(a => a.fields && (a.fields['Audio Transcript'] || a.fields['Expiry date'] || a.fields['Serial'] || a.fields['Brand'] || a.fields['Model']));
@@ -729,7 +740,12 @@ function bindShell() {
   updateNotificationBadge();
 }
 function shortcutHandler(event) { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search')?.focus(); } document.addEventListener('keydown', shortcutHandler, { once: true }); }
-function navigate(viewName) { document.querySelector('.notification-popover')?.remove(); state.view = viewName; state.query = ''; state.selectedMemoryId = null; shell(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function navigate(viewName) {
+  document.querySelector('.notification-popover')?.remove();
+  if (viewName === 'todos' || viewName === 'reminders') { state.plannerSection = viewName; viewName = 'planner'; }
+  if (viewName === 'audio' || viewName === 'clipboard') { state.captureSection = viewName; viewName = 'capture'; }
+  state.view = viewName; state.query = ''; state.selectedMemoryId = null; shell(); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 function renderView() { const node = document.querySelector('#view'); if (node) node.innerHTML = currentView(); bindView(); }
 
 function bindView() {
@@ -740,6 +756,8 @@ function bindView() {
   document.querySelectorAll('[data-delete]').forEach(button => button.onclick = () => confirmDelete(button.dataset.delete));
   document.querySelectorAll('[data-copy]').forEach(button => button.onclick = () => copyText(button.dataset.copy));
   document.querySelectorAll('[data-provider]').forEach(button => button.onclick = () => { state.provider = button.dataset.provider; localStorage.setItem('memoir-provider', state.provider); renderView(); });
+  document.querySelectorAll('[data-ai-reveal]').forEach(button => button.onclick = () => { const key = button.dataset.aiReveal; if (state.assistantReveals.has(key)) state.assistantReveals.delete(key); else state.assistantReveals.add(key); renderView(); });
+  document.querySelectorAll('[data-workspace-section]').forEach(button => button.onclick = () => { const key = button.dataset.workspaceKind === 'planner' ? 'plannerSection' : 'captureSection'; state[key] = button.dataset.workspaceSection; state.selectedMemoryId = null; renderView(); });
   document.querySelectorAll('[data-ask]').forEach(button => button.onclick = () => askAssistant(button.dataset.ask));
   document.querySelectorAll('[data-birthday-message]').forEach(button => button.onclick = () => generateBirthdayMessage(button.dataset.birthdayMessage));
   document.querySelectorAll('[data-reminder-tab]').forEach(button => button.onclick = () => { state.reminderTab = button.dataset.reminderTab; renderView(); });
@@ -915,7 +933,7 @@ function openTodoEditor(item = null) {
     const previous = item ? parseTodoItems(item) : []; const rows = names.map((text, index) => { const match = previous.find(row => row.text.toLowerCase() === text.toLowerCase()) || previous[index]; return { id: match?.id || crypto.randomUUID(), text, done: Boolean(match?.done), amount: match?.amount ?? '' }; });
     const fields = { ...(item?.fields || {}), 'Todo items': JSON.stringify(rows), Status: item?.fields?.Status || 'active', Currency: 'INR' };
     await withRhinoActivity(item ? 'Updating to-do list…' : 'Creating to-do list…', () => vaultStore.save({ ...(item || {}), kind: 'memory', type: 'Todo', title: document.querySelector('#todo-title').value.trim(), note: item?.note || '', fields }));
-    closeModal(); state.todoTab = 'active'; state.view = 'todos'; renderView(); toast(item ? 'To-do list updated' : 'To-do list created');
+    closeModal(); state.todoTab = 'active'; state.plannerSection = 'todos'; state.view = 'planner'; renderView(); toast(item ? 'To-do list updated' : 'To-do list created');
   };
 }
 async function saveTodoRows(item, rows, extraFields = {}) {
@@ -956,16 +974,25 @@ function todoReceiptText(item) {
   return [`MEMOIR · ${activeProfile().name}`, item.title, date, '', ...rows.map((row, index) => `${String(index + 1).padStart(2, '0')}. ${row.done ? '✓' : '○'} ${row.text}${row.amount === '' ? '' : ` — ${todoCurrency(row.amount)}`}`), '', `TOTAL — ${todoCurrency(todoTotal(item))}`, '', 'Created securely with Memoir'].join('\n');
 }
 async function todoReceiptBlob(item) {
-  const rows = parseTodoItems(item); const width = 900; const lineHeight = 48; const height = 360 + rows.length * lineHeight; const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fffaf8'; ctx.fillRect(0, 0, width, height); ctx.fillStyle = '#171417'; ctx.font = '700 38px system-ui'; ctx.fillText('memoir', 78, 80); ctx.fillStyle = '#f32e8b'; ctx.beginPath(); ctx.arc(43, 66, 22, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#7c7479'; ctx.font = '600 18px system-ui'; ctx.fillText(`${activeProfile().name} · ${new Date(item.fields?.['Closed at'] || item.fields?.['Completed at'] || Date.now()).toLocaleString('en-IN')}`, 42, 120);
-  ctx.fillStyle = '#171417'; ctx.font = '700 30px system-ui'; ctx.fillText(item.title.slice(0, 48), 42, 178); ctx.strokeStyle = '#e9dfe3'; ctx.beginPath(); ctx.moveTo(42, 210); ctx.lineTo(width - 42, 210); ctx.stroke();
-  let y = 260; rows.forEach((row, index) => { ctx.fillStyle = row.done ? '#6f686c' : '#171417'; ctx.font = '500 21px system-ui'; const label = `${index + 1}. ${row.done ? '✓' : '○'} ${row.text}`; ctx.fillText(label.slice(0, 58), 42, y); if (row.amount !== '') { ctx.textAlign = 'right'; ctx.font = '700 21px system-ui'; ctx.fillText(todoCurrency(row.amount), width - 42, y); ctx.textAlign = 'left'; } y += lineHeight; });
-  ctx.strokeStyle = '#e9dfe3'; ctx.beginPath(); ctx.moveTo(42, y - 18); ctx.lineTo(width - 42, y - 18); ctx.stroke(); ctx.fillStyle = '#171417'; ctx.font = '700 28px system-ui'; ctx.fillText('TOTAL', 42, y + 28); ctx.textAlign = 'right'; ctx.fillText(todoCurrency(todoTotal(item)), width - 42, y + 28); ctx.textAlign = 'left'; ctx.fillStyle = '#9a9095'; ctx.font = '500 16px system-ui'; ctx.fillText('Created securely with Memoir', 42, height - 34);
+  const rows = parseTodoItems(item); const width = 900; const lineHeight = 54; const height = 440 + rows.length * lineHeight; const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d');
+  const logo = new Image(); logo.src = '/brand/memoir-rhino-ui.png'; await logo.decode().catch(() => {});
+  ctx.fillStyle = '#fffdf8'; ctx.fillRect(0, 0, width, height);
+  const header = ctx.createLinearGradient(0, 0, width, 0); header.addColorStop(0, '#ff6b60'); header.addColorStop(.55, '#f32e8b'); header.addColorStop(1, '#a64add'); ctx.fillStyle = header; ctx.fillRect(0, 0, width, 12);
+  ctx.globalAlpha = .055; ctx.strokeStyle = '#7a635d'; for (let y = 34; y < height; y += 24) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); } ctx.globalAlpha = 1;
+  if (logo.complete && logo.naturalWidth) ctx.drawImage(logo, 42, 43, 76, 76);
+  ctx.fillStyle = '#171417'; ctx.font = '800 39px system-ui'; ctx.fillText('memoir', 134, 83); ctx.fillStyle = '#8b8085'; ctx.font = '700 14px system-ui'; ctx.letterSpacing = '2px'; ctx.fillText('PRIVATE LIST RECEIPT', 136, 108); ctx.letterSpacing = '0px';
+  const receiptDate = new Date(item.fields?.['Closed at'] || item.fields?.['Completed at'] || Date.now()); ctx.textAlign = 'right'; ctx.fillStyle = '#6f666a'; ctx.font = '600 17px system-ui'; ctx.fillText(activeProfile().name, width - 42, 71); ctx.font = '500 15px system-ui'; ctx.fillText(receiptDate.toLocaleString('en-IN'), width - 42, 99); ctx.textAlign = 'left';
+  ctx.fillStyle = '#171417'; ctx.font = '800 31px system-ui'; ctx.fillText(item.title.slice(0, 48), 42, 171); ctx.fillStyle = '#8b8085'; ctx.font = '600 16px system-ui'; ctx.fillText(`${rows.filter(row => row.done).length} of ${rows.length} items completed`, 42, 201);
+  ctx.setLineDash([7, 7]); ctx.strokeStyle = '#d9cdd1'; ctx.beginPath(); ctx.moveTo(42, 229); ctx.lineTo(width - 42, 229); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#9a8d92'; ctx.font = '700 13px system-ui'; ctx.fillText('ITEM', 42, 260); ctx.textAlign = 'right'; ctx.fillText('AMOUNT', width - 42, 260); ctx.textAlign = 'left';
+  let y = 305; rows.forEach((row, index) => { if (index % 2 === 0) { ctx.fillStyle = '#f8f2ee'; ctx.roundRect(30, y - 34, width - 60, 45, 10); ctx.fill(); } ctx.fillStyle = row.done ? '#6f686c' : '#171417'; ctx.font = '600 20px system-ui'; const label = `${String(index + 1).padStart(2, '0')}  ${row.done ? '✓' : '○'}  ${row.text}`; ctx.fillText(label.slice(0, 56), 42, y); if (row.amount !== '') { ctx.textAlign = 'right'; ctx.font = '800 20px system-ui'; ctx.fillText(todoCurrency(row.amount), width - 42, y); ctx.textAlign = 'left'; } y += lineHeight; });
+  ctx.setLineDash([7, 7]); ctx.strokeStyle = '#d9cdd1'; ctx.beginPath(); ctx.moveTo(42, y - 22); ctx.lineTo(width - 42, y - 22); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#171417'; ctx.font = '800 29px system-ui'; ctx.fillText('TOTAL', 42, y + 27); ctx.textAlign = 'right'; ctx.fillText(todoCurrency(todoTotal(item)), width - 42, y + 27); ctx.textAlign = 'left';
+  ctx.fillStyle = '#9a9095'; ctx.font = '600 15px system-ui'; ctx.fillText('Encrypted, organised and shared from Memoir', 42, height - 46); ctx.textAlign = 'right'; ctx.fillText(`RECEIPT · ${String(item.id || '').slice(-8).toUpperCase()}`, width - 42, height - 46); ctx.textAlign = 'left';
   return new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
 }
 async function openTodoReceipt(itemId) {
-  const item = state.items.find(row => row.id === itemId); if (!item) return; const blob = await todoReceiptBlob(item); const url = URL.createObjectURL(blob);
-  modal.className = 'modal receipt-modal'; modal.innerHTML = `<div class="modal-inner"><div class="modal-head"><div><p class="eyebrow">Memoir receipt</p><h2>${escapeHtml(item.title)}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><div class="receipt-machine"><i></i><img src="${url}" alt="Generated receipt preview"></div><div class="receipt-actions"><button class="secondary" id="receipt-copy-text">${icon('Copy')} Copy text</button><button class="secondary" id="receipt-copy-image">${icon('ReceiptText')} Copy image</button><button class="primary" id="receipt-share">${icon('Share2')} Share receipt</button></div></div>`; showModal(); modal.addEventListener('close', () => URL.revokeObjectURL(url), { once: true });
+  const item = state.items.find(row => row.id === itemId); if (!item) return; const blob = await withRhinoActivity('Printing your receipt…', () => todoReceiptBlob(item)); if (!blob) return toast('Receipt could not be generated'); const url = URL.createObjectURL(blob);
+  modal.className = 'modal receipt-modal'; modal.innerHTML = `<div class="modal-inner"><div class="modal-head"><div><p class="eyebrow">Memoir paper receipt</p><h2>${escapeHtml(item.title)}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><div class="receipt-printer"><div class="printer-body"><img src="/brand/memoir-rhino-ui.png" alt=""><span><b>MEMOIR</b><small>PRINTING RECEIPT</small></span><i></i><em></em></div><div class="printer-slot"></div><div class="receipt-paper"><img src="${url}" alt="Generated receipt preview"></div></div><div class="receipt-actions"><button class="secondary" id="receipt-copy-text">${icon('Copy')} Copy text</button><button class="secondary" id="receipt-copy-image">${icon('ReceiptText')} Copy image</button><button class="primary" id="receipt-share">${icon('Share2')} Share receipt</button></div></div>`; showModal(); modal.addEventListener('close', () => URL.revokeObjectURL(url), { once: true });
   document.querySelector('#receipt-copy-text').onclick = () => copyText(todoReceiptText(item));
   document.querySelector('#receipt-copy-image').onclick = async () => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); toast('Receipt image copied'); } catch { toast('Image copying is not supported here. Use Share receipt.'); } };
   document.querySelector('#receipt-share').onclick = async () => { const file = new File([blob], `memoir-${item.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`, { type: 'image/png' }); if (navigator.canShare?.({ files: [file] })) await navigator.share({ title: item.title, text: `Memoir to-do receipt · ${todoCurrency(todoTotal(item))}`, files: [file] }); else { const link = document.createElement('a'); link.href = url; link.download = file.name; link.click(); toast('Receipt image downloaded'); } };
@@ -1058,7 +1085,9 @@ function confirmBox(title, text, action, glyph, callback) {
 function openDetail(id, viewName = 'vault') {
   const item = state.items.find(row => row.id === id); if (!item) return;
   if (item.type === 'Birthday') { navigate('birthdays'); return; }
-  state.view = viewName === 'audio' || item.type === 'Audio' ? 'audio' : 'vault'; state.selectedMemoryId = id; shell(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (viewName === 'audio' || item.type === 'Audio') { state.view = 'capture'; state.captureSection = 'audio'; }
+  else state.view = 'vault';
+  state.selectedMemoryId = id; shell(); window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function isSecretField(key) {
@@ -1576,6 +1605,12 @@ async function askAssistant(query) {
   scrollChat();
 
   try {
+    const localLookupRequested = !attachment && isSavedLookupRequest(cleanQuery);
+    const localAnswer = localLookupRequested ? localRoute(cleanQuery) : null;
+    if (localLookupRequested) {
+      state.messages.push(localAnswer || { role: 'assistant', title: 'Which saved memory?', markdown: 'I will not guess when private records could overlap. Please include the saved title or owner, for example **Home Wi-Fi password** or **EPFO password**.' });
+      return;
+    }
     const catalog = state.items.filter(item => item.type !== 'Notification').map(item => ({ id: item.id, type: category(item), title: item.title, fieldNames: Object.keys(allFields(item)) }));
     const identityToken = await vaultStore.idToken();
     const payload = {
@@ -1641,13 +1676,15 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
     if (actions.length) return { role: 'assistant', title: answer.title || 'Review vault changes', markdown: answer.markdown || 'Review these changes before I apply them.', actions };
   }
   if (answer.kind !== 'lookup' || !answer.matches?.length) return { role: 'assistant', title: answer.title || 'Rhinous', markdown: answer.markdown || answer.message || 'I could not create a response.' };
-  const fields = []; const audios = [];
+  const fields = []; const audios = []; let firstResolvedId = '';
   answer.matches.forEach(match => {
     const item = state.items.find(row => row.id === match.id); if (!item) return;
+    if (!firstResolvedId) firstResolvedId = item.id;
     const attachment = audioAttachment(item); if (attachment) audios.push({ ...attachment, title: item.title });
     const requested = match.fields?.length ? match.fields : Object.keys(allFields(item));
     requested.forEach(label => { const actual = Object.keys(allFields(item)).find(key => key.toLowerCase() === String(label).toLowerCase()); if (actual && !audioDataLabels.has(actual) && !audioMetadataLabels.has(actual)) fields.push({ label: actual, value: allFields(item)[actual] }); });
   });
+  if (firstResolvedId) state.lastResolvedItemId = firstResolvedId;
   return fields.length || audios.length ? { role: 'assistant', title: answer.title || 'Saved information', markdown: answer.markdown, fields, audios } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
 }
 function protectPrivateInput(input) {
@@ -1717,27 +1754,71 @@ async function confirmAssistantActions(actions) {
   persistAssistantLog();
   renderView(); scrollChat(); toast(`${applied} vault ${applied === 1 ? 'change' : 'changes'} applied`);
 }
+const lookupStopWords = new Set(['a', 'an', 'and', 'are', 'can', 'could', 'for', 'from', 'give', 'get', 'have', 'here', 'info', 'information', 'is', 'me', 'my', 'of', 'only', 'please', 'show', 'tell', 'that', 'the', 'this', 'to', 'what', 'whats', 'with']);
+const genericRecordWords = new Set(['account', 'audio', 'bank', 'birthday', 'card', 'credential', 'details', 'document', 'home', 'info', 'login', 'memory', 'password', 'reminder', 'todo', 'vault', 'wifi']);
+function normalizedLookupText(value) { return String(value || '').toLowerCase().replace(/wi[ -]?fi/g, 'wifi').replace(/[^a-z0-9]+/g, ' ').trim(); }
+function lookupTokens(value) { return normalizedLookupText(value).split(/\s+/).filter(token => token.length > 1 && !lookupStopWords.has(token)); }
+function isSavedLookupRequest(query) {
+  const text = normalizedLookupText(query);
+  if (/\b(add|change|complete|create|delete|draft|edit|forget|generate|make|mark|remove|remember|save|schedule|set|update|wish|write)\b/.test(text)) return false;
+  const namedRecord = state.items.some(item => lookupTokens(item.title).some(token => token.length > 3 && !genericRecordWords.has(token) && text.includes(token)) || normalizedLookupText(item.title) && text.includes(normalizedLookupText(item.title)));
+  const exactFieldRequest = /\b(password|passcode|username|user id|wifi|birthday|pin|cvv|card number|account number|document number|application number|reference number|ifsc|soft copy|drive link|expiry|valid thru)\b/.test(text);
+  return namedRecord || exactFieldRequest;
+}
+function fieldIntentPatterns(needle) {
+  const patterns = [];
+  if (/\b(password|passcode)\b/.test(needle)) patterns.push(/password|passcode/i);
+  if (/\b(username|user id|login id)\b/.test(needle)) patterns.push(/username|user id|login id/i);
+  if (/\b(cvv|security code)\b/.test(needle)) patterns.push(/cvv|security code/i);
+  if (/\b(atm pin)\b/.test(needle)) patterns.push(/atm pin/i);
+  else if (/\b(transaction pin)\b/.test(needle)) patterns.push(/transaction pin/i);
+  else if (/\bpin\b/.test(needle)) patterns.push(/(^|\s)pin|atm pin|transaction pin/i);
+  if (/\b(debit card number|debit card)\b/.test(needle)) patterns.push(/debit card number|card number/i);
+  else if (/\b(credit card number|credit card)\b/.test(needle)) patterns.push(/credit card number|card number/i);
+  else if (/\bcard number\b/.test(needle)) patterns.push(/card number/i);
+  if (/\baccount number\b/.test(needle)) patterns.push(/account number/i);
+  if (/\b(ifsc|ifc code)\b/.test(needle)) patterns.push(/ifsc|ifc code/i);
+  if (/\b(link|soft copy|drive)\b/.test(needle)) patterns.push(/link|soft copy/i);
+  if (/\b(expiry|expires|valid thru)\b/.test(needle)) patterns.push(/expiry|valid thru/i);
+  if (/\b(document number|reference number|application number)\b/.test(needle)) patterns.push(/document number|reference number|application number/i);
+  if (/\b(date|birthday)\b/.test(needle)) patterns.push(/^date$|birth/i);
+  return patterns;
+}
+function recordLookupScore(item, needle, queryTokens) {
+  const title = normalizedLookupText(item.title); const titleTokens = lookupTokens(item.title); const note = normalizedLookupText(item.note); const type = normalizedLookupText(category(item));
+  let score = 0; let identityMatches = 0; let genericMatches = 0;
+  if (title && needle.includes(title)) { score += 220; identityMatches += 3; }
+  titleTokens.forEach(token => {
+    if (!needle.includes(token)) return;
+    const weight = genericRecordWords.has(token) ? 12 : 52;
+    score += weight; if (!genericRecordWords.has(token)) identityMatches += 1; else genericMatches += 1;
+  });
+  if (!identityMatches && genericMatches >= 2) identityMatches = 1;
+  queryTokens.forEach(token => { if (note.includes(token) && !genericRecordWords.has(token)) { score += 10; identityMatches += .25; } });
+  if ((needle.includes('wifi') && type.includes('wifi')) || (needle.includes('birthday') && type.includes('birthday')) || (needle.includes('audio') && type.includes('audio'))) score += 28;
+  if (fieldIntentPatterns(needle).some(pattern => Object.keys(allFields(item)).some(label => pattern.test(label)))) score += 10;
+  if (!identityMatches && item.id === state.lastResolvedItemId && /\b(only|it|that|same|its|password|pin|cvv|number|details|info)\b/.test(needle)) score += 75;
+  if (!identityMatches && item.id !== state.lastResolvedItemId) return 0;
+  return score;
+}
 function localRoute(query) {
-  const needle = query.toLowerCase(); const candidates = state.items.filter(item => item.type !== 'Notification' && (needle.includes(item.title.toLowerCase()) || item.title.toLowerCase().split(/\s+/).some(word => word.length > 3 && needle.includes(word)) || Object.keys(allFields(item)).some(field => needle.includes(field.toLowerCase().replace('number', '').trim()))));
-  if (!candidates.length) return null;
-  const item = candidates[0]; let entries = Object.entries(allFields(item));
-  const intentMatches = ([label]) => {
-    const normalized = label.toLowerCase();
-    if (needle.includes(normalized) || needle.includes(normalized.replace('number', '').trim())) return true;
-    return [
-      [/\b(link|soft copy|drive|document file)\b/, /link|soft copy/i],
-      [/\b(expiry|expires|valid thru)\b/, /expiry|valid thru/i],
-      [/\b(card number)\b/, /card number|debit card|credit card/i],
-      [/\b(account number)\b/, /account number/i],
-      [/\b(pin|atm pin)\b/, /pin/i],
-      [/\b(cvv|security code)\b/, /cvv|security code/i],
-      [/\b(document number|reference number|application number)\b/, /document number|reference number|application number/i],
-    ].some(([queryPattern, labelPattern]) => queryPattern.test(needle) && labelPattern.test(label));
-  };
-  const exact = entries.filter(intentMatches); if (exact.length) entries = exact; else if (!/(all|details|info|everything|complete)/.test(needle)) entries = entries.slice(0, 1);
+  const needle = normalizedLookupText(query); const queryTokens = lookupTokens(query);
+  const ranked = state.items.filter(item => item.type !== 'Notification').map(item => ({ item, score: recordLookupScore(item, needle, queryTokens) })).filter(row => row.score > 0).sort((a, b) => b.score - a.score);
+  if (!ranked.length || ranked[0].score < 40) return null;
+  if (ranked[1] && ranked[0].score - ranked[1].score < 8 && ranked[0].item.id !== state.lastResolvedItemId) {
+    return { role: 'assistant', title: 'Choose the exact memory', markdown: `I found more than one possible match: **${ranked.slice(0, 3).map(row => row.item.title).join('**, **')}**. Please include the exact title so I never expose the wrong record.` };
+  }
+  const item = ranked[0].item; let entries = Object.entries(allFields(item)); const patterns = fieldIntentPatterns(needle);
+  if (patterns.length) {
+    const exact = entries.filter(([label]) => patterns.some(pattern => pattern.test(label)));
+    if (exact.length) entries = exact;
+  } else if (!/(all|details|info|everything|complete|full)/.test(needle) && item.type !== 'Birthday') {
+    entries = entries.slice(0, 1);
+  }
   const attachment = audioAttachment(item);
   entries = entries.filter(([label]) => !audioDataLabels.has(label) && !audioMetadataLabels.has(label));
-  return { role: 'assistant', title: item.title, markdown: 'Here is exactly what matched your request.', fields: entries.map(([label, value]) => ({ label, value })), ...(attachment ? { audios: [{ ...attachment, title: item.title }] } : {}) };
+  state.lastResolvedItemId = item.id;
+  return { role: 'assistant', title: item.title, markdown: `Matched **${item.title}** in your encrypted vault. Values were resolved only on this device.`, fields: entries.map(([label, value]) => ({ label, value })), ...(attachment ? { audios: [{ ...attachment, title: item.title }] } : {}) };
 }
 function scrollChat() { requestAnimationFrame(() => { const node = document.querySelector('#messages'); if (node) node.scrollTop = node.scrollHeight; }); }
 function generateBirthdayMessage(id) { const item = state.items.find(row => row.id === id); state.view = 'assistant'; shell(); askAssistant(`Write a warm, natural birthday message for the person in my saved birthday record titled "${item.title}". Do not reveal or request any private vault values.`); }

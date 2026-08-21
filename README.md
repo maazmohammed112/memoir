@@ -12,7 +12,7 @@ No demo records are included. Every displayed record belongs to the currently se
 
 - Responsive layouts for mobile phones, tablets, laptops, and desktops.
 - Modern theme with Memoir branding, sharp Lucide vector icons, skeleton loading states, background sync indicators, confirmation dialogs, toasts, and activity animations.
-- Bottom mobile navigation and fixed desktop sidebar for Home, Memories, Rhinous, Audio, To-do Lists, Reminders, Clipboard, and Birthdays.
+- A simplified six-destination navigation: Home, Memories, Rhinous, Planner, Capture, and Birthdays. Planner contains To-do Lists and Reminders; Capture contains Audio and Clipboard so the mobile dock stays clear and balanced.
 - **Expiring Soon Dashboard**: High-priority section on Home view alerting the owner about banking cards, IDs, and appliance warranties expiring within 5 months.
 - Global search across local titles, notes, field labels, and field values.
 - Birthday search results are routed to Birthdays; reminders and clipboard results are routed to their own sections.
@@ -43,11 +43,11 @@ No demo records are included. Every displayed record belongs to the currently se
 
 ### To-do Lists & Receipts
 
-- Dedicated encrypted To-do tab, isolated per owner and excluded from the general Memories list.
+- Encrypted To-do workspace inside Planner, isolated per owner and excluded from the general Memories list.
 - Create lists manually or through Rhinous using comma-separated, line-separated, English, Hindi, or Hinglish item names.
 - Check/uncheck, rename, delete, and add optional INR amounts to every subtask independently.
 - Close and calculate a list without completing it, or move it into Completed while retaining the full history.
-- Generate polished receipt images locally in the browser without consuming AI credits.
+- Generate branded paper-style receipt images locally in the browser without consuming AI credits, with the real rhino logo and a printer-feed preview animation.
 - Copy structured receipt text, copy the receipt image where supported, download it, or use the native mobile share sheet.
 - Telegram and Memoir provenance badges show where and when each supported record was created.
 
@@ -82,6 +82,7 @@ No demo records are included. Every displayed record belongs to the currently se
 
 ### Clipboard Vault
 
+- Available beside Audio inside the consolidated Capture workspace.
 - Capture text clipboard or type notes directly.
 - Full search, copy, edit, delete, and AI retrieval for saved clips.
 - Isolated per Memoir owner.
