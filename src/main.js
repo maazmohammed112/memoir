@@ -769,7 +769,11 @@ function bindView() {
   document.querySelectorAll('[data-todo-tab]').forEach(button => button.onclick = () => { state.todoTab = button.dataset.todoTab; renderView(); });
   document.querySelectorAll('[data-todo-edit]').forEach(button => button.onclick = () => openTodoEditor(state.items.find(item => item.id === button.dataset.todoEdit)));
   document.querySelectorAll('[data-todo-toggle]').forEach(button => button.onclick = () => toggleTodoRow(button.dataset.todoToggle, button.dataset.rowId));
-  document.querySelectorAll('[data-todo-amount]').forEach(input => input.onchange = () => updateTodoAmount(input.dataset.todoAmount, input.dataset.rowId, input.value));
+  document.querySelectorAll('[data-todo-amount]').forEach(input => {
+    input.oninput = () => updateTodoAmount(input.dataset.todoAmount, input.dataset.rowId, input.value, false);
+    input.onchange = () => updateTodoAmount(input.dataset.todoAmount, input.dataset.rowId, input.value, true);
+    input.onblur = () => updateTodoAmount(input.dataset.todoAmount, input.dataset.rowId, input.value, true);
+  });
   document.querySelectorAll('[data-todo-edit-row]').forEach(button => button.onclick = () => editTodoRow(button.dataset.todoEditRow, button.dataset.rowId));
   document.querySelectorAll('[data-todo-delete-row]').forEach(button => button.onclick = () => deleteTodoRow(button.dataset.todoDeleteRow, button.dataset.rowId));
   document.querySelectorAll('[data-todo-add-row]').forEach(button => button.onclick = () => addTodoRow(button.dataset.todoAddRow));
@@ -939,13 +943,68 @@ function openTodoEditor(item = null) {
 async function saveTodoRows(item, rows, extraFields = {}) {
   return vaultStore.save({ ...item, fields: { ...item.fields, ...extraFields, 'Todo items': JSON.stringify(rows) } });
 }
-async function toggleTodoRow(itemId, rowId) {
-  const item = state.items.find(row => row.id === itemId); if (!item) return; const rows = parseTodoItems(item); const row = rows.find(entry => entry.id === rowId); if (!row) return; row.done = !row.done;
-  await saveTodoRows(item, rows); renderView();
+
+function refreshTodoCardDom(itemId) {
+  const item = state.items.find(row => row.id === itemId);
+  if (!item) return;
+  const rows = parseTodoItems(item);
+  const done = rows.filter(row => row.done).length;
+  const total = todoTotal(item);
+
+  const card = document.querySelector(`[data-todo-edit="${itemId}"]`)?.closest('.todo-card') ||
+               document.querySelector(`[data-todo-toggle="${itemId}"]`)?.closest('.todo-card') ||
+               document.querySelector(`[data-todo-amount="${itemId}"]`)?.closest('.todo-card');
+  if (!card) return;
+
+  const headP = card.querySelector('.todo-card-head p');
+  if (headP) headP.textContent = `${done} of ${rows.length} completed${total ? ` · ${todoCurrency(total)}` : ''}`;
+
+  const progressI = card.querySelector('.todo-progress i');
+  if (progressI) progressI.style.width = `${rows.length ? Math.round(done / rows.length * 100) : 0}%`;
+
+  const totalStrong = card.querySelector('.todo-total strong');
+  if (totalStrong) totalStrong.textContent = todoCurrency(total);
 }
-async function updateTodoAmount(itemId, rowId, value) {
-  const item = state.items.find(row => row.id === itemId); if (!item) return; const rows = parseTodoItems(item); const row = rows.find(entry => entry.id === rowId); if (!row) return; row.amount = value === '' ? '' : Math.max(0, Number(value) || 0);
-  await saveTodoRows(item, rows); renderView();
+
+async function toggleTodoRow(itemId, rowId) {
+  const item = state.items.find(row => row.id === itemId); if (!item) return;
+  const rows = parseTodoItems(item);
+  const row = rows.find(entry => entry.id === rowId);
+  if (!row) return;
+  row.done = !row.done;
+
+  const rowEl = document.querySelector(`.todo-item[data-todo-row="${rowId}"]`);
+  if (rowEl) {
+    rowEl.classList.toggle('done', row.done);
+    const checkBtn = rowEl.querySelector('.todo-check');
+    if (checkBtn) {
+      checkBtn.innerHTML = icon(row.done ? 'CircleCheckBig' : 'Circle');
+      checkBtn.title = row.done ? 'Mark not done' : 'Mark done';
+    }
+  }
+  item.fields = { ...item.fields, 'Todo items': JSON.stringify(rows) };
+  refreshTodoCardDom(itemId);
+
+  await saveTodoRows(item, rows);
+}
+
+const todoDebounceTimers = new Map();
+function updateTodoAmount(itemId, rowId, value, shouldSave = true) {
+  const item = state.items.find(row => row.id === itemId); if (!item) return;
+  const rows = parseTodoItems(item);
+  const row = rows.find(entry => entry.id === rowId);
+  if (!row) return;
+  row.amount = value === '' ? '' : Math.max(0, Number(value) || 0);
+  item.fields = { ...item.fields, 'Todo items': JSON.stringify(rows) };
+  refreshTodoCardDom(itemId);
+
+  if (shouldSave) {
+    clearTimeout(todoDebounceTimers.get(rowId));
+    todoDebounceTimers.set(rowId, setTimeout(async () => {
+      await saveTodoRows(item, rows);
+      todoDebounceTimers.delete(rowId);
+    }, 200));
+  }
 }
 function editTodoRow(itemId, rowId) {
   const item = state.items.find(row => row.id === itemId); const row = parseTodoItems(item).find(entry => entry.id === rowId); if (!item || !row) return;
@@ -2012,7 +2071,11 @@ vaultStore.subscribe((items, status, session) => {
   const nextProfileUid = state.auth.profile?.uid || '';
   if (nextProfileUid !== currentProfileUid) { currentProfileUid = nextProfileUid; state.messages = []; state.assistantLog = nextProfileUid ? loadAssistantLog(nextProfileUid) : []; }
   if (state.auth.status === 'signedIn') state.authError = '';
-  if (wasSignedIn && state.auth.status === 'signedIn' && document.querySelector('.shell')) { updateSyncUi(); if (!document.querySelector('.detail')) renderView(); }
+  if (wasSignedIn && state.auth.status === 'signedIn' && document.querySelector('.shell')) {
+    updateSyncUi();
+    const isEditingTodo = document.activeElement && (document.activeElement.matches('[data-todo-amount], input, textarea') || document.activeElement.closest('.todo-card'));
+    if (!document.querySelector('.detail') && !isEditingTodo) renderView();
+  }
   else shell();
   if (state.auth.status === 'signedIn') { updateNotificationBadge(); runBackgroundAutomation(); }
 });
