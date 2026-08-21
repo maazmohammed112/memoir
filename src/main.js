@@ -545,8 +545,25 @@ function vaultRow(item) {
 
 
 function detailMarkup(item) {
-  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, allFields(item)) : ''}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${Object.entries(allFields(item)).map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
+  const fields = allFields(item);
+  const audioData = fields['Audio Recording'] || fields['Voice Note'] || fields['Voice Recording'];
+  const audioPlayer = audioData ? `
+    <div class="voice-memo-player">
+      <div class="voice-memo-head">
+        <span class="icon-wrap violet">${icon('Mic')}</span>
+        <div>
+          <strong>Voice Memo Audio</strong>
+          <small>Recorded note attached to this memory</small>
+        </div>
+      </div>
+      <audio controls src="${audioData.startsWith('data:') ? audioData : `data:audio/webm;base64,${audioData}`}" style="width:100%;margin-top:10px;border-radius:8px"></audio>
+    </div>` : '';
+
+  const displayFields = Object.entries(fields).filter(([k]) => k !== 'Audio Recording' && k !== 'Voice Note' && k !== 'Voice Recording');
+
+  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
 }
+
 function vaultView() {
   const selected = state.items.find(item => item.id === state.selectedMemoryId);
   if (selected && selected.type !== 'Birthday') return detailMarkup(selected);

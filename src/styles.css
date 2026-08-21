@@ -107,6 +107,32 @@
   margin:12px 0 16px;
 }
 .dark .share-warning-banner{color:#f5b35c;border-color:rgba(224,159,62,0.4);background:rgba(224,159,62,0.12)}
+.share-warning-banner p{margin:0;font-size:11px;line-height:1.45;color:#8a4d00}
+
+.voice-memo-player{
+  margin:14px 0 18px;
+  padding:16px 18px;
+  background:var(--surface2);
+  border:1px solid var(--line);
+  border-radius:18px;
+  box-shadow:0 4px 14px rgba(0,0,0,0.03);
+}
+.voice-memo-head{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.voice-memo-head strong{
+  display:block;
+  font-size:13px;
+  color:var(--ink);
+}
+.voice-memo-head small{
+  display:block;
+  font-size:11px;
+  color:var(--muted);
+  margin-top:1px;
+}
 .share-warning-banner .icon{flex:none;color:#d97706;width:18px;height:18px}
 
 

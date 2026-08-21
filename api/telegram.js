@@ -193,13 +193,37 @@ export async function processTelegramUpdate(update, profile = getUserByChatId(up
   const route = await routeQuery({ provider, query: protectedInput.text, image: imagePayload, audio: audioPayload, catalog, history, timezone: process.env.APP_TIMEZONE || 'Asia/Calcutta' });
   let responseText;
   if (route.kind === 'actions' && route.actions?.length) {
-    const actions = rehydrateActions(route.actions, protectedInput.values); const queued = queueRuntimeActions(profile.uid, actions, 'telegram'); await persistQueuedActions(profile, queued);
+    const actions = rehydrateActions(route.actions, protectedInput.values);
+    if (audioPayload?.data) {
+      actions.forEach(act => {
+        if (!act.fields) act.fields = {};
+        act.fields['Audio Recording'] = `data:${audioPayload.mimeType};base64,${audioPayload.data}`;
+      });
+    }
+    const queued = queueRuntimeActions(profile.uid, actions, 'telegram'); await persistQueuedActions(profile, queued);
     const summaryLines = actions.map(act => {
-      const fieldList = Object.entries(act.fields || {}).map(([k, v]) => `• ${k}: ${v}`).join('\n');
+      const fieldList = Object.entries(act.fields || {}).filter(([k]) => k !== 'Audio Recording').map(([k, v]) => `• ${k}: ${v}`).join('\n');
       return `📌 ${act.title} (${act.type})\n${fieldList}`;
     }).join('\n\n');
-    responseText = `✨ Smart Capture Saved to Vault!\n\n${summaryLines}\n\n🔒 Queued securely. Memoir will sync it to your devices automatically.`;
+    responseText = `✨ Smart Capture Saved to Vault!\n\n${summaryLines}\n\n🔒 Queued securely with audio attached. Memoir will sync it to your devices automatically.`;
+  } else if (audioPayload?.data) {
+    const transcript = cleanTelegramText(route.markdown || query || 'Voice memo');
+    const fallbackAction = {
+      op: 'create',
+      type: 'Personal',
+      title: transcript.length > 50 ? transcript.slice(0, 47) + '…' : (transcript || 'Voice Memo'),
+      note: transcript,
+      fields: {
+        'Audio Recording': `data:${audioPayload.mimeType};base64,${audioPayload.data}`,
+        'Audio Transcript': transcript,
+        'Recorded at': new Date().toLocaleString('en-US', { timeZone: process.env.APP_TIMEZONE || 'Asia/Calcutta' }),
+      },
+    };
+    const queued = queueRuntimeActions(profile.uid, [fallbackAction], 'telegram');
+    await persistQueuedActions(profile, queued);
+    responseText = `✨ Voice Note Saved to Vault!\n\n📌 ${fallbackAction.title}\n• Audio recording attached and playable in Memoir app\n• Transcript: ${transcript}\n\n🔒 Synced to your vault.`;
   } else responseText = answerText(route, items);
+
   const nextHistory = [...history, { role: 'user', text: protectedInput.text.slice(0, 1200) }, { role: 'assistant', text: cleanTelegramText(responseText).slice(0, 1200) }].slice(-12);
   conversations.set(allowedChat, nextHistory);
   return sendToOwner(profile, responseText);
