@@ -245,7 +245,11 @@ async function processTelegramUpdateOnce(update, profile = getUserByChatId(updat
       const fieldList = Object.entries(act.fields || {}).filter(([k]) => !['Audio Recording', 'Audio Asset ID', 'Audio MIME type', 'Audio File name'].includes(k)).map(([k, v]) => `• ${k}: ${v}`).join('\n');
       return `📌 ${act.title} (${act.type})\n${fieldList}`;
     }).join('\n\n');
-    responseText = `✨ Smart Capture Saved to Vault!\n\n${summaryLines}\n\n🔒 The audio and transcript were saved securely. Memoir will sync them to your Audio tab automatically.`;
+    const isAudioCapture = Boolean(audioPayload?.data);
+    const isFinanceCapture = actions.some(act => act.type === 'Finance' || /invoice|bill|receipt|order/i.test(act.title) || act.fields?.['Amount (INR)'] || act.fields?.Amount);
+    const captureKicker = isFinanceCapture ? '🧾 Smart Capture · Invoice & Amount Saved!' : isAudioCapture ? '🎙️ Smart Capture · Voice Memo Saved!' : '✨ Smart Capture Saved to Vault!';
+    const captureFooter = isAudioCapture ? '🔒 The audio and transcript were saved securely. Memoir will sync them to your Audio tab automatically.' : '🔒 Encrypted and queued for your Memoir Vault. Open the Memoir app to sync.';
+    responseText = `${captureKicker}\n\n${summaryLines}\n\n${captureFooter}`;
   } else if (audioPayload?.data) {
     const transcript = cleanTelegramText(route.audioTranscript || '');
     const recordedAt = Number(message.date || 0) * 1000 || Date.now();
