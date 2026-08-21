@@ -246,19 +246,21 @@
 @keyframes rhinoHop{0%{transform:translateY(0) scale(1)}100%{transform:translateY(-3px) scale(1.08)}}
 
 /* What's New & Feature Guide Modal */
-.whats-new-modal{width:min(94vw,620px);max-height:88vh;padding:0;border-radius:26px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column;box-shadow:0 30px 90px rgba(0,0,0,0.35);border:1px solid var(--line)}
-.whats-new-container{padding:0;max-height:88vh;display:flex;flex-direction:column}
-.whats-new-hero{padding:28px 24px 20px;background:linear-gradient(145deg,#181519 0%,#30172c 50%,#ee2c85 100%);color:#fff;text-align:center;position:relative}
-.whats-new-close{position:absolute;right:16px;top:16px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.2);display:grid;place-items:center;transition:.2s}
-.whats-new-close:hover{background:rgba(255,255,255,0.25);transform:scale(1.05)}
+.whats-new-modal{width:min(94vw,560px);max-height:88vh;padding:0;border-radius:26px;overflow-y:auto!important;overflow-x:hidden!important;background:var(--surface)!important;box-shadow:0 30px 90px rgba(0,0,0,0.5);border:1px solid var(--line);display:block}
+.whats-new-container{padding:0;min-height:100%;display:flex;flex-direction:column;background:var(--surface)}
+.whats-new-hero{padding:34px 22px 24px;background:linear-gradient(145deg,#181519 0%,#30172c 50%,#ee2c85 100%);color:#fff;text-align:center;position:relative;flex:none}
+.whats-new-close{position:absolute;right:14px;top:14px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.14);color:#fff;border:1px solid rgba(255,255,255,0.22);display:grid;place-items:center;transition:.2s;cursor:pointer;z-index:10}
+.whats-new-close:hover{background:rgba(255,255,255,0.28);transform:scale(1.06)}
 .whats-new-emblem{width:56px;height:56px;margin:0 auto 10px;border-radius:18px;background:#fff;padding:5px;box-shadow:0 10px 25px rgba(0,0,0,0.35),0 0 0 4px rgba(255,255,255,0.15);display:grid;place-items:center}
 .whats-new-emblem img{width:100%;height:100%;object-fit:contain;border-radius:13px}
 .whats-new-badge-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:20px;background:rgba(255,255,255,0.16);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.22);font-size:9px;font-weight:800;letter-spacing:.08em;color:#fff;margin-bottom:10px}
 .whats-new-badge-pill .pulse-dot{width:6px;height:6px;border-radius:50%;background:#4fe09d;box-shadow:0 0 0 3px rgba(79,224,157,0.35);animation:pulseAlert 1.8s infinite}
 .whats-new-hero h2{margin:0;font-size:23px;font-weight:800;letter-spacing:-0.03em;color:#fff}
 .whats-new-subtitle{margin:7px auto 0;font-size:11.5px;color:#fce7f3;max-width:440px;line-height:1.45}
-.whats-new-scroll-body{padding:18px 20px;overflow-y:auto;max-height:calc(88vh - 220px);display:grid;gap:14px;background:var(--surface)}
-.whats-new-feature-card{padding:15px 17px;border:1px solid var(--line);border-radius:18px;background:var(--surface2);transition:.2s}
+.scroll-down-hint{font-family:'Caveat','Brush Script MT',cursive,sans-serif;font-size:24px;color:#ffe1ef;margin-top:14px;letter-spacing:.5px;text-align:center;font-weight:600}
+.scroll-down-hint.bottom{color:var(--rose);font-size:22px;margin:0 0 10px}
+.whats-new-scroll-body{padding:18px 18px 22px;display:grid;gap:14px;background:var(--surface)}
+.whats-new-feature-card{padding:15px 16px;border:1px solid var(--line);border-radius:18px;background:var(--surface2);transition:.2s}
 .feature-card-header{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .feature-card-header .icon-wrap{width:38px;height:38px;flex:none;border-radius:12px;display:grid;place-items:center}
 .feature-card-header .icon-wrap.violet{background:#ede9fe;color:#8b5cf6}
@@ -292,11 +294,11 @@
 .whats-new-footer-note{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:14px;background:rgba(243,46,139,0.06);border:1px dashed rgba(243,46,139,0.3);font-size:11px;line-height:1.45;color:var(--ink)}
 .footer-note-icon{width:18px;height:18px;flex:none;color:var(--rose);margin-top:1px}
 .whats-new-footer-note p{margin:0;flex:1}
-.signature-section{text-align:center;padding:14px 0 4px}
+.signature-section{text-align:center;padding:14px 0 6px}
 .signature-section p{margin:0;font-size:10.5px;color:var(--muted)}
 .handwritten-signature{font-family:'Caveat','Brush Script MT','Segoe Script',cursive,sans-serif;font-size:38px;color:var(--rose);font-weight:700;letter-spacing:1px;margin:3px 0}
 .signature-section small{display:block;font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
-.whats-new-actions{padding:13px 20px;border-top:1px solid var(--line);background:var(--surface)}
+.whats-new-actions{padding:10px 0 4px;margin-top:4px}
 .whats-new-dismiss-btn{width:100%;justify-content:center;padding:13px;font-size:12.5px;font-weight:700;border-radius:14px}
 
 /* Notification popover banner */

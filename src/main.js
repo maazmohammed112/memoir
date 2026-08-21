@@ -287,19 +287,23 @@ function updateNotificationBadge() {
   if (document.querySelector('.notification-popover')) toggleNotificationCenter(true);
 }
 
+let isAnnouncementOpen = false;
+
 function showWhatsNewModal() {
   const profile = activeProfile();
+  isAnnouncementOpen = true;
   modal.className = 'modal whats-new-modal';
   modal.innerHTML = `
     <div class="modal-inner whats-new-container">
       <div class="whats-new-hero">
-        <button type="button" class="modal-close whats-new-close" aria-label="Close">${icon('X')}</button>
+        <button type="button" class="modal-close whats-new-close" id="whats-new-close-btn" aria-label="Close">${icon('X')}</button>
         <div class="whats-new-badge-pill"><span class="pulse-dot"></span><span>VAULT INTELLIGENCE 2.4</span></div>
         <div class="whats-new-emblem">
           <img src="/brand/pwa-192.png" alt="Memoir">
         </div>
         <h2>What’s New in Memoir</h2>
         <p class="whats-new-subtitle">A major upgrade built for ${escapeHtml(profile?.name || 'you')} — high-resolution attachments, AI retrieval, zero-knowledge privacy, and smart capture.</p>
+        <div class="scroll-down-hint">scroll down till down</div>
       </div>
 
       <div class="whats-new-scroll-body">
@@ -393,33 +397,43 @@ function showWhatsNewModal() {
         </div>
 
         <div class="signature-section">
+          <div class="scroll-down-hint bottom">scroll down till down</div>
           <p>Crafted with privacy and love for your vault,</p>
           <div class="handwritten-signature">Maaz</div>
           <small>Memoir Architect & Developer</small>
         </div>
-      </div>
 
-      <div class="modal-actions whats-new-actions">
-        <button type="button" class="primary whats-new-dismiss-btn" id="whats-new-dismiss-btn">${icon('Check')} Got it, Explore Memoir</button>
+        <div class="whats-new-actions">
+          <button type="button" class="primary whats-new-dismiss-btn" id="whats-new-dismiss-btn">${icon('Check')} Got it, Explore Memoir</button>
+        </div>
       </div>
     </div>
   `;
   showModal();
-  document.querySelector('#whats-new-dismiss-btn').onclick = () => {
-    if (profile?.uid) localStorage.setItem(`memoir-seen-announcement-v2.4-${profile.uid}`, 'true');
+
+  const handleDismiss = () => {
+    isAnnouncementOpen = false;
+    if (profile?.uid) {
+      localStorage.setItem(`memoir-seen-announcement-v2.4-${profile.uid}`, 'true');
+    }
     closeModal();
     toast('Welcome to Memoir v2.4!');
   };
+
+  document.querySelector('#whats-new-dismiss-btn')?.addEventListener('click', handleDismiss);
+  document.querySelector('#whats-new-close-btn')?.addEventListener('click', handleDismiss);
 }
 
 function checkWhatsNewAnnouncement() {
   const profile = activeProfile();
-  if (!profile) return;
+  if (!profile || isAnnouncementOpen) return;
   const key = `memoir-seen-announcement-v2.4-${profile.uid}`;
   if (!localStorage.getItem(key)) {
+    isAnnouncementOpen = true;
     setTimeout(() => {
+      if (modal.open) return;
       showWhatsNewModal();
-    }, 600);
+    }, 450);
   }
 }
 
@@ -1659,8 +1673,23 @@ async function toggleReminderSnooze(id) {
   const item = state.items.find(row => row.id === id); if (!item || /^completed$/i.test(String(item.fields?.Status || ''))) return;
   const snoozed = !reminderIsSnoozed(item); await withRhinoActivity(snoozed ? 'Snoozing reminder…' : 'Resuming reminder…', () => vaultStore.save(normalizeReminderRecord({ ...item, fields: { ...item.fields, Snoozed: snoozed ? 'Yes' : 'No' } }))); toast(snoozed ? 'Reminder notifications paused' : 'Reminder notifications resumed');
 }
-function showModal() { modal.showModal(); modal.querySelector('.modal-close')?.addEventListener('click', closeModal); modal.querySelector('.modal-cancel')?.addEventListener('click', closeModal); }
-function closeModal() { modal.close(); }
+function showModal() {
+  if (modal.open) {
+    try { modal.close(); } catch {}
+  }
+  modal.showModal();
+  modal.querySelectorAll('.modal-close').forEach(btn => {
+    btn.onclick = closeModal;
+  });
+  modal.querySelectorAll('.modal-cancel').forEach(btn => {
+    btn.onclick = closeModal;
+  });
+}
+function closeModal() {
+  try { modal.close(); } catch {}
+  modal.className = 'modal';
+  modal.innerHTML = '';
+}
 function confirmEdit(id) { const item = state.items.find(row => row.id === id); confirmBox(`Edit this ${item.type === 'Reminder' ? 'reminder' : item.type === 'Birthday' ? 'birthday' : 'memory'}?`, `You’re about to change “${item.title}”. Your update will replace the current version.`, item.type === 'Reminder' ? 'Edit reminder' : item.type === 'Birthday' ? 'Edit birthday' : 'Edit memory', 'Pencil', () => item.kind === 'clipboard' ? openClipEditor(item.fields.Content, item) : item.type === 'Reminder' ? openReminderEditor(item) : item.type === 'Birthday' ? openBirthdayEditor(item) : openEditor(item)); }
 function confirmDelete(id) { const item = state.items.find(row => row.id === id); if (!item) return; confirmBox('Delete this permanently?', `“${item.title}” will be removed from this device and your synced vault. This cannot be undone.`, 'Delete forever', 'Trash2', async () => { await withRhinoActivity('Deleting securely…', async () => { await deleteAudioAssetForItem(item); await vaultStore.remove(id); }); toast(item.type === 'Reminder' ? 'Reminder deleted' : item.type === 'Audio' ? 'Audio memory deleted' : 'Memory deleted'); }); }
 function confirmBox(title, text, action, glyph, callback) {
