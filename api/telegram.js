@@ -135,29 +135,76 @@ async function releaseMessageKey(claim) {
   if (hasAdminMirror()) await (await getAdmin()).firestore().collection('telegramMessageDeliveries').doc(claim.uid).collection('items').doc(claim.id).delete().catch(() => {});
 }
 
+async function downloadTelegramFile(profile, fileId) {
+  const fileInfo = await telegram(profile, 'getFile', { file_id: fileId });
+  const filePath = fileInfo?.result?.file_path;
+  if (!filePath) throw new Error('Could not get file path from Telegram');
+  const token = profile.telegramToken || process.env.TELEGRAM_BOT_TOKEN;
+  const url = `https://api.telegram.org/file/bot${token}/${filePath}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to download Telegram file: ${response.status}`);
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer).toString('base64');
+}
+
 export async function processTelegramUpdate(update, profile = getUserByChatId(update?.message?.chat?.id || update?.callback_query?.message?.chat?.id)) {
   if (!profile) return;
   if (update?.callback_query) return handleReminderCallback(profile, update.callback_query);
   const message = update?.message; const allowedChat = profile.telegramChatId;
-  if (!message?.text || String(message.chat?.id) !== allowedChat) return;
-  const query = String(message.text).trim();
-  if (/^\/start\b/i.test(query)) return sendToOwner(profile, 'Memoir is connected to your isolated vault. I can find non-sensitive notes, birthdays and reminders, and queue changes. Passwords, PINs, CVVs and banking information are never revealed in Telegram.');
-  if (/^\/help\b/i.test(query)) return sendToOwner(profile, 'Try: “What reminders are due today?”, “Add a reminder to renew my passport tomorrow at 6 PM”, or “Save a note titled Flight booking reference with value …”. Use the Memoir app to retrieve protected credentials or banking details.');
+  if (!message || String(message.chat?.id) !== allowedChat) return;
+
+  let query = String(message.text || message.caption || '').trim();
+  let imagePayload = null;
+  let audioPayload = null;
+
+  if (message.photo?.length) {
+    try {
+      const bestPhoto = message.photo[message.photo.length - 1];
+      const base64Data = await downloadTelegramFile(profile, bestPhoto.file_id);
+      imagePayload = { data: base64Data, mimeType: 'image/jpeg' };
+      if (!query) query = 'Extract warranty, invoice, receipt, card or document details from this image';
+      await sendToOwner(profile, '📸 Analyzing image with Smart Capture…');
+    } catch (err) {
+      console.error('Error downloading Telegram photo:', err);
+      return sendToOwner(profile, '⚠️ Could not download the photo from Telegram.');
+    }
+  } else if (message.voice || message.audio) {
+    try {
+      const audioObj = message.voice || message.audio;
+      const base64Data = await downloadTelegramFile(profile, audioObj.file_id);
+      audioPayload = { data: base64Data, mimeType: audioObj.mime_type || 'audio/ogg' };
+      if (!query) query = 'Transcribe this voice memo and extract memory or reminder details into JSON';
+      await sendToOwner(profile, '🎙️ Transcribing voice memo with Smart Capture…');
+    } catch (err) {
+      console.error('Error downloading Telegram audio:', err);
+      return sendToOwner(profile, '⚠️ Could not download the voice note from Telegram.');
+    }
+  } else if (!query) {
+    return;
+  }
+
+  if (/^\/start\b/i.test(query)) return sendToOwner(profile, 'Memoir is connected to your isolated vault. I can find non-sensitive notes, birthdays and reminders, and queue changes. You can also send photos of warranty cards or voice notes to capture them automatically! Passwords, PINs, CVVs and banking information are never revealed in Telegram.');
+  if (/^\/help\b/i.test(query)) return sendToOwner(profile, 'Try: “What reminders are due today?”, “Add a reminder to renew my passport tomorrow at 6 PM”, or send a photo of an appliance warranty card / send a voice memo.');
   const items = await loadVault(profile);
   if (!items.length) return sendToOwner(profile, 'Memoir is connected, but this account’s safe catalog is not loaded yet. Open the signed-in Memoir app once so its encrypted Telegram bridge can sync.');
   const catalog = items.map(item => ({ id: item.id, type: item.type, title: item.title, fieldNames: Object.keys(item.fields || {}) }));
   const protectedInput = protectTelegramInput(query, items); const history = conversations.get(allowedChat) || [];
-  const provider = process.env.TELEGRAM_AI_PROVIDER === 'mistral' ? 'mistral' : 'gemini';
-  const route = await routeQuery({ provider, query: protectedInput.text, catalog, history, timezone: process.env.APP_TIMEZONE || 'Asia/Calcutta' });
+  const provider = imagePayload || audioPayload ? 'gemini' : (process.env.TELEGRAM_AI_PROVIDER === 'mistral' ? 'mistral' : 'gemini');
+  const route = await routeQuery({ provider, query: protectedInput.text, image: imagePayload, audio: audioPayload, catalog, history, timezone: process.env.APP_TIMEZONE || 'Asia/Calcutta' });
   let responseText;
   if (route.kind === 'actions' && route.actions?.length) {
     const actions = rehydrateActions(route.actions, protectedInput.values); const queued = queueRuntimeActions(profile.uid, actions, 'telegram'); await persistQueuedActions(profile, queued);
-    responseText = `${route.title || 'Memoir update'}\n\n${actions.length} ${actions.length === 1 ? 'change has' : 'changes have'} been queued securely. Memoir will encrypt and sync ${actions.length === 1 ? 'it' : 'them'} when the signed-in app is online.`;
+    const summaryLines = actions.map(act => {
+      const fieldList = Object.entries(act.fields || {}).map(([k, v]) => `• ${k}: ${v}`).join('\n');
+      return `📌 ${act.title} (${act.type})\n${fieldList}`;
+    }).join('\n\n');
+    responseText = `✨ Smart Capture Saved to Vault!\n\n${summaryLines}\n\n🔒 Queued securely. Memoir will sync it to your devices automatically.`;
   } else responseText = answerText(route, items);
   const nextHistory = [...history, { role: 'user', text: protectedInput.text.slice(0, 1200) }, { role: 'assistant', text: cleanTelegramText(responseText).slice(0, 1200) }].slice(-12);
   conversations.set(allowedChat, nextHistory);
   return sendToOwner(profile, responseText);
 }
+
 
 export async function startTelegramPolling() {
   const profiles = listUserProfiles().filter(profile => profile.telegramToken && profile.telegramChatId && !pollers.has(profile.uid));

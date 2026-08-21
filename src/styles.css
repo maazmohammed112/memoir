@@ -41,4 +41,21 @@
 .dark .share-warning-banner{color:#f5b35c}
 .share-warning-banner .icon{flex:none;color:var(--amber)}
 
+.chat-input-row{display:flex;align-items:center;gap:6px;width:100%}
+.chat-media-btn{width:36px;height:36px;flex:none;border:1px solid var(--line);border-radius:12px;display:grid;place-items:center;background:var(--surface);color:var(--muted);transition:.2s}
+.chat-media-btn:hover{color:var(--rose);border-color:var(--rose);background:var(--surface2);transform:translateY(-1px)}
+.chat-media-btn.recording{color:#fff;background:var(--danger);border-color:var(--danger);animation:pulseAlert 1.2s infinite}
+.chat-attachment-bar{display:flex;align-items:center;gap:9px;padding:7px 12px;margin:0 14px 6px;border:1px solid var(--line);border-radius:12px;background:var(--surface);animation:enter .2s ease both}
+.chat-attachment-bar img{width:34px;height:34px;border-radius:8px;object-fit:cover}
+.chat-attachment-bar span{font-size:11px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-attachment-bar button{width:24px;height:24px;border:0;border-radius:50%;display:grid;place-items:center;background:var(--surface2);color:var(--muted)}
+.chat-attachment-bar button:hover{background:var(--danger);color:#fff}
+.chat-voice-indicator{display:flex;align-items:center;gap:8px;padding:8px 14px;margin:0 14px 6px;border-radius:12px;background:rgba(227,60,85,0.12);color:var(--danger);font-size:11px;font-weight:600;animation:enter .2s ease both}
+.voice-pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);box-shadow:0 0 0 4px rgba(227,60,85,0.25);animation:pulseAlert 1s infinite}
+.transcript-box{margin:10px 0;padding:12px 14px;border:1px solid rgba(128,84,232,0.3);border-radius:14px;background:rgba(128,84,232,0.06);font-size:11px;line-height:1.45}
+.transcript-box strong{display:flex;align-items:center;gap:5px;color:var(--violet);margin-bottom:4px;font-size:10px;text-transform:uppercase;letter-spacing:0.06em}
+.transcript-box p{margin:0;color:var(--ink);font-style:italic}
+.smart-capture-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:9px;font-weight:700;background:linear-gradient(135deg,rgba(255,118,89,0.18),rgba(243,46,139,0.18));color:var(--rose);margin-bottom:6px}
+
+
 

@@ -61,7 +61,9 @@ const state = {
   view: 'home', items: [], status: 'loading', hidden: true,
   provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, vaultCategory: 'all', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', telegramSyncing: false,
   auth: { status: 'checking', email: '', message: '', profile: null }, authError: '',
+  chatAttachment: null, isRecordingVoice: false,
 };
+
 
 marked.setOptions({ gfm: true, breaks: true });
 localStorage.removeItem('memoir-theme');
@@ -548,19 +550,36 @@ function birthdaysView() {
 }
 
 function assistantView() {
-  const messages = state.messages.length ? state.messages.map(renderMessage).join('') : `<div class="message bot"><strong>RHINOUS</strong><p>Your private vault intelligence. Ask for an exact detail, manage memories, or create one or many reminders naturally.</p></div>`;
-  return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div><form class="chat-form" id="chat-form"><input id="chat-query" autocomplete="off" placeholder="Ask Rhinous about your vault or reminders…"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></form></section>
-  <aside class="panel"><p class="eyebrow">Try asking</p><h3>Find it, save it, schedule it</h3><div class="suggestions">${['Remind me to renew my passport tomorrow at 6 PM', 'Add reminders for rent on the 1st at 9 AM and dentist Friday at 4 PM', 'What reminders are due this week?', 'Give me only my EPFO password'].map(text => `<button class="suggestion" data-ask="${escapeHtml(text)}">${escapeHtml(text)}</button>`).join('')}</div><div class="privacy-line">${icon('ShieldCheck')}<span>Secret values stay on your device. Providers receive only record names, field labels, protected placeholders, and privacy-safe conversation context.</span></div></aside></div>`;
+  const messages = state.messages.length ? state.messages.map(renderMessage).join('') : `<div class="message bot"><strong>RHINOUS</strong><p>Your private vault intelligence. Ask for an exact detail, manage memories, capture warranties/documents from photos, or transcribe voice notes naturally.</p></div>`;
+  const attachmentMarkup = state.chatAttachment ? `
+    <div class="chat-attachment-bar">
+      <img src="${state.chatAttachment.previewUrl}" alt="Preview">
+      <span>📸 ${escapeHtml(state.chatAttachment.name || 'Captured Document')}</span>
+      <button type="button" id="chat-remove-attachment" title="Remove attachment">${icon('X')}</button>
+    </div>` : '';
+  const voiceIndicator = state.isRecordingVoice ? `
+    <div class="chat-voice-indicator">
+      <span class="voice-pulse-dot"></span>
+      <span>🎙️ Listening… Speak your note, warranty, or reminder</span>
+    </div>` : '';
+
+  return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div>${attachmentMarkup}${voiceIndicator}<form class="chat-form" id="chat-form"><input type="file" id="chat-camera-input" accept="image/*" capture="environment" style="display:none"><input type="file" id="chat-upload-input" accept="image/*,application/pdf" style="display:none"><div class="chat-input-row"><button type="button" class="chat-media-btn" id="chat-camera-btn" title="Snap photo of document/warranty">${icon('Camera')}</button><button type="button" class="chat-media-btn" id="chat-upload-btn" title="Upload image or invoice">${icon('Paperclip')}</button><button type="button" class="chat-media-btn ${state.isRecordingVoice ? 'recording' : ''}" id="chat-voice-btn" title="Voice memo capture">${icon('Mic')}</button><input id="chat-query" autocomplete="off" placeholder="${state.chatAttachment ? 'Add notes or tap Send to extract…' : 'Ask Rhinous or dictate memory/reminder…'}"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></div></form></section>
+  <aside class="panel"><p class="eyebrow">Smart Multi-Modal</p><h3>Capture, snap & transcribe</h3><div class="suggestions">${['📸 Snap a warranty card or invoice to auto-extract fields', '🎙️ Dictate: “Remember my appliance warranty with 2 years validity”', 'Remind me to renew my passport tomorrow at 6 PM', 'Give me only my EPFO password'].map(text => `<button class="suggestion" data-ask="${escapeHtml(text.replace(/^[📸🎙️]\s*/, ''))}">${escapeHtml(text)}</button>`).join('')}</div><div class="privacy-line">${icon('ShieldCheck')}<span>Smart Capture extracts structured records on device. Credentials stay encrypted in your isolated vault.</span></div></aside></div>`;
 }
+
 function renderMessage(message) {
   if (message.role === 'user') return `<div class="message user">${escapeHtml(message.text)}</div>`;
   if (message.fields?.length) {
     const fieldObject = Object.fromEntries(message.fields.map(field => [field.label, field.value])); const card = paymentCard(message.title || 'Saved card', fieldObject, true);
     return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${message.fields.map(field => `<tr><td>${escapeHtml(field.label)}</td><td><span class="${state.hidden ? 'blur' : ''}">${escapeHtml(field.value)}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy">${icon('Copy')}</button></span></td></tr>`).join('')}</tbody></table></div>`;
   }
-  if (message.actions?.length) return `<div class="message bot"><strong>${escapeHtml((message.title || 'Review changes').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}<div class="ai-action-list">${message.actions.map(action => `<div class="ai-action"><span>${escapeHtml(action.op)}</span><strong>${escapeHtml(action.title || state.items.find(item => item.id === action.id)?.title || 'Memory')}</strong><small>${escapeHtml(action.type || 'Saved item')} · ${Object.keys(action.fields || {}).length} field${Object.keys(action.fields || {}).length === 1 ? '' : 's'}</small></div>`).join('')}</div></div>`;
+  if (message.actions?.length) {
+    const isSmartCapture = message.actions.some(a => a.fields && (a.fields['Audio Transcript'] || a.fields['Expiry date'] || a.fields['Serial'] || a.fields['Brand'] || a.fields['Model']));
+    return `<div class="message bot">${isSmartCapture ? '<span class="smart-capture-badge">✨ Smart Capture Extracted</span>' : ''}<strong>${escapeHtml((message.title || 'Review changes').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}<div class="ai-action-list">${message.actions.map(action => `<div class="ai-action"><span>${escapeHtml(action.op)}</span><strong>${escapeHtml(action.title || state.items.find(item => item.id === action.id)?.title || 'Memory')}</strong><small>${escapeHtml(action.type || 'Saved item')} · ${Object.keys(action.fields || {}).length} field${Object.keys(action.fields || {}).length === 1 ? '' : 's'}</small>${action.fields?.['Audio Transcript'] ? `<div class="transcript-box"><strong>${icon('Mic')} Audio Transcript</strong><p>${escapeHtml(action.fields['Audio Transcript'])}</p></div>` : ''}</div>`).join('')}</div></div>`;
+  }
   return `<div class="message bot">${message.title ? `<strong>${escapeHtml(message.title.toUpperCase())}</strong>` : ''}${safeMarkdown(message.markdown || message.text || '')}</div>`;
 }
+
 function safeMarkdown(text) { return DOMPurify.sanitize(marked.parse(text), { USE_PROFILES: { html: true } }); }
 function chatSkeleton() { return `<div class="message bot" style="width:65%"><div class="skeleton" style="height:10px;width:48%;margin-bottom:10px"></div><div class="skeleton" style="height:9px;width:92%;margin-bottom:7px"></div><div class="skeleton" style="height:9px;width:73%"></div></div>`; }
 function emptyState(glyph, title, text, action, type) { return `<div class="empty"><span class="icon-wrap">${icon(glyph)}</span><h3>${title}</h3><p>${text}</p><button class="primary" style="margin-top:12px" data-add="${type}">${icon('Plus')} ${action}</button></div>`; }
@@ -605,9 +624,46 @@ function bindView() {
   document.querySelector('#paste-clipboard')?.addEventListener('click', pasteClipboard);
   document.querySelector('#bulk-import')?.addEventListener('click', openBulkImporter);
   document.querySelector('#save-clip')?.addEventListener('click', () => { const value = document.querySelector('#clip-input').value; if (value.trim()) openClipEditor(value); else toast('Add something to save'); });
+
+  document.querySelector('#chat-camera-btn')?.addEventListener('click', () => document.querySelector('#chat-camera-input')?.click());
+  document.querySelector('#chat-camera-input')?.addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+    if (file) {
+      toast('Processing photo…');
+      try {
+        state.chatAttachment = await compressImageFile(file);
+        renderView();
+      } catch (err) {
+        toast('Could not process photo');
+      }
+    }
+  });
+
+  document.querySelector('#chat-upload-btn')?.addEventListener('click', () => document.querySelector('#chat-upload-input')?.click());
+  document.querySelector('#chat-upload-input')?.addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+    if (file) {
+      toast('Processing document…');
+      try {
+        state.chatAttachment = await compressImageFile(file);
+        renderView();
+      } catch (err) {
+        toast('Could not process document');
+      }
+    }
+  });
+
+  document.querySelector('#chat-remove-attachment')?.addEventListener('click', () => {
+    state.chatAttachment = null;
+    renderView();
+  });
+
+  document.querySelector('#chat-voice-btn')?.addEventListener('click', toggleVoiceRecording);
+
   document.querySelector('#chat-form')?.addEventListener('submit', event => { event.preventDefault(); const input = document.querySelector('#chat-query'); askAssistant(input.value); input.value = ''; });
   updateReminderCountdowns();
 }
+
 
 function showGlobalSearch(query) {
   document.querySelector('.search-overlay')?.remove();
@@ -966,17 +1022,144 @@ async function executeShare(platform, text, itemTitle) {
 }
 
 
+let speechRecognizer = null;
+
+function compressImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1200;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        resolve({
+          data: dataUrl,
+          mimeType: 'image/jpeg',
+          name: file.name,
+          previewUrl: dataUrl,
+        });
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function toggleVoiceRecording() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    toast('Voice recognition is not supported in this browser.');
+    return;
+  }
+
+  if (state.isRecordingVoice) {
+    if (speechRecognizer) speechRecognizer.stop();
+    state.isRecordingVoice = false;
+    renderView();
+    return;
+  }
+
+  try {
+    speechRecognizer = new SpeechRecognition();
+    speechRecognizer.continuous = false;
+    speechRecognizer.interimResults = true;
+    speechRecognizer.lang = 'en-US';
+
+    speechRecognizer.onstart = () => {
+      state.isRecordingVoice = true;
+      renderView();
+      toast('🎙️ Listening… Speak your memo');
+    };
+
+    speechRecognizer.onresult = event => {
+      let interim = '';
+      let final = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          final += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      const input = document.querySelector('#chat-query');
+      if (input) {
+        input.value = (final || interim).trim();
+      }
+    };
+
+    speechRecognizer.onerror = event => {
+      console.warn('Speech recognition error:', event.error);
+      state.isRecordingVoice = false;
+      renderView();
+      if (event.error !== 'no-speech') toast(`Voice error: ${event.error}`);
+    };
+
+    speechRecognizer.onend = () => {
+      state.isRecordingVoice = false;
+      renderView();
+    };
+
+    speechRecognizer.start();
+  } catch (err) {
+    console.error('Speech recognition exception:', err);
+    state.isRecordingVoice = false;
+    renderView();
+    toast('Could not start microphone');
+  }
+}
+
 async function askAssistant(query) {
-  if (!query?.trim() || state.chatLoading) return;
-  const cleanQuery = query.trim();
+  const attachment = state.chatAttachment;
+  state.chatAttachment = null;
+  const isImageOrVoice = Boolean(attachment);
+
+  if ((!query?.trim() && !isImageOrVoice) || state.chatLoading) return;
+  const cleanQuery = (query || (attachment ? 'Extract details from this document/image' : '')).trim();
   const history = assistantHistory(state.messages);
   const protectedInput = protectPrivateInput(cleanQuery);
   let proposedActions = [];
-  state.messages.push({ role: 'user', text: cleanQuery }); state.chatLoading = true; renderView(); scrollChat();
+
+  const userMessageText = attachment ? `📸 [Attached: ${attachment.name || 'Document image'}] ${cleanQuery !== 'Extract details from this document/image' ? cleanQuery : ''}` : cleanQuery;
+  state.messages.push({ role: 'user', text: userMessageText.trim() });
+  state.chatLoading = true;
+  renderView();
+  scrollChat();
+
   try {
     const catalog = state.items.filter(item => item.type !== 'Notification').map(item => ({ id: item.id, type: category(item), title: item.title, fieldNames: Object.keys(allFields(item)) }));
     const identityToken = await vaultStore.idToken();
-    const response = await fetch('/api/assistant', { method: 'POST', headers: vaultStore.apiHeaders(identityToken), body: JSON.stringify({ provider: state.provider, query: protectedInput.text, catalog, history, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Calcutta', now: new Date().toISOString() }) });
+    const payload = {
+      provider: attachment ? 'gemini' : state.provider,
+      query: protectedInput.text,
+      catalog,
+      history,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Calcutta',
+      now: new Date().toISOString(),
+    };
+    if (attachment) {
+      payload.image = {
+        data: attachment.data,
+        mimeType: attachment.mimeType || 'image/jpeg',
+      };
+    }
+    const response = await fetch('/api/assistant', { method: 'POST', headers: vaultStore.apiHeaders(identityToken), body: JSON.stringify(payload) });
     if (!response.ok) throw new Error(await response.text());
     const answer = await response.json();
     const message = buildAssistantMessage(answer, cleanQuery, protectedInput.values);
@@ -984,10 +1167,16 @@ async function askAssistant(query) {
     state.messages.push(message);
   } catch (error) {
     const fallback = localRoute(cleanQuery);
-    state.messages.push(fallback || { role: 'assistant', markdown: `### Offline answer\nI couldn’t reach ${state.provider === 'gemini' ? 'Gemini' : 'Mistral'} and no exact saved field matched your request.` });
-  } finally { state.chatLoading = false; persistAssistantLog(); renderView(); scrollChat(); }
+    state.messages.push(fallback || { role: 'assistant', markdown: `### Assistant response\nI couldn’t process this capture request: ${error?.message || 'Check your network connection'}.` });
+  } finally {
+    state.chatLoading = false;
+    persistAssistantLog();
+    renderView();
+    scrollChat();
+  }
   if (proposedActions.length) await confirmAssistantActions(proposedActions);
 }
+
 function buildAssistantMessage(answer, query, privateValues = {}) {
   if (answer.kind === 'actions' && answer.actions?.length) {
     const actions = answer.actions.map(action => rehydrateAction(action, privateValues)).filter(Boolean);

@@ -11,6 +11,18 @@ Use the conversation log to resolve follow-ups such as "only the password", "the
 For saved-information requests, choose only the exact record and fields necessary. If the user says details/info/all/everything, choose every field in the matching record. If the user asks for one field such as Password, CVV, ATM PIN, Debit card number, Document number, Expiry date, or Soft copy link, return only that exact field. Selecting sensitive fields and private document links is allowed; their values are attached on-device later.
 For explicit add/create/save, edit/update, or delete/remove requests, return one or more actions. Use an exact catalog ID for update/delete. Keep every [[PRIVATE_N]] placeholder unchanged. Never invent a credential, PIN, CVV, password, account/card number, or saved value. Changes are reviewed on-device before execution.
 
+FOR SMART MULTIMODAL CAPTURE (IMAGES, DOCUMENTS, WARRANTY CARDS, RECEIPTS, BILLS, IDS, VOICE MEMOS):
+1. When an image or document is provided:
+   - Identify the document type: "Personal" (Appliances, warranties, vehicles, gadgets, electronics, receipts), "Finance" (Bills, bank statements, cards), "Identity" / "Government Document" (Passport, license, ID, insurance).
+   - Extract title: e.g. "Bosch Washing Machine Warranty", "Apple iPhone 15 Invoice", "Car Insurance Policy", "Electricity Bill".
+   - Extract all visible fields: Brand, Model, Serial Number, Purchase Date, Expiry date, Warranty Period, Amount / Price, Document Number, Holder Name, Customer Care / Support.
+   - If an expiry date, warranty validity, or due date is visible, ALWAYS include the "Expiry date" field (format: YYYY-MM-DD or Month YYYY) so the expiry agent can track it!
+   - Return an action with op: "create", the extracted type, title, and structured fields.
+2. When an audio voice note is provided:
+   - Accurately transcribe the spoken voice note word-for-word.
+   - If the user is dictating a memory, credential, or note: extract the structured fields and include a field named "Audio Transcript" containing the complete transcript.
+   - If the user is dictating a reminder (e.g. "Remind me next Friday at 4 PM to buy filters"): create a Reminder action with "Due at", "Status": "upcoming", "Repeat", and include "Audio Transcript".
+
 FOR REMINDERS AND TEMPORAL INTELLIGENCE:
 - Use type "Reminder" and fields: "Due at" (YYYY-MM-DDTHH:mm format in user local time), "Status" ("upcoming"), "Snoozed" ("No"), "Repeat" ("none"|"daily"|"weekly"|"monthly"|"yearly"), and optionally "Completion" and "Completed at".
 - Understand natural recurrence:
@@ -87,7 +99,7 @@ function normalize(answer, catalog) {
 function isClearlyOffTopic(query) {
   const text = String(query || '').toLowerCase();
   const unrelated = /\b(movie|film|director|directed|actor|actress|box office|cricket|football|score|stock price|weather|recipe|restaurant|celebrity|president|prime minister|capital of|quantum physics)\b/;
-  const vaultContext = /\b(my|vault|memory|memories|saved|clipboard|birthday|reminder|remind|due|password|pin|cvv|card|account|credential|wifi|wi-fi|document|passport|epfo|note|remember|rhinous|memoir)\b/;
+  const vaultContext = /\b(my|vault|memory|memories|saved|clipboard|birthday|reminder|remind|due|password|pin|cvv|card|account|credential|wifi|wi-fi|document|passport|epfo|note|remember|rhinous|memoir|warranty|invoice|receipt|bill|appliance|serial|transcript)\b/;
   return unrelated.test(text) && !vaultContext.test(text);
 }
 
@@ -106,15 +118,20 @@ async function withFallback(provider, task) {
   throw lastError || new Error(`No ${provider} model is currently available`);
 }
 
-async function callGemini(prompt) {
+async function callGemini(contents) {
   if (!process.env.GEMINI_API_KEY) throw new Error('Gemini is not configured');
   const { GoogleGenAI } = await import('@google/genai');
   const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   return withFallback('gemini', async model => {
-    const response = await client.models.generateContent({ model, contents: prompt, config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', temperature: 0.15 } });
+    const response = await client.models.generateContent({
+      model,
+      contents,
+      config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', temperature: 0.15 },
+    });
     return response.text;
   });
 }
+
 async function callMistral(prompt) {
   if (!process.env.MISTRAL_API_KEY) throw new Error('Mistral is not configured');
   const { Mistral } = await import('@mistralai/mistralai');
@@ -126,9 +143,9 @@ async function callMistral(prompt) {
   });
 }
 
-export async function routeQuery({ provider = 'gemini', query, catalog, history, timezone = 'Asia/Calcutta', now = new Date().toISOString() }) {
+export async function routeQuery({ provider = 'gemini', query, image, audio, catalog, history, timezone = 'Asia/Calcutta', now = new Date().toISOString() }) {
   const cleanCatalog = safeCatalog(catalog);
-  if (isClearlyOffTopic(query)) return { kind: 'refusal', title: 'Rhinous is vault-only', markdown: 'I’m your private vault assistant. I can help with saved memories, credentials, clipboard items, birthdays, and vault changes—not unrelated general trivia.', matches: [], actions: [], provider, model: 'scope-guard' };
+  if (!image && !audio && isClearlyOffTopic(query)) return { kind: 'refusal', title: 'Rhinous is vault-only', markdown: 'I’m your private vault assistant. I can help with saved memories, credentials, clipboard items, birthdays, and vault changes—not unrelated general trivia.', matches: [], actions: [], provider, model: 'scope-guard' };
   const cleanHistory = safeHistory(history);
 
   const userTz = timezone || 'Asia/Calcutta';
@@ -163,7 +180,7 @@ export async function routeQuery({ provider = 'gemini', query, catalog, history,
     upcomingDays.push(`- ${label}: ${isoDate}`);
   }
 
-  const prompt = `USER LOCAL TIME & CALENDAR CONTEXT:
+  const promptText = `USER LOCAL TIME & CALENDAR CONTEXT:
 - Today's Date: ${localDateString} (${localIsoDate})
 - Current Time: ${localTimeString} (24-hour: ${local24HourTime})
 - User Timezone: ${userTz}
@@ -176,16 +193,37 @@ PRIVACY-SAFE CONVERSATION LOG:
 ${JSON.stringify(cleanHistory)}
 
 CURRENT USER REQUEST:
-${String(query || '').slice(0, 4000)}
+${String(query || (image ? 'Extract and structure details from this image document or warranty card' : audio ? 'Transcribe this voice memo and extract memory or reminder details' : '')).slice(0, 4000)}
 
 REDACTED VAULT CATALOG:
 ${JSON.stringify(cleanCatalog)}`;
 
-  const response = provider === 'mistral' ? await callMistral(prompt) : await callGemini(prompt);
-  return { ...normalize(parseJson(response.result), cleanCatalog), provider, model: response.model };
+  let response;
+  if (image?.data || audio?.data || provider === 'gemini') {
+    const contents = [promptText];
+    if (image?.data) {
+      contents.push({
+        inlineData: {
+          mimeType: image.mimeType || 'image/jpeg',
+          data: String(image.data).replace(/^data:[^;]+;base64,/, '').trim(),
+        },
+      });
+    }
+    if (audio?.data) {
+      contents.push({
+        inlineData: {
+          mimeType: audio.mimeType || 'audio/ogg',
+          data: String(audio.data).replace(/^data:[^;]+;base64,/, '').trim(),
+        },
+      });
+    }
+    response = await callGemini(contents);
+  } else {
+    response = await callMistral(promptText);
+  }
+
+  return { ...normalize(parseJson(response.result), cleanCatalog), provider: image?.data || audio?.data ? 'gemini' : provider, model: response.model };
 }
-
-
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -194,7 +232,9 @@ export default async function handler(req, res) {
     if (!token) return res.status(401).json({ error: 'Missing identity token' });
     await verifyOwnerToken(token, deviceIdFrom(req));
     const body = req.body || {};
-    if (!String(body.query || '').trim()) return res.status(400).json({ error: 'A query is required' });
+    if (!String(body.query || '').trim() && !body.image && !body.audio) {
+      return res.status(400).json({ error: 'A query, image, or audio input is required' });
+    }
     const answer = await routeQuery(body);
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json(answer);
@@ -203,3 +243,4 @@ export default async function handler(req, res) {
     return res.status(Number(error?.status || 502)).json({ error: 'The selected assistant is temporarily unavailable.' });
   }
 }
+
