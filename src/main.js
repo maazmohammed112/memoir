@@ -468,7 +468,7 @@ function paymentCard(title, fields, compact = false) {
 function memoryCard(item) {
   const expiryInfo = extractItemExpiry(item);
   const expiryChip = expiryInfo ? `<span class="chip expiry-chip ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? '⚠️ ' : icon('Calendar') + ' '}${escapeHtml(expiryInfo.status.text)}</span>` : '';
-  return `<article class="memory-card" data-open="${item.id}" tabindex="0"><span class="icon-wrap ${category(item) === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.note || Object.keys(allFields(item)).join(' · '))}</p><div class="memory-card-foot"><span class="chip">${escapeHtml(category(item))}</span>${expiryChip}${icon('ArrowUpRight')}</div></article>`;
+  return `<article class="memory-card" data-open="${item.id}" tabindex="0"><span class="icon-wrap ${category(item) === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.note || Object.keys(allFields(item)).join(' · '))}</p><div class="memory-card-foot"><span class="chip">${escapeHtml(category(item))}</span>${expiryChip}<div style="display:flex;align-items:center;gap:4px"><button type="button" class="icon-btn-mini" data-share="${item.id}" title="Share fields">${icon('Share2')}</button>${icon('ArrowUpRight')}</div></div></article>`;
 }
 function reminderCard(item, compact = false) {
   const status = reminderStatus(item); const snoozed = reminderIsSnoozed(item); const completed = status === 'completed' || status === 'no-response';
@@ -492,7 +492,7 @@ function homeView() {
         </div>
         <div class="expiry-card-foot">
           <span class="chip expiry-chip critical">${escapeHtml(exp.status.text)}</span>
-          ${icon('ArrowUpRight')}
+          <div style="display:flex;align-items:center;gap:4px"><button type="button" class="icon-btn-mini" data-share="${exp.itemId}" title="Share fields">${icon('Share2')}</button>${icon('ArrowUpRight')}</div>
         </div>
       </article>
     `).join('')}</div>` : '';
@@ -508,12 +508,12 @@ function vaultRow(item) {
   const filterGroup = memoryFilterGroup(item);
   const expiryInfo = extractItemExpiry(item);
   const expiryChip = expiryInfo ? `<span class="chip expiry-chip ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? '⚠️ ' : icon('Calendar') + ' '}${escapeHtml(expiryInfo.status.text)}</span>` : '';
-  if (isCardRecord(item)) return `<article class="finance-memory" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}">${paymentCard(item.title, allFields(item))}<div class="finance-memory-foot"><div><h3>${escapeHtml(item.title)}</h3><p>${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'Banking memory')}</p></div>${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></div></article>`;
-  return `<article class="vault-row" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}"><span class="icon-wrap ${item.type === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><div class="vault-info"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(category(item))} · ${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'No note')}</p></div>${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`;
+  if (isCardRecord(item)) return `<article class="finance-memory" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}">${paymentCard(item.title, allFields(item))}<div class="finance-memory-foot"><div><h3>${escapeHtml(item.title)}</h3><p>${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'Banking memory')}</p></div>${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></div></article>`;
+  return `<article class="vault-row" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}"><span class="icon-wrap ${item.type === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><div class="vault-info"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(category(item))} · ${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'No note')}</p></div>${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`;
 }
 
 function detailMarkup(item) {
-  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, allFields(item)) : ''}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${Object.entries(allFields(item)).map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
+  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, allFields(item)) : ''}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${Object.entries(allFields(item)).map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
 }
 function vaultView() {
   const selected = state.items.find(item => item.id === state.selectedMemoryId);
@@ -530,7 +530,7 @@ function vaultView() {
   return `<div class="toolbar"><input class="search-input" id="vault-filter" placeholder="Filter titles, notes, fields or values…"><button class="secondary" id="bulk-import">${icon('NotebookText')} Secure import</button><button class="primary" data-add="memory">${icon('Plus')} Add memory</button></div>${filterBar}${list.length ? `<div class="vault-list" id="vault-list">${list.map(vaultRow).join('')}</div>` : empty}`;
 }
 function clipboardView() {
-  return `<div class="toolbar"><button class="primary" id="paste-clipboard">${icon('ClipboardPaste')} Paste current clipboard</button><input class="search-input" id="clip-input" placeholder="Or type or paste content here"><button class="secondary" id="save-clip">Save</button></div>${clips().length ? `<div class="vault-list">${clips().map(item => `<article class="vault-row"><span class="icon-wrap violet">${icon('Clipboard')}</span><div class="vault-info"><h3>${escapeHtml(item.title || 'Untitled clip')}</h3><p class="clip-value">${escapeHtml(item.fields?.Content || '')}</p><p>${new Date(item.createdAt).toLocaleString()}</p></div><div class="row-actions"><button class="icon-btn" data-copy="${escapeHtml(item.fields?.Content || '')}" title="Copy">${icon('Copy')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`).join('')}</div>` : emptyState('Clipboard', 'Clipboard vault is empty', 'Paste something, add a useful note, and find it instantly later.', 'Paste clipboard', 'clipboard')}`;
+  return `<div class="toolbar"><button class="primary" id="paste-clipboard">${icon('ClipboardPaste')} Paste current clipboard</button><input class="search-input" id="clip-input" placeholder="Or type or paste content here"><button class="secondary" id="save-clip">Save</button></div>${clips().length ? `<div class="vault-list">${clips().map(item => `<article class="vault-row"><span class="icon-wrap violet">${icon('Clipboard')}</span><div class="vault-info"><h3>${escapeHtml(item.title || 'Untitled clip')}</h3><p class="clip-value">${escapeHtml(item.fields?.Content || '')}</p><p>${new Date(item.createdAt).toLocaleString()}</p></div><div class="row-actions"><button class="icon-btn" data-copy="${escapeHtml(item.fields?.Content || '')}" title="Copy">${icon('Copy')}</button><button class="icon-btn" data-share="${item.id}" title="Share clip">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`).join('')}</div>` : emptyState('Clipboard', 'Clipboard vault is empty', 'Paste something, add a useful note, and find it instantly later.', 'Paste clipboard', 'clipboard')}`;
 }
 function remindersView() {
   const grouped = { upcoming: [], overdue: [], completed: [] };
@@ -544,8 +544,9 @@ function remindersView() {
 function birthdaysView() {
   const birthdays = memories().filter(item => item.type === 'Birthday').sort((a, b) => (nextBirthday(a)?.occurrence?.getTime() || Infinity) - (nextBirthday(b)?.occurrence?.getTime() || Infinity));
   return `<section class="birthday-hero"><p class="eyebrow">Thoughtful reminders</p><h2>Never miss their moment.</h2><p>Memoir plans Telegram reminders two days before, one day before, five hours before, two hours before, and exactly at midnight.</p><button class="primary" style="margin-top:18px" data-add="birthday">${icon('Plus')} Add birthday</button></section>
-  ${birthdays.length ? `<div class="timeline birthday-timeline">${birthdays.map(item => { const next = nextBirthday(item); const nextAge = nextBirthdayAge(item); const when = next?.daysAway === 0 ? 'Today' : next?.daysAway === 1 ? 'Tomorrow' : next ? `In ${next.daysAway} days` : 'Date needed'; return `<article class="timeline-item birthday-item"><div class="birthday-main"><div class="birthday-title-line"><h3>${escapeHtml(item.title)}</h3><span>${escapeHtml(when)}</span></div><p class="birthday-date">${escapeHtml(formatDate(item.fields?.Date))} · ${escapeHtml(item.fields?.Relation || 'Contact')} · ${escapeHtml(item.note || 'No note')}</p><div class="birthday-age-grid"><div><small>Current age</small><strong>${escapeHtml(currentAgeText(item))}</strong></div><div><small>Next birthday age</small><strong>${nextAge == null ? 'Age unavailable' : escapeHtml(String(nextAge))}</strong></div></div><span class="chip birthday-reminders">${icon('BellRing')} 5 reminders planned</span></div><div class="birthday-actions"><button class="icon-btn" data-birthday-message="${item.id}" title="Generate wish">${icon('WandSparkles')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`; }).join('')}</div>` : emptyState('CakeSlice', 'No birthdays yet', 'Add someone important and Memoir will plan five thoughtful reminders.', 'Add birthday', 'birthday')}`;
+  ${birthdays.length ? `<div class="timeline birthday-timeline">${birthdays.map(item => { const next = nextBirthday(item); const nextAge = nextBirthdayAge(item); const when = next?.daysAway === 0 ? 'Today' : next?.daysAway === 1 ? 'Tomorrow' : next ? `In ${next.daysAway} days` : 'Date needed'; return `<article class="timeline-item birthday-item"><div class="birthday-main"><div class="birthday-title-line"><h3>${escapeHtml(item.title)}</h3><span>${escapeHtml(when)}</span></div><p class="birthday-date">${escapeHtml(formatDate(item.fields?.Date))} · ${escapeHtml(item.fields?.Relation || 'Contact')} · ${escapeHtml(item.note || 'No note')}</p><div class="birthday-age-grid"><div><small>Current age</small><strong>${escapeHtml(currentAgeText(item))}</strong></div><div><small>Next birthday age</small><strong>${nextAge == null ? 'Age unavailable' : escapeHtml(String(nextAge))}</strong></div></div><span class="chip birthday-reminders">${icon('BellRing')} 5 reminders planned</span></div><div class="birthday-actions"><button class="icon-btn" data-birthday-message="${item.id}" title="Generate wish">${icon('WandSparkles')}</button><button class="icon-btn" data-share="${item.id}" title="Share details">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`; }).join('')}</div>` : emptyState('CakeSlice', 'No birthdays yet', 'Add someone important and Memoir will plan five thoughtful reminders.', 'Add birthday', 'birthday')}`;
 }
+
 function assistantView() {
   const messages = state.messages.length ? state.messages.map(renderMessage).join('') : `<div class="message bot"><strong>RHINOUS</strong><p>Your private vault intelligence. Ask for an exact detail, manage memories, or create one or many reminders naturally.</p></div>`;
   return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div><form class="chat-form" id="chat-form"><input id="chat-query" autocomplete="off" placeholder="Ask Rhinous about your vault or reminders…"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></form></section>
@@ -597,7 +598,9 @@ function bindView() {
   document.querySelectorAll('[data-reminder-snooze]').forEach(button => button.onclick = () => toggleReminderSnooze(button.dataset.reminderSnooze));
   document.querySelectorAll('[data-reminder-edit]').forEach(button => button.onclick = () => openReminderEditor(state.items.find(item => item.id === button.dataset.reminderEdit)));
   document.querySelectorAll('[data-reminder-delete]').forEach(button => button.onclick = () => confirmDelete(button.dataset.reminderDelete));
+  document.querySelectorAll('[data-share]').forEach(button => button.onclick = event => { event.stopPropagation(); openShareModal(button.dataset.share); });
   document.querySelector('#clear-chat')?.addEventListener('click', () => confirmBox('Clear this conversation?', 'This removes the local Rhinous conversation log. Your saved memories and reminders will not be changed.', 'Clear chat', 'Eraser', () => { state.messages = []; state.assistantLog = []; localStorage.removeItem(assistantLogKey()); renderView(); toast('Conversation cleared'); }));
+
   document.querySelector('#vault-filter')?.addEventListener('input', event => document.querySelectorAll('[data-searchable]').forEach(row => row.hidden = !row.dataset.searchable.includes(event.target.value.toLowerCase())));
   document.querySelector('#paste-clipboard')?.addEventListener('click', pasteClipboard);
   document.querySelector('#bulk-import')?.addEventListener('click', openBulkImporter);
@@ -745,6 +748,223 @@ function openDetail(id) {
   if (item.type === 'Birthday') { navigate('birthdays'); return; }
   state.view = 'vault'; state.selectedMemoryId = id; shell(); window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+function isSecretField(key) {
+  const k = String(key || '').toLowerCase().trim();
+  return /password|passcode|\bpin\b|cvv|security code|atm pin|transaction pin|secret|private key/i.test(k);
+}
+
+function formatShareText(item, selectedFields, includeNote = false) {
+  const senderName = activeProfile()?.name || 'Maaz';
+  const lines = [
+    `🔒 Shared via Memoir by ${senderName}`,
+    '',
+    `📌 ${item.title}`,
+  ];
+
+  selectedFields.forEach(([label, value]) => {
+    lines.push(`• ${label}: ${value}`);
+  });
+
+  if (includeNote && item.note) {
+    lines.push('', `📝 Note: ${item.note}`);
+  }
+
+  lines.push('', '⚡ Kept safe in Memoir Vault');
+  return lines.join('\n');
+}
+
+function openShareModal(id) {
+  const item = state.items.find(row => row.id === id);
+  if (!item) return;
+
+  const entries = Object.entries(allFields(item));
+  const shareableEntries = entries.filter(([label]) => !isSecretField(label));
+  const hasHiddenSecrets = entries.some(([label]) => isSecretField(label));
+  const initialFields = [...shareableEntries];
+  let includeNote = Boolean(item.note);
+
+  modal.className = 'modal share-modal';
+
+  const renderModalContent = () => {
+    const previewText = formatShareText(item, initialFields, includeNote);
+    modal.innerHTML = `
+      <div class="modal-inner">
+        <div class="modal-head">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="icon-wrap ${category(item) === 'Finance' ? 'green' : 'violet'}">${icon(itemIcon(item))}</span>
+            <div>
+              <p class="eyebrow">Selective Secure Share</p>
+              <h2>${escapeHtml(item.title)}</h2>
+            </div>
+          </div>
+          <button type="button" class="modal-close" aria-label="Close">${icon('X')}</button>
+        </div>
+
+        <p style="font-size:11px;color:var(--muted);margin:10px 0 6px">
+          Select the exact fields you want to share. ${hasHiddenSecrets ? '<span style="color:var(--green);font-weight:600">🛡️ Passwords, PINs & CVVs are automatically protected and excluded.</span>' : ''}
+        </p>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <small style="color:var(--muted);font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:0.06em">Available Fields (${shareableEntries.length})</small>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="text-btn" id="share-select-all" style="font-size:10px">Select all</button>
+            <button type="button" class="text-btn" id="share-clear-all" style="font-size:10px;color:var(--muted)">Clear</button>
+          </div>
+        </div>
+
+        <div class="share-field-list">
+          ${shareableEntries.map(([label, value], idx) => `
+            <label class="share-field-item">
+              <input type="checkbox" class="share-field-checkbox" data-index="${idx}" ${initialFields.some(([l]) => l === label) ? 'checked' : ''}>
+              <div>
+                <strong>${escapeHtml(label)}</strong>
+                <small class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</small>
+              </div>
+            </label>
+          `).join('')}
+          ${item.note ? `
+            <label class="share-field-item">
+              <input type="checkbox" id="share-include-note" ${includeNote ? 'checked' : ''}>
+              <div>
+                <strong>Record Note</strong>
+                <small>${escapeHtml(item.note)}</small>
+              </div>
+            </label>
+          ` : ''}
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <small style="color:var(--muted);font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:0.06em">Message Preview</small>
+          <span style="font-size:10px;color:var(--muted)"><span id="share-count">${initialFields.length}</span> field${initialFields.length === 1 ? '' : 's'} selected</span>
+        </div>
+
+        <pre class="share-preview-box" id="share-preview-box">${escapeHtml(previewText)}</pre>
+
+        <div class="share-warning-banner">
+          ${icon('AlertTriangle')}
+          <div>
+            <strong>Security verification</strong><br>
+            Please verify the recipient before sharing sensitive account or identity details. Memoir will format and send only the checkboxes you selected.
+          </div>
+        </div>
+
+        <div class="share-platform-grid">
+          <button type="button" class="platform-btn whatsapp" data-platform="whatsapp">
+            ${icon('MessageCircle')} WhatsApp
+          </button>
+          <button type="button" class="platform-btn telegram" data-platform="telegram">
+            ${icon('Send')} Telegram
+          </button>
+          <button type="button" class="platform-btn gmail" data-platform="gmail">
+            ${icon('Mail')} Gmail / Mail
+          </button>
+          <button type="button" class="platform-btn instagram" data-platform="instagram">
+            ${icon('Camera')} Instagram
+          </button>
+          <button type="button" class="platform-btn copy" data-platform="copy">
+            ${icon('Copy')} Copy text
+          </button>
+          ${navigator.share ? `
+            <button type="button" class="platform-btn native" data-platform="native">
+              ${icon('Share2')} System share
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+
+    modal.querySelector('.modal-close').onclick = closeModal;
+
+    const updatePreview = () => {
+      const selected = [];
+      modal.querySelectorAll('.share-field-checkbox:checked').forEach(cb => {
+        const idx = Number(cb.dataset.index);
+        if (shareableEntries[idx]) selected.push(shareableEntries[idx]);
+      });
+      const incNote = modal.querySelector('#share-include-note')?.checked || false;
+      const text = formatShareText(item, selected, incNote);
+      modal.querySelector('#share-preview-box').textContent = text;
+      modal.querySelector('#share-count').textContent = selected.length;
+      return { selected, incNote, text };
+    };
+
+    modal.querySelectorAll('.share-field-checkbox, #share-include-note').forEach(input => {
+      input.onchange = updatePreview;
+    });
+
+    modal.querySelector('#share-select-all').onclick = () => {
+      modal.querySelectorAll('.share-field-checkbox').forEach(cb => cb.checked = true);
+      if (modal.querySelector('#share-include-note')) modal.querySelector('#share-include-note').checked = true;
+      updatePreview();
+    };
+
+    modal.querySelector('#share-clear-all').onclick = () => {
+      modal.querySelectorAll('.share-field-checkbox').forEach(cb => cb.checked = false);
+      if (modal.querySelector('#share-include-note')) modal.querySelector('#share-include-note').checked = false;
+      updatePreview();
+    };
+
+    modal.querySelectorAll('[data-platform]').forEach(btn => {
+      btn.onclick = async () => {
+        const { selected, text } = updatePreview();
+        if (!selected.length && !(modal.querySelector('#share-include-note')?.checked && item.note)) {
+          return toast('Select at least one field to share');
+        }
+        const platform = btn.dataset.platform;
+        closeModal();
+        await executeShare(platform, text, item.title);
+      };
+    });
+  };
+
+  renderModalContent();
+  showModal();
+}
+
+async function executeShare(platform, text, itemTitle) {
+  const encoded = encodeURIComponent(text);
+  if (platform === 'whatsapp') {
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank', 'noopener,noreferrer');
+    toast('Forwarding to WhatsApp…');
+  } else if (platform === 'telegram') {
+    window.open(`https://t.me/share/url?url=&text=${encoded}`, '_blank', 'noopener,noreferrer');
+    toast('Forwarding to Telegram…');
+  } else if (platform === 'gmail' || platform === 'mail') {
+    const subject = encodeURIComponent(`${itemTitle} (via Memoir)`);
+    window.open(`mailto:?subject=${subject}&body=${encoded}`, '_blank');
+    toast('Opening Email client…');
+  } else if (platform === 'instagram') {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Copied details! Opening Instagram…');
+    } catch {
+      toast('Opening Instagram…');
+    }
+    setTimeout(() => {
+      window.open('https://www.instagram.com/direct/inbox/', '_blank', 'noopener,noreferrer');
+    }, 400);
+  } else if (platform === 'native') {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: itemTitle, text });
+        toast('Shared successfully');
+      } catch (err) {
+        if (err?.name !== 'AbortError') {
+          await navigator.clipboard.writeText(text);
+          toast('Copied details to clipboard');
+        }
+      }
+    } else {
+      await navigator.clipboard.writeText(text);
+      toast('Copied details to clipboard');
+    }
+  } else if (platform === 'copy') {
+    await navigator.clipboard.writeText(text);
+    toast('Copied formatted details to clipboard');
+  }
+}
+
 
 async function askAssistant(query) {
   if (!query?.trim() || state.chatLoading) return;
