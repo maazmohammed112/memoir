@@ -12,13 +12,23 @@
 .expiry-card-main p{margin:0;color:var(--muted);font-size:11px}
 .expiry-card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
 .expiry-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:20px;font-size:10px;font-weight:600;background:var(--surface2);color:var(--muted);transition:.2s}
+.expiry-chip .icon{width:13px;height:13px;flex:none}
 .expiry-chip.critical{background:rgba(227,60,85,0.12);color:var(--danger);border:1px solid rgba(227,60,85,0.38);font-weight:700;box-shadow:0 0 14px rgba(227,60,85,0.14);animation:pulseAlert 2.4s ease-in-out infinite}
+.expiry-chip.critical .icon{color:var(--danger)}
 .card-expiry-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;font-size:9px;font-weight:600;background:rgba(255,255,255,0.14);color:#fff;backdrop-filter:blur(4px)}
+.card-expiry-tag .icon{width:12px;height:12px;flex:none}
 .card-expiry-tag.critical{background:rgba(227,60,85,0.35);color:#ff98a8;border:1px solid rgba(227,60,85,0.6);font-weight:700;animation:pulseAlert 2.4s ease-in-out infinite}
+.card-expiry-tag.critical .icon{color:#ff98a8}
 @keyframes pulseAlert{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.86;transform:scale(0.98)}}
-.icon-btn-mini{width:28px;height:28px;border:1px solid var(--line);border-radius:8px;display:grid;place-items:center;background:var(--surface2);color:var(--muted);transition:.2s}
-.icon-btn-mini:hover{color:var(--rose);background:var(--surface);transform:translateY(-1px)}
+.card-action-triggers{display:flex;align-items:center;gap:6px}
+.card-open-arrow{display:grid;place-items:center;color:var(--muted);transition:.2s}
+.card-open-arrow .icon{width:16px;height:16px}
+.memory-card:hover .card-open-arrow{color:var(--ink);transform:translate(2px,-2px)}
+.icon-btn-mini{width:30px;height:30px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;background:var(--surface2);color:var(--muted);transition:.2s cubic-bezier(0.16,1,0.3,1);cursor:pointer}
+.icon-btn-mini .icon{width:14px;height:14px}
+.icon-btn-mini:hover{color:var(--rose);border-color:var(--rose);background:var(--surface);transform:translateY(-1px)}
 .share-modal{max-width:540px}
+
 .share-field-list{display:grid;gap:8px;margin:12px 0 16px;max-height:220px;overflow-y:auto;padding-right:4px}
 .share-field-item{display:flex;align-items:center;gap:12px;padding:11px 15px;border:1px solid var(--line);border-radius:14px;background:var(--surface2);cursor:pointer;transition:.18s}
 .share-field-item:hover{border-color:var(--rose);background:var(--surface)}

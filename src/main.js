@@ -9,6 +9,7 @@ import AlarmClock from 'lucide/dist/esm/icons/alarm-clock.mjs';
 import BadgeCheck from 'lucide/dist/esm/icons/badge-check.mjs';
 import BellRing from 'lucide/dist/esm/icons/bell-ring.mjs';
 import CakeSlice from 'lucide/dist/esm/icons/cake-slice.mjs';
+import Calendar from 'lucide/dist/esm/icons/calendar.mjs';
 import Camera from 'lucide/dist/esm/icons/camera.mjs';
 import Check from 'lucide/dist/esm/icons/check.mjs';
 import CircleCheckBig from 'lucide/dist/esm/icons/circle-check-big.mjs';
@@ -18,13 +19,16 @@ import ChevronRight from 'lucide/dist/esm/icons/chevron-right.mjs';
 import Circle from 'lucide/dist/esm/icons/circle.mjs';
 import Clipboard from 'lucide/dist/esm/icons/clipboard.mjs';
 import ClipboardPaste from 'lucide/dist/esm/icons/clipboard-paste.mjs';
+import Clock from 'lucide/dist/esm/icons/clock.mjs';
 import Copy from 'lucide/dist/esm/icons/copy.mjs';
+import CreditCard from 'lucide/dist/esm/icons/credit-card.mjs';
 import Ellipsis from 'lucide/dist/esm/icons/ellipsis.mjs';
 import Eraser from 'lucide/dist/esm/icons/eraser.mjs';
 import Eye from 'lucide/dist/esm/icons/eye.mjs';
 import EyeOff from 'lucide/dist/esm/icons/eye-off.mjs';
 import ExternalLink from 'lucide/dist/esm/icons/external-link.mjs';
 import FileBadge from 'lucide/dist/esm/icons/file-badge.mjs';
+import FileText from 'lucide/dist/esm/icons/file-text.mjs';
 import Gem from 'lucide/dist/esm/icons/gem.mjs';
 import House from 'lucide/dist/esm/icons/house.mjs';
 import KeyRound from 'lucide/dist/esm/icons/key-round.mjs';
@@ -43,6 +47,7 @@ import Send from 'lucide/dist/esm/icons/send.mjs';
 import Share2 from 'lucide/dist/esm/icons/share-2.mjs';
 import ShieldAlert from 'lucide/dist/esm/icons/shield-alert.mjs';
 import ShieldCheck from 'lucide/dist/esm/icons/shield-check.mjs';
+import Sparkles from 'lucide/dist/esm/icons/sparkles.mjs';
 import Trash2 from 'lucide/dist/esm/icons/trash-2.mjs';
 import TriangleAlert from 'lucide/dist/esm/icons/triangle-alert.mjs';
 import WandSparkles from 'lucide/dist/esm/icons/wand-sparkles.mjs';
@@ -61,12 +66,13 @@ const customBrandIcons = {
   Instagram: '<rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>',
 };
 const iconSet = {
-  AlarmClock, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Camera,
-  Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste,
-  Copy, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, Gem, House, KeyRound, Landmark,
+  AlarmClock, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Calendar, Camera,
+  Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Clock,
+  Copy, CreditCard, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, House, KeyRound, Landmark,
   LockKeyhole, LogOut, Mail, MessageCircle, Mic, NotebookText, Paperclip, Pencil, Plus, Search,
-  Send, Share2, ShieldAlert, ShieldCheck, Trash2, TriangleAlert, WandSparkles, Wifi, X,
+  Send, Share2, ShieldAlert, ShieldCheck, Sparkles, Trash2, TriangleAlert, WandSparkles, Wifi, X,
 };
+
 const fieldMap = {
   Login: ['Username / ID', 'Password'], Finance: ['Account number', 'IFSC code', 'Debit card number', 'Expiry', 'CVV', 'ATM PIN'],
   Identity: ['Document number', 'Document type', 'Issued by', 'Expiry date', 'Soft copy link'],
@@ -486,14 +492,14 @@ function paymentCard(title, fields, compact = false) {
   const displayNumber = state.hidden ? `•••• •••• •••• ${digits.slice(-4)}` : grouped;
   const theme = ['onyx', 'violet', 'coral'][Array.from(String(title)).reduce((sum, char) => sum + char.charCodeAt(0), 0) % 3];
   const expiryInfo = extractItemExpiry({ title, fields, type: 'Finance' });
-  const expiryBadge = expiryInfo ? `<span class="card-expiry-tag ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? '⚠️ ' : ''}${escapeHtml(expiryInfo.status.text)}</span>` : '';
+  const expiryBadge = expiryInfo ? `<span class="card-expiry-tag ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? icon('ShieldAlert') : icon('Calendar')} ${escapeHtml(expiryInfo.status.text)}</span>` : '';
   return `<article class="payment-card ${compact ? 'compact' : ''} card-${theme}"><div class="payment-card-glow"></div><div class="payment-card-head"><span>${escapeHtml(card.bank || title)}</span>${expiryBadge || `<small>${escapeHtml(card.type || 'Debit card')}</small>`}</div><div class="payment-card-chip"></div><div class="payment-card-number"><span>${escapeHtml(displayNumber)}</span><button data-copy="${escapeHtml(card.number)}" title="Copy card number">${icon('Copy')}</button></div><div class="payment-card-meta">${card.holder ? `<div><small>Card holder</small><strong>${escapeHtml(card.holder)}</strong></div>` : ''}${card.validFrom ? `<div><small>Valid from</small><strong>${escapeHtml(card.validFrom)}</strong></div>` : ''}${card.validThru ? `<div><small>Valid thru</small><strong>${escapeHtml(card.validThru)}</strong></div>` : ''}${card.cvv ? `<div><small>CVV</small><strong>${escapeHtml(state.hidden ? '•••' : card.cvv)}</strong></div>` : ''}</div></article>`;
 }
 
 function memoryCard(item) {
   const expiryInfo = extractItemExpiry(item);
-  const expiryChip = expiryInfo ? `<span class="chip expiry-chip ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? '⚠️ ' : icon('Calendar') + ' '}${escapeHtml(expiryInfo.status.text)}</span>` : '';
-  return `<article class="memory-card" data-open="${item.id}" tabindex="0"><span class="icon-wrap ${category(item) === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.note || Object.keys(allFields(item)).join(' · '))}</p><div class="memory-card-foot"><span class="chip">${escapeHtml(category(item))}</span>${expiryChip}<div style="display:flex;align-items:center;gap:4px"><button type="button" class="icon-btn-mini" data-share="${item.id}" title="Share fields">${icon('Share2')}</button>${icon('ArrowUpRight')}</div></div></article>`;
+  const expiryChip = expiryInfo ? `<span class="chip expiry-chip ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? icon('ShieldAlert') : icon('Calendar')} ${escapeHtml(expiryInfo.status.text)}</span>` : '';
+  return `<article class="memory-card" data-open="${item.id}" tabindex="0"><span class="icon-wrap ${category(item) === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.note || Object.keys(allFields(item)).join(' · '))}</p><div class="memory-card-foot"><span class="chip">${escapeHtml(category(item))}</span>${expiryChip}<div class="card-action-triggers"><button type="button" class="icon-btn-mini" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><span class="card-open-arrow">${icon('ArrowUpRight')}</span></div></div></article>`;
 }
 function reminderCard(item, compact = false) {
   const status = reminderStatus(item); const snoozed = reminderIsSnoozed(item); const completed = status === 'completed' || status === 'no-response';
@@ -505,7 +511,7 @@ function homeView() {
   const upcomingReminders = reminders().filter(item => reminderStatus(item) === 'upcoming').sort((a, b) => reminderDue(a) - reminderDue(b));
   const criticalExpiries = criticalExpiringMemories();
   const expiriesHtml = criticalExpiries.length ? `
-    <div class="section-head"><h2 style="color:var(--danger)">⚠️ Expiring soon (< 5 months)</h2><button class="text-btn" data-view="vault">View all</button></div>
+    <div class="section-head"><h2 style="color:var(--danger)">Expiring soon (under 5 months)</h2><button class="text-btn" data-view="vault">View all</button></div>
     <div class="dashboard-expiries">${criticalExpiries.map(exp => `
       <article class="expiry-card" data-open="${exp.itemId}" tabindex="0">
         <div class="expiry-card-main">
@@ -516,8 +522,8 @@ function homeView() {
           </div>
         </div>
         <div class="expiry-card-foot">
-          <span class="chip expiry-chip critical">${escapeHtml(exp.status.text)}</span>
-          <div style="display:flex;align-items:center;gap:4px"><button type="button" class="icon-btn-mini" data-share="${exp.itemId}" title="Share fields">${icon('Share2')}</button>${icon('ArrowUpRight')}</div>
+          <span class="chip expiry-chip critical">${icon('ShieldAlert')} ${escapeHtml(exp.status.text)}</span>
+          <div class="card-action-triggers"><button type="button" class="icon-btn-mini" data-share="${exp.itemId}" title="Share fields">${icon('Share2')}</button><span class="card-open-arrow">${icon('ArrowUpRight')}</span></div>
         </div>
       </article>
     `).join('')}</div>` : '';
@@ -532,10 +538,11 @@ function homeView() {
 function vaultRow(item) {
   const filterGroup = memoryFilterGroup(item);
   const expiryInfo = extractItemExpiry(item);
-  const expiryChip = expiryInfo ? `<span class="chip expiry-chip ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? '⚠️ ' : icon('Calendar') + ' '}${escapeHtml(expiryInfo.status.text)}</span>` : '';
+  const expiryChip = expiryInfo ? `<span class="chip expiry-chip ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? icon('ShieldAlert') : icon('Calendar')} ${escapeHtml(expiryInfo.status.text)}</span>` : '';
   if (isCardRecord(item)) return `<article class="finance-memory" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}">${paymentCard(item.title, allFields(item))}<div class="finance-memory-foot"><div><h3>${escapeHtml(item.title)}</h3><p>${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'Banking memory')}</p></div>${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></div></article>`;
   return `<article class="vault-row" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}"><span class="icon-wrap ${item.type === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><div class="vault-info"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(category(item))} · ${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'No note')}</p></div>${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-share="${item.id}" title="Share fields">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`;
 }
+
 
 function detailMarkup(item) {
   return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, allFields(item)) : ''}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${Object.entries(allFields(item)).map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
@@ -1086,68 +1093,143 @@ function compressImageFile(file) {
   });
 }
 
-function toggleVoiceRecording() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    toast('Voice recognition is not supported in this browser.');
-    return;
-  }
+let mediaStream = null;
+let mediaRecorder = null;
+let audioChunks = [];
 
-  if (state.isRecordingVoice) {
-    if (speechRecognizer) speechRecognizer.stop();
-    state.isRecordingVoice = false;
-    renderView();
-    return;
-  }
-
+async function requestMicrophonePermission() {
+  if (!navigator.mediaDevices?.getUserMedia) return false;
   try {
-    speechRecognizer = new SpeechRecognition();
-    speechRecognizer.continuous = false;
-    speechRecognizer.interimResults = true;
-    speechRecognizer.lang = 'en-US';
-
-    speechRecognizer.onstart = () => {
-      state.isRecordingVoice = true;
-      renderView();
-      toast('🎙️ Listening… Speak your memo');
-    };
-
-    speechRecognizer.onresult = event => {
-      let interim = '';
-      let final = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          final += event.results[i][0].transcript;
-        } else {
-          interim += event.results[i][0].transcript;
-        }
-      }
-      const input = document.querySelector('#chat-query');
-      if (input) {
-        input.value = (final || interim).trim();
-      }
-    };
-
-    speechRecognizer.onerror = event => {
-      console.warn('Speech recognition error:', event.error);
-      state.isRecordingVoice = false;
-      renderView();
-      if (event.error !== 'no-speech') toast(`Voice error: ${event.error}`);
-    };
-
-    speechRecognizer.onend = () => {
-      state.isRecordingVoice = false;
-      renderView();
-    };
-
-    speechRecognizer.start();
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop());
+    return true;
   } catch (err) {
-    console.error('Speech recognition exception:', err);
-    state.isRecordingVoice = false;
-    renderView();
-    toast('Could not start microphone');
+    console.warn('Microphone permission status:', err?.name || err?.message);
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      toast('Microphone access is blocked. Please allow microphone permissions in your browser address bar / site settings.');
+    } else {
+      toast('Microphone is unavailable on this device.');
+    }
+    return false;
   }
 }
+
+async function toggleVoiceRecording() {
+  if (state.isRecordingVoice) {
+    stopVoiceRecording();
+    return;
+  }
+
+  const hasPermission = await requestMicrophonePermission();
+  if (!hasPermission) return;
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (SpeechRecognition) {
+    try {
+      speechRecognizer = new SpeechRecognition();
+      speechRecognizer.continuous = false;
+      speechRecognizer.interimResults = true;
+      speechRecognizer.lang = 'en-US';
+
+      speechRecognizer.onstart = () => {
+        state.isRecordingVoice = true;
+        renderView();
+        toast('Listening… Speak your note, warranty, or reminder');
+      };
+
+      speechRecognizer.onresult = event => {
+        let interim = '';
+        let final = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+        const input = document.querySelector('#chat-query');
+        if (input) {
+          input.value = (final || interim).trim();
+        }
+      };
+
+      speechRecognizer.onerror = event => {
+        console.warn('Speech recognition error:', event.error);
+        state.isRecordingVoice = false;
+        renderView();
+        if (event.error === 'not-allowed') {
+          toast('Microphone access blocked. Please enable microphone in browser settings.');
+        } else if (event.error !== 'no-speech') {
+          toast(`Voice input: ${event.error}`);
+        }
+      };
+
+      speechRecognizer.onend = () => {
+        state.isRecordingVoice = false;
+        renderView();
+      };
+
+      speechRecognizer.start();
+      return;
+    } catch (err) {
+      console.warn('Speech recognition initialization error, trying MediaRecorder fallback:', err);
+    }
+  }
+
+  // Fallback for browsers without Web Speech API
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(mediaStream);
+    mediaRecorder.ondataavailable = e => {
+      if (e.data && e.data.size > 0) audioChunks.push(e.data);
+    };
+    mediaRecorder.onstop = async () => {
+      if (audioChunks.length) {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result;
+          state.chatAttachment = {
+            data: base64,
+            mimeType: 'audio/webm',
+            name: 'Voice memo recording',
+            previewUrl: '',
+          };
+          askAssistant('Transcribe this voice memo and extract memory or reminder');
+        };
+        reader.readAsDataURL(audioBlob);
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      }
+    };
+    mediaRecorder.start();
+    state.isRecordingVoice = true;
+    renderView();
+    toast('Recording voice memo… Tap mic again when finished');
+  } catch (err) {
+    console.error('Audio recording failed:', err);
+    state.isRecordingVoice = false;
+    renderView();
+    toast('Could not start audio recording');
+  }
+}
+
+function stopVoiceRecording() {
+  state.isRecordingVoice = false;
+  if (speechRecognizer) {
+    try { speechRecognizer.stop(); } catch {}
+    speechRecognizer = null;
+  }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try { mediaRecorder.stop(); } catch {}
+  }
+  renderView();
+}
+
 
 async function askAssistant(query) {
   const attachment = state.chatAttachment;
