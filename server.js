@@ -7,13 +7,14 @@ import telegram, { startTelegramPolling } from './api/telegram.js';
 import sync from './api/sync.js';
 import reminders, { runReminderSweep } from './api/reminders.js';
 import alexa from './api/alexa.js';
+import audio from './api/audio.js';
 
 dotenv.config({ path: '.env.local', override: true });
 const server = express();
 server.disable('x-powered-by');
 server.use(express.json({ limit: '15mb' }));
 
-server.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); next(); });
+server.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()'); next(); });
 server.post('/api/assistant', assistant);
 server.post('/api/auth', auth);
 server.post('/api/telegram', telegram);
@@ -21,6 +22,9 @@ server.post('/api/sync', sync);
 server.post('/api/reminders', reminders);
 server.get('/api/reminders', reminders);
 server.post('/api/alexa', alexa);
+server.post('/api/audio', audio);
+server.get('/api/audio', audio);
+server.delete('/api/audio', audio);
 server.get('/api/health', (_req, res) => res.json({ ok: true, gemini: Boolean(process.env.GEMINI_API_KEY), mistral: Boolean(process.env.MISTRAL_API_KEY), telegram: Boolean(process.env.TELEGRAM_BOT_TOKEN || process.env.MAAZ_TELEGRAM_BOT_TOKEN || process.env.DEEPTI_TELEGRAM_BOT_TOKEN), telegramPolling: Boolean((process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) || (process.env.MAAZ_TELEGRAM_BOT_TOKEN && process.env.MAAZ_TELEGRAM_CHAT_ID) || (process.env.DEEPTI_TELEGRAM_BOT_TOKEN && process.env.DEEPTI_TELEGRAM_CHAT_ID)), alexaBridge: Boolean(process.env.ALEXA_BRIDGE_SECRET || process.env.ALEXA_SKILL_ID), secureMirror: Boolean((process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_FILE) && process.env.VAULT_SERVER_KEY) }));
 server.listen(Number(process.env.PORT || 8787), () => {
   console.log(`Memoir API ready on http://localhost:${process.env.PORT || 8787}`);

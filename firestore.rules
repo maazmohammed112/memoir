@@ -28,6 +28,7 @@ service cloud.firestore {
     match /authRateLimits/{document=**} { allow read, write: if false; }
     match /accountCodeRateLimits/{document=**} { allow read, write: if false; }
     match /secureVault/{document=**} { allow read, write: if false; }
+    match /secureAudio/{document=**} { allow read, write: if false; }
     match /telegramLinks/{document=**} { allow read, write: if false; }
   }
 }

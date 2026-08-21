@@ -12,7 +12,7 @@ No demo records are included. Every displayed record belongs to the currently se
 
 - Responsive layouts for mobile phones, tablets, laptops, and desktops.
 - Modern theme with Memoir branding, sharp Lucide vector icons, skeleton loading states, background sync indicators, confirmation dialogs, toasts, and activity animations.
-- Bottom mobile navigation and fixed desktop sidebar for Home, Memories, Rhinous, Reminders, Clipboard, and Birthdays.
+- Bottom mobile navigation and fixed desktop sidebar for Home, Memories, Rhinous, Audio, Reminders, Clipboard, and Birthdays.
 - **Expiring Soon Dashboard**: High-priority section on Home view alerting the owner about banking cards, IDs, and appliance warranties expiring within 5 months.
 - Global search across local titles, notes, field labels, and field values.
 - Birthday search results are routed to Birthdays; reminders and clipboard results are routed to their own sections.
@@ -24,16 +24,18 @@ No demo records are included. Every displayed record belongs to the currently se
 - **Dual AI Vision Engine**: Powered by Google Gemini and Mistral Pixtral Vision (`pixtral-12b-2409` & `pixtral-large-latest`) with automatic bidirectional fallback if one provider is throttled or offline.
 - **Field Extraction**: Automatically extracts Brand, Model, Serial Number, Purchase Date, Expiry/Validity Date, Warranty Period, and Support contacts.
 - **Voice Memo Dictation & Audio Storage**:
-  - Live microphone speech transcription in chat with browser permission handling and media stream management.
-  - Full audio binary/base64 is preserved and permanently saved into the memory record in Firestore.
-  - Interactive HTML5 `<audio controls>` player in the memory detail view allowing owners to replay the original voice note anytime.
-  - Fallback audio file picker for devices with restrictive OS-level microphone permissions.
+  - A user-initiated permission dialog requests microphone access; denied permissions explain exactly how to re-enable the browser site permission.
+  - `MediaRecorder` always preserves the real recording while browser speech recognition may provide a live transcript preview.
+  - Audio files are AES-256-GCM encrypted, split into Firestore-safe chunks under the owner-isolated `secureAudio` collection, and referenced from the client-encrypted memory record.
+  - Dedicated Audio navigation lists app recordings, uploads, and Telegram voice notes with authenticated HTML5 playback.
+  - Audio upload accepts common mobile and desktop formats; app uploads are limited to 3 MB for reliable Vercel request handling and encrypted synchronization.
+  - Mistral Voxtral transcription is attempted first. If speech is unclear or transcription is unavailable, Memoir saves the original audio with its date/time and an explicit “No transcript available” status instead of inventing text.
 
 ### Telegram Voice & Photo Bot
 
 - **Photo Ingestion**: Send photos of receipts, warranty cards, or bills to your isolated Telegram bot to extract structured vault records automatically.
 - **Voice Note Capture**: Send voice notes dictating reminders (e.g. *"Remind me about laptop repair tomorrow at 4 PM"*) or memories.
-- **Voice Audio Persistence**: Telegram voice audio is downloaded, encrypted, and attached to the created vault action as `Audio Recording` alongside the transcript.
+- **Voice Audio Persistence**: Telegram voice audio is downloaded, encrypted into the isolated chunked audio vault, transcribed with Voxtral when possible, and queued with its asset reference and transcript for the owner’s Audio tab.
 - **Done & Snooze Callbacks**: Inline buttons to complete or snooze reminders directly from Telegram.
 
 ### Expiry Tracking & Automated Alerts
@@ -133,9 +135,11 @@ Requirements: Node.js 22+ and pnpm / npm.
 | --- | --- | --- |
 | `/api/auth` | POST | Vault selection, Telegram OTP request/verify/status/revoke, device sessions |
 | `/api/assistant` | POST | Redacted AI routing, document OCR, voice note transcription (Gemini / Mistral) |
+| `/api/audio` | GET / POST / DELETE | Authenticated encrypted audio upload, playback, and cleanup |
 | `/api/sync` | POST | Encrypted server-mirror mutations and snapshots |
 | `/api/telegram` | POST | Telegram webhook for photos, voice notes, text commands, and callback queries |
 | `/api/reminders` | POST / GET | On-demand and scheduled reminder / card expiry sweeps |
+| `/api/alexa` | POST | Safe Alexa bridge for non-sensitive vault actions and lookups |
 | `/api/health` | GET | Runtime health and diagnostic checks |
 
 ---
@@ -144,10 +148,10 @@ Requirements: Node.js 22+ and pnpm / npm.
 
 - `users/{uid}/items/{itemId}` — Client-encrypted vault records.
 - `secureVault/{uid}/items/{itemId}` — Server-encrypted automation mirror.
+- `secureAudio/{uid}/items/{audioId}` — Server-encrypted audio metadata with encrypted `chunks` subcollection.
 - `verifiedSessions/{uid}/sessions/{authTime}` — Device-bound active sessions.
 - `otpChallenges/{uid}/sessions/{authTime}` — Hashed expiring OTP challenges.
 - `authRateLimits/{uid}` — OTP request and verification security rate limits.
 - `accountCodeRateLimits/{fingerprint}` — Four-digit vault code attempt limits.
 - `telegramActionQueue/{uid}/items/{queueId}` — Encrypted actions queued via Telegram.
 - `reminderDeliveries/{uid}/items/{deliveryId}` — Reminder deduplication records.
-

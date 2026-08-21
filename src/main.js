@@ -6,6 +6,7 @@ import ArrowLeft from 'lucide/dist/esm/icons/arrow-left.mjs';
 import ArrowUp from 'lucide/dist/esm/icons/arrow-up.mjs';
 import ArrowUpRight from 'lucide/dist/esm/icons/arrow-up-right.mjs';
 import AlarmClock from 'lucide/dist/esm/icons/alarm-clock.mjs';
+import AudioLines from 'lucide/dist/esm/icons/audio-lines.mjs';
 import BadgeCheck from 'lucide/dist/esm/icons/badge-check.mjs';
 import BellRing from 'lucide/dist/esm/icons/bell-ring.mjs';
 import CakeSlice from 'lucide/dist/esm/icons/cake-slice.mjs';
@@ -57,16 +58,16 @@ import { vaultStore } from './store.js';
 
 const nav = [
   ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['assistant', 'Rhino', 'Rhinous'],
-  ['reminders', 'AlarmClock', 'Reminders'], ['clipboard', 'Clipboard', 'Clipboard'], ['birthdays', 'CakeSlice', 'Birthdays'],
+  ['audio', 'AudioLines', 'Audio'], ['reminders', 'AlarmClock', 'Reminders'], ['clipboard', 'Clipboard', 'Clipboard'], ['birthdays', 'CakeSlice', 'Birthdays'],
 ];
-const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', 'Government Document': 'FileBadge', Personal: 'NotebookText', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
+const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', 'Government Document': 'FileBadge', Personal: 'NotebookText', Audio: 'AudioLines', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
 const customBrandIcons = {
   WhatsApp: '<path fill="currentColor" d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24m4.52 11.53c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.03-1.25-.75-.67-1.26-1.5-1.41-1.75-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.44.06-.67.31-.23.25-.87.85-.87 2.08 0 1.23.89 2.42 1.02 2.59.13.17 1.76 2.69 4.27 3.77.6.26 1.06.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.17-.48-.29"/>',
   Telegram: '<path fill="currentColor" d="m20.665 3.717-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l-.313 4.693c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/>',
   Instagram: '<rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>',
 };
 const iconSet = {
-  AlarmClock, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Calendar, Camera,
+  AlarmClock, AudioLines, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Calendar, Camera,
   Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Clock,
   Copy, CreditCard, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, House, KeyRound, Landmark,
   LockKeyhole, LogOut, Mail, MessageCircle, Mic, NotebookText, Paperclip, Pencil, Plus, Search,
@@ -77,7 +78,7 @@ const fieldMap = {
   Login: ['Username / ID', 'Password'], Finance: ['Account number', 'IFSC code', 'Debit card number', 'Expiry', 'CVV', 'ATM PIN'],
   Identity: ['Document number', 'Document type', 'Issued by', 'Expiry date', 'Soft copy link'],
   'Government Document': ['Document number', 'Reference number', 'Issued by', 'Issued date', 'Expiry date', 'Soft copy link'],
-  Personal: ['Value'], Birthday: ['Date', 'Relation', 'Gift idea', 'Wish note'], 'Wi-Fi': ['Network', 'Password'],
+  Personal: ['Value'], Audio: ['Audio Transcript', 'Recorded at'], Birthday: ['Date', 'Relation', 'Gift idea', 'Wish note'], 'Wi-Fi': ['Network', 'Password'],
   Reminder: ['Due at', 'Status', 'Snoozed'],
 };
 const app = document.querySelector('#app');
@@ -130,7 +131,7 @@ async function withRhinoActivity(label, task) {
   finally { await new Promise(resolve => setTimeout(resolve, Math.max(0, 320 - (Date.now() - started)))); activityDepth = Math.max(0, activityDepth - 1); if (!activityDepth) { node.classList.remove('show'); setTimeout(() => { if (!activityDepth) node.remove(); }, 220); } }
 }
 function activeProfile() { return state.auth.profile || { name: 'Owner', initials: 'ME', email: state.auth.email || '' }; }
-function titleForView() { return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', assistant: 'Ask Rhinous', reminders: 'Your reminders', clipboard: 'Clipboard vault', birthdays: 'Meaningful moments' }[state.view]; }
+function titleForView() { return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', assistant: 'Ask Rhinous', audio: 'Audio memories', reminders: 'Your reminders', clipboard: 'Clipboard vault', birthdays: 'Meaningful moments' }[state.view]; }
 function category(item) { return item.kind === 'clipboard' ? 'Clipboard' : item.type || 'Personal'; }
 function itemIcon(item) { return typeIcons[category(item)] || 'Gem'; }
 function allFields(item) { return item.fields || {}; }
@@ -355,9 +356,9 @@ function bindAuthGate() {
 }
 
 function skeleton() { return `<section class="vault-opening"><div class="vault-opening-head"><span class="vault-opening-mark"><img src="/brand/memoir-rhino-ui.png" alt=""></span><div><p class="eyebrow">Encrypted cloud vault</p><h2>Loading your memories…</h2><p>Downloading and decrypting this owner’s latest records. Cached memories will appear instantly on future visits.</p></div><span class="opening-live"><i></i> Secure sync</span></div><div class="opening-grid"><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article></div><div class="opening-list">${Array.from({ length: 4 }, () => `<div class="opening-row"><div class="skeleton opening-avatar"></div><div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></div><div class="skeleton opening-action"></div></div>`).join('')}</div></section>`; }
-function currentView() { return ({ home: homeView, vault: vaultView, assistant: assistantView, reminders: remindersView, clipboard: clipboardView, birthdays: birthdaysView }[state.view] || homeView)(); }
+function currentView() { return ({ home: homeView, vault: vaultView, assistant: assistantView, audio: audioView, reminders: remindersView, clipboard: clipboardView, birthdays: birthdaysView }[state.view] || homeView)(); }
 function memories() { return state.items.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Notification'].includes(item.type)); }
-function vaultMemories() { return memories().filter(item => item.type !== 'Birthday'); }
+function vaultMemories() { return memories().filter(item => item.type !== 'Birthday' && item.type !== 'Audio'); }
 function memoryFilterGroup(item) {
   if (item.type === 'Finance') return 'banks';
   if (['Identity', 'Government Document'].includes(item.type)) return 'documents';
@@ -368,6 +369,39 @@ function memoryFilterGroup(item) {
 function reminders() { return state.items.filter(item => item.type === 'Reminder'); }
 function notificationRecords() { return state.items.filter(item => item.type === 'Notification'); }
 function clips() { return state.items.filter(item => item.kind === 'clipboard'); }
+const audioDataLabels = new Set(['Audio Recording', 'Voice Note', 'Voice Recording']);
+const audioMetadataLabels = new Set(['Audio Asset ID', 'Audio MIME type', 'Audio File name', 'Audio Source']);
+function audioAttachment(item) {
+  const fields = allFields(item);
+  const assetId = String(fields['Audio Asset ID'] || '').trim();
+  const legacyEntry = Object.entries(fields).find(([label, value]) => audioDataLabels.has(label) && String(value || '').trim());
+  if (!assetId && !legacyEntry) return null;
+  return {
+    assetId,
+    data: legacyEntry?.[1] || '',
+    mimeType: fields['Audio MIME type'] || String(legacyEntry?.[1] || '').match(/^data:([^;]+);base64,/i)?.[1] || 'audio/webm',
+    fileName: fields['Audio File name'] || 'Voice memo',
+    source: fields['Audio Source'] || 'Memoir app',
+    transcript: fields['Audio Transcript'] || '',
+    recordedAt: fields['Recorded at'] || item.createdAt,
+  };
+}
+function audioMemories() { return memories().filter(item => audioAttachment(item)).sort((a, b) => { const aTime = new Date(audioAttachment(a)?.recordedAt || a.createdAt || 0).getTime() || 0; const bTime = new Date(audioAttachment(b)?.recordedAt || b.createdAt || 0).getTime() || 0; return bTime - aTime; }); }
+function safeLegacyAudio(value) {
+  const source = String(value || '').trim();
+  if (/^data:audio\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+$/i.test(source)) return source.replace(/\s+/g, '');
+  if (/^[a-z0-9+/=\s]+$/i.test(source) && source.length > 16) return `data:audio/webm;base64,${source.replace(/\s+/g, '')}`;
+  return '';
+}
+function audioPlayerMarkup(attachment, title = 'Voice memo') {
+  if (!attachment) return '';
+  const legacy = safeLegacyAudio(attachment.data);
+  return `<div class="voice-memo-player audio-player-card">
+    <div class="voice-memo-head"><span class="icon-wrap violet">${icon('AudioLines')}</span><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(attachment.source || 'Encrypted audio memory')}</small></div></div>
+    <audio controls preload="metadata" ${legacy ? `src="${escapeHtml(legacy)}"` : ''} ${attachment.assetId ? `data-audio-asset="${escapeHtml(attachment.assetId)}"` : ''}></audio>
+    ${attachment.assetId ? '<span class="audio-load-state">Loading encrypted recording…</span>' : ''}
+  </div>`;
+}
 function normalizedField(fields, names) { const entries = Object.entries(fields || {}); for (const name of names) { const match = entries.find(([label]) => label.toLowerCase().replace(/[^a-z]/g, '') === name.toLowerCase().replace(/[^a-z]/g, '')); if (match) return match[1]; } return ''; }
 function cardDetails(fields = {}) {
   return {
@@ -546,22 +580,13 @@ function vaultRow(item) {
 
 function detailMarkup(item) {
   const fields = allFields(item);
-  const audioData = fields['Audio Recording'] || fields['Voice Note'] || fields['Voice Recording'];
-  const audioPlayer = audioData ? `
-    <div class="voice-memo-player">
-      <div class="voice-memo-head">
-        <span class="icon-wrap violet">${icon('Mic')}</span>
-        <div>
-          <strong>Voice Memo Audio</strong>
-          <small>Recorded note attached to this memory</small>
-        </div>
-      </div>
-      <audio controls src="${audioData.startsWith('data:') ? audioData : `data:audio/webm;base64,${audioData}`}" style="width:100%;margin-top:10px;border-radius:8px"></audio>
-    </div>` : '';
+  const attachment = audioAttachment(item);
+  const audioPlayer = audioPlayerMarkup(attachment, 'Voice Memo Audio');
 
-  const displayFields = Object.entries(fields).filter(([k]) => k !== 'Audio Recording' && k !== 'Voice Note' && k !== 'Voice Recording');
+  const displayFields = Object.entries(fields).filter(([k]) => !audioDataLabels.has(k) && !audioMetadataLabels.has(k));
 
-  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
+  const backLabel = state.view === 'audio' ? 'Back to audio' : 'Back to memories';
+  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} ${backLabel}</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
 }
 
 function vaultView() {
@@ -577,6 +602,15 @@ function vaultView() {
   const filterBar = `<div class="memory-filters" role="tablist" aria-label="Filter memories by category">${availableFilters.map(([id, label]) => `<button type="button" role="tab" aria-selected="${state.vaultCategory === id}" class="${state.vaultCategory === id ? 'active' : ''}" data-vault-category="${id}"><span>${escapeHtml(label)}</span><b>${counts[id]}</b></button>`).join('')}</div>`;
   const empty = all.length ? emptyState('Search', `No ${filters.find(([id]) => id === state.vaultCategory)?.[1] || ''} memories`, 'Choose another category or add a new memory.', 'Add memory', 'memory') : emptyState('Gem', 'Nothing saved yet', 'Start with a login, bank record, document, Wi-Fi detail, or anything personal.', 'Add first memory', 'memory');
   return `<div class="toolbar"><input class="search-input" id="vault-filter" placeholder="Filter titles, notes, fields or values…"><button class="secondary" id="bulk-import">${icon('NotebookText')} Secure import</button><button class="primary" data-add="memory">${icon('Plus')} Add memory</button></div>${filterBar}${list.length ? `<div class="vault-list" id="vault-list">${list.map(vaultRow).join('')}</div>` : empty}`;
+}
+function audioView() {
+  const selected = state.items.find(item => item.id === state.selectedMemoryId);
+  if (selected && audioAttachment(selected)) return detailMarkup(selected);
+  state.selectedMemoryId = null;
+  const records = audioMemories();
+  return `<section class="audio-hero"><div><p class="eyebrow">Encrypted voice library</p><h2>Every recording, ready to replay.</h2><p>Record in Memoir or send a Telegram voice note. Audio and transcripts stay isolated to this account.</p></div><button class="primary" id="audio-upload-main">${icon('Plus')} Upload audio</button></section>
+  <input type="file" id="audio-upload-input-main" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac" hidden>
+  ${records.length ? `<div class="audio-grid">${records.map(item => { const attachment = audioAttachment(item); const recorded = attachment?.recordedAt ? new Date(attachment.recordedAt) : new Date(item.createdAt); const validDate = !Number.isNaN(recorded.getTime()); return `<article class="audio-memory-card">${audioPlayerMarkup(attachment, item.title)}<div class="audio-memory-copy"><span>${validDate ? escapeHtml(recorded.toLocaleString()) : 'Recording date unavailable'}</span><p>${escapeHtml(attachment?.transcript || item.note || 'No transcript available')}</p></div><div class="row-actions"><button class="icon-btn" data-open="${item.id}" data-open-view="audio" title="Open details">${icon('ArrowUpRight')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`; }).join('')}</div>` : emptyState('AudioLines', 'No audio memories yet', 'Record in Rhinous, upload an audio file, or send a Telegram voice note.', 'Upload audio', 'audio-upload')}`;
 }
 function clipboardView() {
   return `<div class="toolbar"><button class="primary" id="paste-clipboard">${icon('ClipboardPaste')} Paste current clipboard</button><input class="search-input" id="clip-input" placeholder="Or type or paste content here"><button class="secondary" id="save-clip">Save</button></div>${clips().length ? `<div class="vault-list">${clips().map(item => `<article class="vault-row"><span class="icon-wrap violet">${icon('Clipboard')}</span><div class="vault-info"><h3>${escapeHtml(item.title || 'Untitled clip')}</h3><p class="clip-value">${escapeHtml(item.fields?.Content || '')}</p><p>${new Date(item.createdAt).toLocaleString()}</p></div><div class="row-actions"><button class="icon-btn" data-copy="${escapeHtml(item.fields?.Content || '')}" title="Copy">${icon('Copy')}</button><button class="icon-btn" data-share="${item.id}" title="Share clip">${icon('Share2')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`).join('')}</div>` : emptyState('Clipboard', 'Clipboard vault is empty', 'Paste something, add a useful note, and find it instantly later.', 'Paste clipboard', 'clipboard')}`;
@@ -600,8 +634,8 @@ function assistantView() {
   const messages = state.messages.length ? state.messages.map(renderMessage).join('') : `<div class="message bot"><strong>RHINOUS</strong><p>Your private vault intelligence. Ask for an exact detail, manage memories, capture warranties/documents from photos, or transcribe voice notes naturally.</p></div>`;
   const attachmentMarkup = state.chatAttachment ? `
     <div class="chat-attachment-bar">
-      <img src="${state.chatAttachment.previewUrl}" alt="Preview">
-      <span>📸 ${escapeHtml(state.chatAttachment.name || 'Captured Document')}</span>
+      ${state.chatAttachment.kind === 'audio' ? `<span class="attachment-audio-icon">${icon('AudioLines')}</span>` : `<img src="${state.chatAttachment.previewUrl}" alt="Preview">`}
+      <span>${state.chatAttachment.kind === 'audio' ? 'Audio · ' : 'Image · '}${escapeHtml(state.chatAttachment.name || 'Captured document')}</span>
       <button type="button" id="chat-remove-attachment" title="Remove attachment">${icon('X')}</button>
     </div>` : '';
   const voiceIndicator = state.isRecordingVoice ? `
@@ -610,19 +644,19 @@ function assistantView() {
       <span>🎙️ Listening… Speak your note, warranty, or reminder</span>
     </div>` : '';
 
-  return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div>${attachmentMarkup}${voiceIndicator}<form class="chat-form" id="chat-form"><input type="file" id="chat-camera-input" accept="image/*" capture="environment" style="display:none"><input type="file" id="chat-upload-input" accept="image/*,application/pdf" style="display:none"><div class="chat-input-row"><button type="button" class="chat-media-btn" id="chat-camera-btn" title="Snap photo of document/warranty">${icon('Camera')}</button><button type="button" class="chat-media-btn" id="chat-upload-btn" title="Upload image or invoice">${icon('Paperclip')}</button><button type="button" class="chat-media-btn ${state.isRecordingVoice ? 'recording' : ''}" id="chat-voice-btn" title="Voice memo capture">${icon('Mic')}</button><input id="chat-query" autocomplete="off" placeholder="${state.chatAttachment ? 'Add notes or tap Send to extract…' : 'Ask Rhinous or dictate memory/reminder…'}"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></div></form></section>
+  return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div>${attachmentMarkup}${voiceIndicator}<form class="chat-form" id="chat-form"><input type="file" id="chat-camera-input" accept="image/*" capture="environment" hidden><input type="file" id="chat-upload-input" accept="image/*" hidden><input type="file" id="chat-audio-input" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac" hidden><div class="chat-input-row"><button type="button" class="chat-media-btn" id="chat-camera-btn" title="Snap photo of document/warranty">${icon('Camera')}</button><button type="button" class="chat-media-btn" id="chat-upload-btn" title="Upload image or invoice">${icon('Paperclip')}</button><button type="button" class="chat-media-btn" id="chat-audio-upload-btn" title="Upload an audio recording">${icon('AudioLines')}</button><button type="button" class="chat-media-btn ${state.isRecordingVoice ? 'recording' : ''}" id="chat-voice-btn" title="Record a voice memo">${icon('Mic')}</button><input id="chat-query" autocomplete="off" placeholder="${state.chatAttachment ? 'Add notes or tap Send to extract…' : 'Ask Rhinous or dictate memory/reminder…'}"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></div></form></section>
   <aside class="panel"><p class="eyebrow">Smart Multi-Modal</p><h3>Capture, snap & transcribe</h3><div class="suggestions">${['📸 Snap a warranty card or invoice to auto-extract fields', '🎙️ Dictate: “Remember my appliance warranty with 2 years validity”', 'Remind me to renew my passport tomorrow at 6 PM', 'Give me only my EPFO password'].map(text => `<button class="suggestion" data-ask="${escapeHtml(text.replace(/^[📸🎙️]\s*/, ''))}">${escapeHtml(text)}</button>`).join('')}</div><div class="privacy-line">${icon('ShieldCheck')}<span>Smart Capture extracts structured records on device. Credentials stay encrypted in your isolated vault.</span></div></aside></div>`;
 }
 
 function renderMessage(message) {
   if (message.role === 'user') return `<div class="message user">${escapeHtml(message.text)}</div>`;
-  if (message.fields?.length) {
-    const fieldObject = Object.fromEntries(message.fields.map(field => [field.label, field.value])); const card = paymentCard(message.title || 'Saved card', fieldObject, true);
-    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${message.fields.map(field => `<tr><td>${escapeHtml(field.label)}</td><td><span class="${state.hidden ? 'blur' : ''}">${escapeHtml(field.value)}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy">${icon('Copy')}</button></span></td></tr>`).join('')}</tbody></table></div>`;
+  if (message.fields?.length || message.audios?.length) {
+    const fields = message.fields || []; const fieldObject = Object.fromEntries(fields.map(field => [field.label, field.value])); const card = paymentCard(message.title || 'Saved card', fieldObject, true);
+    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}${(message.audios || []).map(audio => audioPlayerMarkup(audio, audio.title || 'Voice memo')).join('')}${fields.length ? `<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${fields.map(field => `<tr><td>${escapeHtml(field.label)}</td><td><span class="${state.hidden ? 'blur' : ''}">${escapeHtml(field.value)}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy">${icon('Copy')}</button></span></td></tr>`).join('')}</tbody></table>` : ''}</div>`;
   }
   if (message.actions?.length) {
     const isSmartCapture = message.actions.some(a => a.fields && (a.fields['Audio Transcript'] || a.fields['Expiry date'] || a.fields['Serial'] || a.fields['Brand'] || a.fields['Model']));
-    return `<div class="message bot">${isSmartCapture ? '<span class="smart-capture-badge">✨ Smart Capture Extracted</span>' : ''}<strong>${escapeHtml((message.title || 'Review changes').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}<div class="ai-action-list">${message.actions.map(action => `<div class="ai-action"><span>${escapeHtml(action.op)}</span><strong>${escapeHtml(action.title || state.items.find(item => item.id === action.id)?.title || 'Memory')}</strong><small>${escapeHtml(action.type || 'Saved item')} · ${Object.keys(action.fields || {}).length} field${Object.keys(action.fields || {}).length === 1 ? '' : 's'}</small>${action.fields?.['Audio Transcript'] ? `<div class="transcript-box"><strong>${icon('Mic')} Audio Transcript</strong><p>${escapeHtml(action.fields['Audio Transcript'])}</p></div>` : ''}</div>`).join('')}</div></div>`;
+    return `<div class="message bot">${isSmartCapture ? '<span class="smart-capture-badge">Smart Capture Extracted</span>' : ''}<strong>${escapeHtml((message.title || 'Review changes').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}<div class="ai-action-list">${message.actions.map(action => { const visibleCount = Object.keys(action.fields || {}).filter(label => !audioDataLabels.has(label) && !audioMetadataLabels.has(label)).length; return `<div class="ai-action"><span>${escapeHtml(action.op)}</span><strong>${escapeHtml(action.title || state.items.find(item => item.id === action.id)?.title || 'Memory')}</strong><small>${escapeHtml(action.type || 'Saved item')} · ${visibleCount} detail${visibleCount === 1 ? '' : 's'}${action.fields?.['Audio Asset ID'] ? ' · encrypted audio attached' : ''}</small>${action.fields?.['Audio Transcript'] ? `<div class="transcript-box"><strong>${icon('Mic')} Audio Transcript</strong><p>${escapeHtml(action.fields['Audio Transcript'])}</p></div>` : ''}</div>`; }).join('')}</div></div>`;
   }
   return `<div class="message bot">${message.title ? `<strong>${escapeHtml(message.title.toUpperCase())}</strong>` : ''}${safeMarkdown(message.markdown || message.text || '')}</div>`;
 }
@@ -649,8 +683,8 @@ function navigate(viewName) { document.querySelector('.notification-popover')?.r
 function renderView() { const node = document.querySelector('#view'); if (node) node.innerHTML = currentView(); bindView(); }
 
 function bindView() {
-  document.querySelectorAll('[data-add]').forEach(button => button.onclick = () => button.dataset.add === 'clipboard' ? pasteClipboard() : button.dataset.add === 'reminder' ? openReminderEditor() : button.dataset.add === 'birthday' ? openBirthdayEditor() : openEditor(null, 'Personal'));
-  document.querySelectorAll('[data-open]').forEach(button => button.onclick = () => openDetail(button.dataset.open));
+  document.querySelectorAll('[data-add]').forEach(button => button.onclick = () => button.dataset.add === 'clipboard' ? pasteClipboard() : button.dataset.add === 'reminder' ? openReminderEditor() : button.dataset.add === 'birthday' ? openBirthdayEditor() : button.dataset.add === 'audio-upload' ? document.querySelector('#audio-upload-input-main')?.click() : openEditor(null, 'Personal'));
+  document.querySelectorAll('[data-open]').forEach(button => button.onclick = () => openDetail(button.dataset.open, button.dataset.openView || 'vault'));
   document.querySelector('#back-to-memories')?.addEventListener('click', () => { state.selectedMemoryId = null; renderView(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
   document.querySelectorAll('[data-edit]').forEach(button => button.onclick = () => confirmEdit(button.dataset.edit));
   document.querySelectorAll('[data-delete]').forEach(button => button.onclick = () => confirmDelete(button.dataset.delete));
@@ -700,6 +734,19 @@ function bindView() {
     }
   });
 
+  document.querySelector('#chat-audio-upload-btn')?.addEventListener('click', () => document.querySelector('#chat-audio-input')?.click());
+  document.querySelector('#chat-audio-input')?.addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+    if (file) await handleAudioFile(file, 'Memoir upload');
+  });
+  document.querySelector('#audio-upload-main')?.addEventListener('click', () => document.querySelector('#audio-upload-input-main')?.click());
+  document.querySelector('#audio-upload-input-main')?.addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    state.view = 'assistant'; shell();
+    await handleAudioFile(file, 'Memoir upload');
+  });
+
   document.querySelector('#chat-remove-attachment')?.addEventListener('click', () => {
     state.chatAttachment = null;
     renderView();
@@ -708,6 +755,7 @@ function bindView() {
   document.querySelector('#chat-voice-btn')?.addEventListener('click', toggleVoiceRecording);
 
   document.querySelector('#chat-form')?.addEventListener('submit', event => { event.preventDefault(); const input = document.querySelector('#chat-query'); askAssistant(input.value); input.value = ''; });
+  hydrateAudioPlayers();
   updateReminderCountdowns();
 }
 
@@ -717,10 +765,10 @@ function showGlobalSearch(query) {
   if (!query.trim()) return;
   const matches = state.items.filter(item => item.type !== 'Notification' && searchable(item).includes(query.toLowerCase())).slice(0, 12);
   const overlay = document.createElement('div'); overlay.className = 'search-overlay';
-  const groups = [['Memories', matches.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Birthday'].includes(item.type))], ['Birthdays', matches.filter(item => item.type === 'Birthday')], ['Reminders', matches.filter(item => item.type === 'Reminder')], ['Clipboard Vault', matches.filter(item => item.kind === 'clipboard')]];
+  const groups = [['Memories', matches.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Birthday', 'Audio'].includes(item.type) && !audioAttachment(item))], ['Audio', matches.filter(item => item.type === 'Audio' || audioAttachment(item))], ['Birthdays', matches.filter(item => item.type === 'Birthday')], ['Reminders', matches.filter(item => item.type === 'Reminder')], ['Clipboard Vault', matches.filter(item => item.kind === 'clipboard')]];
   overlay.innerHTML = groups.filter(([, rows]) => rows.length).map(([label, rows]) => `<section class="search-section"><p class="search-section-title">${label}</p>${rows.map(item => `<button class="search-result" data-result="${item.id}"><span class="icon-wrap">${icon(itemIcon(item))}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(category(item))} · ${escapeHtml(item.note || 'Matched a saved field')}</small></span>${icon('ChevronRight')}</button>`).join('')}</section>`).join('') || `<div class="empty" style="padding:30px"><p>No saved result matches “${escapeHtml(query)}”.</p></div>`;
   document.querySelector('.content').appendChild(overlay);
-  overlay.querySelectorAll('[data-result]').forEach(button => button.onclick = () => { const item = state.items.find(row => row.id === button.dataset.result); overlay.remove(); if (item.kind === 'clipboard') navigate('clipboard'); else if (item.type === 'Reminder') navigate('reminders'); else if (item.type === 'Birthday') navigate('birthdays'); else openDetail(item.id); });
+  overlay.querySelectorAll('[data-result]').forEach(button => button.onclick = () => { const item = state.items.find(row => row.id === button.dataset.result); overlay.remove(); if (item.kind === 'clipboard') navigate('clipboard'); else if (item.type === 'Reminder') navigate('reminders'); else if (item.type === 'Birthday') navigate('birthdays'); else if (item.type === 'Audio' || audioAttachment(item)) openDetail(item.id, 'audio'); else openDetail(item.id); });
 }
 function openMobileSearch() {
   modal.className = 'modal';
@@ -729,11 +777,40 @@ function openMobileSearch() {
   input.oninput = () => {
     const query = input.value.trim().toLowerCase(); const results = query ? state.items.filter(item => item.type !== 'Notification' && searchable(item).includes(query)).slice(0, 12) : [];
     document.querySelector('#mobile-results').innerHTML = results.map(item => `<button class="search-result" data-mobile-result="${item.id}"><span class="icon-wrap">${icon(itemIcon(item))}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(category(item))} · ${escapeHtml(item.note || 'Matched a saved field')}</small></span>${icon('ChevronRight')}</button>`).join('') || (query ? `<div class="empty" style="padding:28px"><p>No result found.</p></div>` : '');
-    document.querySelectorAll('[data-mobile-result]').forEach(button => button.onclick = () => { const item = state.items.find(row => row.id === button.dataset.mobileResult); closeModal(); if (item.kind === 'clipboard') navigate('clipboard'); else if (item.type === 'Reminder') navigate('reminders'); else if (item.type === 'Birthday') navigate('birthdays'); else openDetail(item.id); });
+    document.querySelectorAll('[data-mobile-result]').forEach(button => button.onclick = () => { const item = state.items.find(row => row.id === button.dataset.mobileResult); closeModal(); if (item.kind === 'clipboard') navigate('clipboard'); else if (item.type === 'Reminder') navigate('reminders'); else if (item.type === 'Birthday') navigate('birthdays'); else if (item.type === 'Audio' || audioAttachment(item)) openDetail(item.id, 'audio'); else openDetail(item.id); });
   };
 }
 
 async function copyText(text) { try { await navigator.clipboard.writeText(text); toast('Copied securely'); } catch { toast('Clipboard permission was not granted'); } }
+const audioObjectUrls = new Map();
+async function hydrateAudioPlayers() {
+  const players = [...document.querySelectorAll('audio[data-audio-asset]')].filter(player => !player.dataset.audioLoading);
+  if (!players.length) return;
+  const token = await vaultStore.idToken();
+  if (!token) return;
+  players.forEach(async player => {
+    const assetId = player.dataset.audioAsset; player.dataset.audioLoading = 'true';
+    const status = player.parentElement?.querySelector('.audio-load-state');
+    try {
+      let objectUrl = audioObjectUrls.get(assetId);
+      if (!objectUrl) {
+        const response = await fetch(`/api/audio?id=${encodeURIComponent(assetId)}`, { headers: vaultStore.apiHeaders(token, false) });
+        if (!response.ok) throw new Error('Audio unavailable');
+        objectUrl = URL.createObjectURL(await response.blob()); audioObjectUrls.set(assetId, objectUrl);
+      }
+      player.src = objectUrl; player.load(); if (status) status.textContent = 'Encrypted recording ready';
+    } catch { if (status) status.textContent = 'Recording could not be loaded. Check your connection and session.'; }
+  });
+}
+async function deleteAudioAssetForItem(item) {
+  const assetId = audioAttachment(item)?.assetId;
+  if (!assetId) return;
+  try {
+    const token = await vaultStore.idToken(); if (!token) return;
+    await fetch(`/api/audio?id=${encodeURIComponent(assetId)}`, { method: 'DELETE', headers: vaultStore.apiHeaders(token, false) });
+    const objectUrl = audioObjectUrls.get(assetId); if (objectUrl) URL.revokeObjectURL(objectUrl); audioObjectUrls.delete(assetId);
+  } catch { /* deleting the memory remains available even if attachment cleanup is retried later */ }
+}
 async function pasteClipboard() { try { const value = await navigator.clipboard.readText(); if (!value.trim()) return toast('Clipboard is empty'); openClipEditor(value); } catch { toast('Allow clipboard access, or paste manually'); } }
 function openBulkImporter() {
   modal.className = 'modal';
@@ -840,16 +917,16 @@ async function toggleReminderSnooze(id) {
 function showModal() { modal.showModal(); modal.querySelector('.modal-close')?.addEventListener('click', closeModal); modal.querySelector('.modal-cancel')?.addEventListener('click', closeModal); }
 function closeModal() { modal.close(); }
 function confirmEdit(id) { const item = state.items.find(row => row.id === id); confirmBox(`Edit this ${item.type === 'Reminder' ? 'reminder' : item.type === 'Birthday' ? 'birthday' : 'memory'}?`, `You’re about to change “${item.title}”. Your update will replace the current version.`, item.type === 'Reminder' ? 'Edit reminder' : item.type === 'Birthday' ? 'Edit birthday' : 'Edit memory', 'Pencil', () => item.kind === 'clipboard' ? openClipEditor(item.fields.Content, item) : item.type === 'Reminder' ? openReminderEditor(item) : item.type === 'Birthday' ? openBirthdayEditor(item) : openEditor(item)); }
-function confirmDelete(id) { const item = state.items.find(row => row.id === id); if (!item) return; confirmBox('Delete this permanently?', `“${item.title}” will be removed from this device and your synced vault. This cannot be undone.`, 'Delete forever', 'Trash2', async () => { await withRhinoActivity('Deleting securely…', () => vaultStore.remove(id)); toast(item.type === 'Reminder' ? 'Reminder deleted' : 'Memory deleted'); }); }
+function confirmDelete(id) { const item = state.items.find(row => row.id === id); if (!item) return; confirmBox('Delete this permanently?', `“${item.title}” will be removed from this device and your synced vault. This cannot be undone.`, 'Delete forever', 'Trash2', async () => { await withRhinoActivity('Deleting securely…', async () => { await deleteAudioAssetForItem(item); await vaultStore.remove(id); }); toast(item.type === 'Reminder' ? 'Reminder deleted' : item.type === 'Audio' ? 'Audio memory deleted' : 'Memory deleted'); }); }
 function confirmBox(title, text, action, glyph, callback) {
   modal.className = 'modal confirm';
   modal.innerHTML = `<div class="modal-inner"><span class="confirm-icon">${icon(glyph)}</span><div class="modal-head"><div><p class="eyebrow">Please confirm</p><h2>${escapeHtml(title)}</h2></div></div><p>${escapeHtml(text)}</p><div class="modal-actions"><button class="secondary modal-cancel">No, keep it</button><button class="${glyph === 'Trash2' ? 'danger-btn' : 'primary'} modal-confirm">${icon(glyph)} ${escapeHtml(action)}</button></div></div>`;
   modal.showModal(); modal.querySelector('.modal-cancel').onclick = closeModal; modal.querySelector('.modal-confirm').onclick = () => { closeModal(); callback(); };
 }
-function openDetail(id) {
+function openDetail(id, viewName = 'vault') {
   const item = state.items.find(row => row.id === id); if (!item) return;
   if (item.type === 'Birthday') { navigate('birthdays'); return; }
-  state.view = 'vault'; state.selectedMemoryId = id; shell(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  state.view = viewName === 'audio' || item.type === 'Audio' ? 'audio' : 'vault'; state.selectedMemoryId = id; shell(); window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function isSecretField(key) {
@@ -882,7 +959,7 @@ function openShareModal(id) {
   if (!item) return;
 
   const entries = Object.entries(allFields(item));
-  const shareableEntries = entries.filter(([label]) => !isSecretField(label));
+  const shareableEntries = entries.filter(([label]) => !isSecretField(label) && !audioDataLabels.has(label) && !audioMetadataLabels.has(label));
   const hasHiddenSecrets = entries.some(([label]) => isSecretField(label));
   const initialFields = [...shareableEntries];
   let includeNote = Boolean(item.note);
@@ -1113,8 +1190,46 @@ function compressImageFile(file) {
 let mediaStream = null;
 let mediaRecorder = null;
 let audioChunks = [];
+let voiceTranscript = '';
+let recordingStartedAt = 0;
 
-function openMicrophonePermissionModal() {
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('The file could not be read'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function prepareAudioAttachment(file, source = 'Memoir app') {
+  if (!file || (!String(file.type || '').startsWith('audio/') && !/\.(m4a|mp3|wav|ogg|webm|aac)$/i.test(file.name || ''))) throw new Error('Choose a supported audio recording');
+  if (Number(file.size || 0) > 3 * 1024 * 1024) throw new Error('For reliable secure sync, app uploads must be 3 MB or smaller');
+  const data = await readFileAsDataUrl(file);
+  const identityToken = await vaultStore.idToken();
+  if (!identityToken) throw new Error('Sign in again before uploading audio');
+  const response = await fetch('/api/audio', {
+    method: 'POST', headers: vaultStore.apiHeaders(identityToken),
+    body: JSON.stringify({ data, mimeType: file.type || 'audio/webm', fileName: file.name || 'voice-memo.webm', createdAt: recordingStartedAt || Date.now() }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || 'The encrypted audio upload could not be completed');
+  return { kind: 'audio', data, mimeType: file.type || 'audio/webm', name: file.name || 'Voice memo', assetId: result.assetId, source, createdAt: recordingStartedAt || Date.now(), previewUrl: '' };
+}
+
+async function handleAudioFile(file, source = 'Memoir app') {
+  try {
+    toast('Encrypting audio for secure sync…');
+    state.chatAttachment = await prepareAudioAttachment(file, source);
+    renderView();
+    await askAssistant('Transcribe this voice memo and save it as an audio memory');
+  } catch (error) {
+    toast(error?.message || 'The audio file could not be processed');
+  }
+}
+
+function openMicrophonePermissionModal(permissionState = 'prompt') {
+  const blocked = permissionState === 'denied';
   modal.className = 'modal';
   modal.innerHTML = `
     <div class="modal-inner">
@@ -1128,12 +1243,11 @@ function openMicrophonePermissionModal() {
         </div>
         <button type="button" class="modal-close">${icon('X')}</button>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin:14px 0;line-height:1.5">
-        Memoir uses your microphone to transcribe voice notes, warranties, and reminders. Tap below to grant permission in your browser.
-      </p>
+      <p style="font-size:12px;color:var(--muted);margin:14px 0;line-height:1.5">${blocked ? 'Microphone access is currently blocked for this site. Open the browser site settings, change Microphone to Allow, then return and try again. You can upload an existing audio file instead.' : 'Memoir needs microphone access only while you record. Tap below and choose Allow in the browser permission prompt.'}</p>
+      <div class="permission-guide">${icon(blocked ? 'TriangleAlert' : 'ShieldCheck')}<span>${blocked ? 'Browser menu → Site settings → Microphone → Allow' : 'Your recording is encrypted and stored only in your isolated Memoir audio vault.'}</span></div>
       <div class="modal-actions">
-        <button type="button" class="secondary modal-cancel">Cancel</button>
-        <button type="button" class="primary" id="btn-allow-mic-start">${icon('Mic')} Enable & Start Recording</button>
+        <button type="button" class="secondary" id="btn-upload-audio-fallback">${icon('AudioLines')} Upload audio</button>
+        <button type="button" class="primary" id="btn-allow-mic-start">${icon('Mic')} ${blocked ? 'Try microphone again' : 'Allow and record'}</button>
       </div>
     </div>
   `;
@@ -1145,10 +1259,11 @@ function openMicrophonePermissionModal() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       startLiveVoiceSession(stream);
     } catch (err) {
-      console.warn('Microphone permission grant failed:', err);
-      toast('Permission was denied. Please tap the lock icon in your browser address bar to allow microphone access.');
+      console.warn('Microphone permission grant failed:', err?.name);
+      toast(err?.name === 'NotAllowedError' ? 'Microphone is blocked. Allow it in this site’s browser settings, then try again.' : 'The microphone could not be opened on this device.');
     }
   };
+  document.querySelector('#btn-upload-audio-fallback').onclick = () => { closeModal(); document.querySelector('#chat-audio-input')?.click(); };
 }
 
 async function toggleVoiceRecording() {
@@ -1162,19 +1277,44 @@ async function toggleVoiceRecording() {
     return;
   }
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    startLiveVoiceSession(stream);
-  } catch (err) {
-    console.warn('Direct mic access prompt required:', err?.name);
-    openMicrophonePermissionModal();
-  }
+  let permissionState = 'prompt';
+  try { permissionState = (await navigator.permissions?.query({ name: 'microphone' }))?.state || 'prompt'; } catch { /* Safari does not expose microphone permission state */ }
+  if (permissionState !== 'granted') return openMicrophonePermissionModal(permissionState);
+  try { startLiveVoiceSession(await navigator.mediaDevices.getUserMedia({ audio: true })); }
+  catch (err) { console.warn('Microphone could not start:', err?.name); openMicrophonePermissionModal(err?.name === 'NotAllowedError' ? 'denied' : 'prompt'); }
 }
 
 function startLiveVoiceSession(stream) {
   state.isRecordingVoice = true;
   mediaStream = stream;
+  recordingStartedAt = Date.now();
+  voiceTranscript = '';
   renderView();
+
+  try {
+    audioChunks = [];
+    const preferredType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'].find(type => window.MediaRecorder?.isTypeSupported?.(type));
+    mediaRecorder = preferredType ? new MediaRecorder(stream, { mimeType: preferredType }) : new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = event => { if (event.data?.size) audioChunks.push(event.data); };
+    mediaRecorder.onstop = async () => {
+      const mimeType = mediaRecorder?.mimeType || audioChunks[0]?.type || 'audio/webm';
+      const extension = mimeType.includes('ogg') ? 'ogg' : 'webm';
+      const blob = new Blob(audioChunks, { type: mimeType });
+      mediaRecorder = null; audioChunks = [];
+      try {
+        const file = new File([blob], `voice-memo-${new Date(recordingStartedAt).toISOString().replace(/[:.]/g, '-')}.${extension}`, { type: mimeType });
+        state.chatAttachment = await prepareAudioAttachment(file, 'Memoir recording');
+        renderView();
+        await askAssistant(voiceTranscript ? `Save this audio memory. Browser transcript: ${voiceTranscript}` : 'Transcribe this voice memo and save it as an audio memory');
+      } catch (error) { toast(error?.message || 'The recording could not be saved'); }
+      finally { mediaStream?.getTracks().forEach(track => track.stop()); mediaStream = null; recordingStartedAt = 0; }
+    };
+    mediaRecorder.start(500);
+  } catch (error) {
+    console.error('Audio recorder failed:', error);
+    state.isRecordingVoice = false; stream.getTracks().forEach(track => track.stop()); mediaStream = null; renderView();
+    return toast('This browser cannot create an audio recording. Use Upload audio instead.');
+  }
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -1201,7 +1341,8 @@ function startLiveVoiceSession(stream) {
         }
         const input = document.querySelector('#chat-query');
         if (input) {
-          input.value = (final || interim).trim();
+          if (final.trim()) voiceTranscript = `${voiceTranscript} ${final}`.trim();
+          input.value = (voiceTranscript || interim).trim();
         }
       };
 
@@ -1212,54 +1353,14 @@ function startLiveVoiceSession(stream) {
         }
       };
 
-      speechRecognizer.onend = () => {
-        if (state.isRecordingVoice) {
-          stopVoiceRecording();
-        }
-      };
+      speechRecognizer.onend = () => { speechRecognizer = null; };
 
       speechRecognizer.start();
-      return;
     } catch (err) {
-      console.warn('SpeechRecognition failed, using MediaRecorder fallback:', err);
+      console.warn('Live speech preview was unavailable; the audio recorder is still active:', err);
     }
   }
-
-  // Fallback MediaRecorder
-  try {
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = e => {
-      if (e.data && e.data.size > 0) audioChunks.push(e.data);
-    };
-    mediaRecorder.onstop = async () => {
-      if (audioChunks.length) {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64 = reader.result;
-          state.chatAttachment = {
-            data: base64,
-            mimeType: 'audio/webm',
-            name: 'Voice memo recording',
-            previewUrl: '',
-          };
-          askAssistant('Transcribe this voice memo and extract memory or reminder');
-        };
-        reader.readAsDataURL(audioBlob);
-      }
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-        mediaStream = null;
-      }
-    };
-    mediaRecorder.start();
-    toast('Recording voice memo… Tap mic again when finished');
-  } catch (err) {
-    console.error('Audio recorder failed:', err);
-    stopVoiceRecording();
-    toast('Could not start audio recording');
-  }
+  toast('Recording voice memo… Tap the microphone again to finish');
 }
 
 function stopVoiceRecording() {
@@ -1270,8 +1371,7 @@ function stopVoiceRecording() {
   }
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     try { mediaRecorder.stop(); } catch {}
-  }
-  if (mediaStream) {
+  } else if (mediaStream) {
     try { mediaStream.getTracks().forEach(track => track.stop()); } catch {}
     mediaStream = null;
   }
@@ -1291,7 +1391,7 @@ async function askAssistant(query) {
   const protectedInput = protectPrivateInput(cleanQuery);
   let proposedActions = [];
 
-  const userMessageText = attachment ? `📸 [Attached: ${attachment.name || 'Document image'}] ${cleanQuery !== 'Extract details from this document/image' ? cleanQuery : ''}` : cleanQuery;
+  const userMessageText = attachment ? `${attachment.kind === 'audio' ? 'Audio' : 'Image'} attached: ${attachment.name || (attachment.kind === 'audio' ? 'Voice memo' : 'Document image')} ${cleanQuery !== 'Extract details from this document/image' ? cleanQuery : ''}` : cleanQuery;
   state.messages.push({ role: 'user', text: userMessageText.trim() });
   state.chatLoading = true;
   renderView();
@@ -1308,7 +1408,12 @@ async function askAssistant(query) {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Calcutta',
       now: new Date().toISOString(),
     };
-    if (attachment) {
+    if (attachment?.kind === 'audio') {
+      payload.audio = {
+        data: attachment.data,
+        mimeType: attachment.mimeType || 'audio/webm',
+      };
+    } else if (attachment) {
       payload.image = {
         data: attachment.data,
         mimeType: attachment.mimeType || 'image/jpeg',
@@ -1318,11 +1423,36 @@ async function askAssistant(query) {
     if (!response.ok) throw new Error(await response.text());
     const answer = await response.json();
     const message = buildAssistantMessage(answer, cleanQuery, protectedInput.values);
+    if (attachment?.kind === 'audio') {
+      const transcript = String(answer.audioTranscript || '').trim();
+      const action = message.actions?.find(item => item.op === 'create') || message.actions?.[0];
+      if (action) {
+        action.fields = {
+          ...(action.fields || {}),
+          'Audio Asset ID': attachment.assetId,
+          'Audio MIME type': attachment.mimeType || 'audio/webm',
+          'Audio File name': attachment.name || 'Voice memo',
+          'Audio Source': attachment.source || 'Memoir app',
+          'Recorded at': new Date(attachment.createdAt || Date.now()).toISOString(),
+          'Audio Transcript': transcript || action.fields?.['Audio Transcript'] || 'No transcript available',
+          'Transcription status': transcript ? 'Completed' : (action.fields?.['Transcription status'] || 'Audio only · speech unclear'),
+        };
+        if (action.type !== 'Reminder') action.type = 'Audio';
+        if (!transcript && !action.note) action.note = 'Audio saved. No transcript is available because the recording could not be understood clearly.';
+      }
+    }
     proposedActions = message.actions || [];
     state.messages.push(message);
   } catch (error) {
-    const fallback = localRoute(cleanQuery);
-    state.messages.push(fallback || { role: 'assistant', markdown: `### Assistant response\nI couldn’t process this capture request: ${error?.message || 'Check your network connection'}.` });
+    if (attachment?.kind === 'audio') {
+      const recorded = new Date(attachment.createdAt || Date.now());
+      const fallbackAction = { op: 'create', id: '', type: 'Audio', title: `Voice Memo · ${recorded.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`, note: 'Audio saved. No transcript is available because the recording could not be understood clearly.', fields: { 'Audio Asset ID': attachment.assetId, 'Audio MIME type': attachment.mimeType || 'audio/webm', 'Audio File name': attachment.name || 'Voice memo', 'Audio Source': attachment.source || 'Memoir app', 'Recorded at': recorded.toISOString(), 'Audio Transcript': 'No transcript available', 'Transcription status': 'Audio only · transcription unavailable' } };
+      proposedActions = [fallbackAction];
+      state.messages.push({ role: 'assistant', title: 'Audio saved without transcript', markdown: 'The recording is safe. Speech recognition was unavailable or the audio was unclear, so I did not invent a transcript.', actions: proposedActions });
+    } else {
+      const fallback = localRoute(cleanQuery);
+      state.messages.push(fallback || { role: 'assistant', markdown: `### Assistant response\nI couldn’t process this capture request: ${error?.message || 'Check your network connection'}.` });
+    }
   } finally {
     state.chatLoading = false;
     persistAssistantLog();
@@ -1338,9 +1468,14 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
     if (actions.length) return { role: 'assistant', title: answer.title || 'Review vault changes', markdown: answer.markdown || 'Review these changes before I apply them.', actions };
   }
   if (answer.kind !== 'lookup' || !answer.matches?.length) return { role: 'assistant', title: answer.title || 'Rhinous', markdown: answer.markdown || answer.message || 'I could not create a response.' };
-  const fields = [];
-  answer.matches.forEach(match => { const item = state.items.find(row => row.id === match.id); if (!item) return; const requested = match.fields?.length ? match.fields : Object.keys(allFields(item)); requested.forEach(label => { const actual = Object.keys(allFields(item)).find(key => key.toLowerCase() === String(label).toLowerCase()); if (actual) fields.push({ label: actual, value: allFields(item)[actual] }); }); });
-  return fields.length ? { role: 'assistant', title: answer.title || 'Saved information', markdown: answer.markdown, fields } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
+  const fields = []; const audios = [];
+  answer.matches.forEach(match => {
+    const item = state.items.find(row => row.id === match.id); if (!item) return;
+    const attachment = audioAttachment(item); if (attachment) audios.push({ ...attachment, title: item.title });
+    const requested = match.fields?.length ? match.fields : Object.keys(allFields(item));
+    requested.forEach(label => { const actual = Object.keys(allFields(item)).find(key => key.toLowerCase() === String(label).toLowerCase()); if (actual && !audioDataLabels.has(actual) && !audioMetadataLabels.has(actual)) fields.push({ label: actual, value: allFields(item)[actual] }); });
+  });
+  return fields.length || audios.length ? { role: 'assistant', title: answer.title || 'Saved information', markdown: answer.markdown, fields, audios } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
 }
 function protectPrivateInput(input) {
   let text = String(input || ''); const values = {}; let tokenIndex = 0;
@@ -1381,7 +1516,7 @@ function rehydrateAction(action, privateValues) {
 function assistantActionName(action) { return action.title || state.items.find(item => item.id === action.id)?.title || 'Saved memory'; }
 async function confirmAssistantActions(actions) {
   modal.className = 'modal confirm ai-confirm';
-  modal.innerHTML = `<div class="modal-inner"><img class="assistant-logo confirm-rhino" src="/brand/memoir-rhino-ui.png" alt=""><div class="modal-head"><div><p class="eyebrow">Rhinous prepared ${actions.length} change${actions.length === 1 ? '' : 's'}</p><h2>Review before applying</h2></div></div><div class="ai-review-list">${actions.map(action => `<article><span>${escapeHtml(action.op.toUpperCase())}</span><strong>${escapeHtml(assistantActionName(action))}</strong>${Object.keys(action.fields || {}).length ? `<dl>${Object.entries(action.fields).map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>` : ''}</article>`).join('')}</div><p class="ai-review-note">Nothing changes until you confirm. Secret values shown here remain inside this browser.</p><div class="modal-actions"><button class="secondary modal-cancel">No, cancel</button><button class="primary modal-confirm">${icon('Check')} Apply ${actions.length === 1 ? 'change' : 'changes'}</button></div></div>`;
+  modal.innerHTML = `<div class="modal-inner"><img class="assistant-logo confirm-rhino" src="/brand/memoir-rhino-ui.png" alt=""><div class="modal-head"><div><p class="eyebrow">Rhinous prepared ${actions.length} change${actions.length === 1 ? '' : 's'}</p><h2>Review before applying</h2></div></div><div class="ai-review-list">${actions.map(action => { const visibleFields = Object.entries(action.fields || {}).filter(([label]) => !audioDataLabels.has(label) && !audioMetadataLabels.has(label)); return `<article><span>${escapeHtml(action.op.toUpperCase())}</span><strong>${escapeHtml(assistantActionName(action))}</strong>${action.fields?.['Audio Asset ID'] ? `<div class="audio-review-badge">${icon('AudioLines')} Encrypted audio attached</div>` : ''}${visibleFields.length ? `<dl>${visibleFields.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>` : ''}</article>`; }).join('')}</div><p class="ai-review-note">Nothing changes until you confirm. Secret values shown here remain inside this browser.</p><div class="modal-actions"><button class="secondary modal-cancel">No, cancel</button><button class="primary modal-confirm">${icon('Check')} Apply ${actions.length === 1 ? 'change' : 'changes'}</button></div></div>`;
   modal.showModal();
   const approved = await new Promise(resolve => {
     let settled = false; const finish = value => { if (settled) return; settled = true; resolve(value); };
@@ -1389,7 +1524,7 @@ async function confirmAssistantActions(actions) {
     modal.querySelector('.modal-confirm').onclick = () => { closeModal(); finish(true); };
     modal.oncancel = event => { event.preventDefault(); closeModal(); finish(false); };
   });
-  if (!approved) { toast('No vault changes were made'); return; }
+  if (!approved) { await Promise.all(actions.map(action => deleteAudioAssetForItem({ fields: action.fields || {} }))); toast('No vault changes were made'); return; }
   let applied = 0;
   await withRhinoActivity(`Applying ${actions.length} Rhinous ${actions.length === 1 ? 'change' : 'changes'}…`, async () => {
     for (const action of actions) {
@@ -1402,7 +1537,7 @@ async function confirmAssistantActions(actions) {
         const type = action.type || item.type;
         const record = { ...item, kind: type === 'Clipboard' ? 'clipboard' : 'memory', type, title: action.title || item.title, note: action.note || item.note || '', fields: { ...allFields(item), ...(action.fields || {}) } };
         await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : record); applied += 1;
-      } else if (action.op === 'delete' && state.items.some(row => row.id === action.id)) { await vaultStore.remove(action.id); applied += 1; }
+      } else if (action.op === 'delete' && state.items.some(row => row.id === action.id)) { const item = state.items.find(row => row.id === action.id); await deleteAudioAssetForItem(item); await vaultStore.remove(action.id); applied += 1; }
     }
   });
   state.messages.push({ role: 'assistant', markdown: `### Changes applied\n${applied} vault ${applied === 1 ? 'change is' : 'changes are'} saved and queued for encrypted sync.` });
@@ -1427,7 +1562,9 @@ function localRoute(query) {
     ].some(([queryPattern, labelPattern]) => queryPattern.test(needle) && labelPattern.test(label));
   };
   const exact = entries.filter(intentMatches); if (exact.length) entries = exact; else if (!/(all|details|info|everything|complete)/.test(needle)) entries = entries.slice(0, 1);
-  return { role: 'assistant', title: item.title, markdown: 'Here is exactly what matched your request.', fields: entries.map(([label, value]) => ({ label, value })) };
+  const attachment = audioAttachment(item);
+  entries = entries.filter(([label]) => !audioDataLabels.has(label) && !audioMetadataLabels.has(label));
+  return { role: 'assistant', title: item.title, markdown: 'Here is exactly what matched your request.', fields: entries.map(([label, value]) => ({ label, value })), ...(attachment ? { audios: [{ ...attachment, title: item.title }] } : {}) };
 }
 function scrollChat() { requestAnimationFrame(() => { const node = document.querySelector('#messages'); if (node) node.scrollTop = node.scrollHeight; }); }
 function generateBirthdayMessage(id) { const item = state.items.find(row => row.id === id); state.view = 'assistant'; shell(); askAssistant(`Write a warm, natural birthday message for the person in my saved birthday record titled "${item.title}". Do not reveal or request any private vault values.`); }
@@ -1576,4 +1713,3 @@ setInterval(runBackgroundAutomation, 30000);
 setInterval(updateReminderCountdowns, 1000);
 setInterval(updateSecurityCountdowns, 1000);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
-

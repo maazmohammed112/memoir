@@ -3,6 +3,7 @@ import { deviceIdFrom, getAdmin, verifyOwnerToken } from '../lib/firebaseAdmin.j
 import { serverDecrypt, serverEncrypt } from '../lib/serverCrypto.js';
 import { getUserByChatId, getUserByUid, listUserProfiles } from '../lib/users.js';
 import { telegramRequest } from '../lib/telegramClient.js';
+import { saveAudioAsset } from '../lib/audioVault.js';
 import { routeQuery } from './assistant.js';
 import { acknowledgeRuntimeActions, listRuntimeItems, pullRuntimeActions, putRuntimeItem, queueRuntimeActions } from '../lib/runtimeVault.js';
 
@@ -147,7 +148,7 @@ async function downloadTelegramFile(profile, fileId) {
   return Buffer.from(arrayBuffer).toString('base64');
 }
 
-export async function processTelegramUpdate(update, profile = getUserByChatId(update?.message?.chat?.id || update?.callback_query?.message?.chat?.id)) {
+async function processTelegramUpdateOnce(update, profile = getUserByChatId(update?.message?.chat?.id || update?.callback_query?.message?.chat?.id)) {
   if (!profile) return;
   if (update?.callback_query) return handleReminderCallback(profile, update.callback_query);
   const message = update?.message; const allowedChat = profile.telegramChatId;
@@ -156,6 +157,7 @@ export async function processTelegramUpdate(update, profile = getUserByChatId(up
   let query = String(message.text || message.caption || '').trim();
   let imagePayload = null;
   let audioPayload = null;
+  let audioAsset = null;
 
   if (message.photo?.length) {
     try {
@@ -173,8 +175,19 @@ export async function processTelegramUpdate(update, profile = getUserByChatId(up
       const audioObj = message.voice || message.audio;
       const base64Data = await downloadTelegramFile(profile, audioObj.file_id);
       audioPayload = { data: base64Data, mimeType: audioObj.mime_type || 'audio/ogg' };
+      try {
+        audioAsset = await saveAudioAsset(profile.uid, {
+          data: base64Data,
+          mimeType: audioPayload.mimeType,
+          fileName: audioObj.file_name || `telegram-voice-${message.message_id || Date.now()}.ogg`,
+          source: 'telegram',
+          createdAt: Number(message.date || 0) * 1000 || Date.now(),
+        });
+      } catch (assetError) {
+        console.warn('Encrypted audio asset storage was unavailable; using the legacy attachment path:', assetError?.message);
+      }
       if (!query) query = 'Transcribe this voice memo and extract memory or reminder details into JSON';
-      await sendToOwner(profile, '🎙️ Transcribing voice memo with Smart Capture…');
+      await sendToOwner(profile, '🎙️ Voice memo received.\n\nRhinous is transcribing and securing it now. This can take 1–2 minutes—please relax; it will appear automatically in your Memoir Audio tab when ready.');
     } catch (err) {
       console.error('Error downloading Telegram audio:', err);
       return sendToOwner(profile, '⚠️ Could not download the voice note from Telegram.');
@@ -186,47 +199,78 @@ export async function processTelegramUpdate(update, profile = getUserByChatId(up
   if (/^\/start\b/i.test(query)) return sendToOwner(profile, 'Memoir is connected to your isolated vault. I can find non-sensitive notes, birthdays and reminders, and queue changes. You can also send photos of warranty cards or voice notes to capture them automatically! Passwords, PINs, CVVs and banking information are never revealed in Telegram.');
   if (/^\/help\b/i.test(query)) return sendToOwner(profile, 'Try: “What reminders are due today?”, “Add a reminder to renew my passport tomorrow at 6 PM”, or send a photo of an appliance warranty card / send a voice memo.');
   const items = await loadVault(profile);
-  if (!items.length) return sendToOwner(profile, 'Memoir is connected, but this account’s safe catalog is not loaded yet. Open the signed-in Memoir app once so its encrypted Telegram bridge can sync.');
+  if (!items.length && !imagePayload && !audioPayload) return sendToOwner(profile, 'Memoir is connected, but this account’s safe catalog is not loaded yet. Open the signed-in Memoir app once so its encrypted Telegram bridge can sync.');
   const catalog = items.map(item => ({ id: item.id, type: item.type, title: item.title, fieldNames: Object.keys(item.fields || {}) }));
   const protectedInput = protectTelegramInput(query, items); const history = conversations.get(allowedChat) || [];
   const provider = imagePayload || audioPayload ? 'gemini' : (process.env.TELEGRAM_AI_PROVIDER === 'mistral' ? 'mistral' : 'gemini');
-  const route = await routeQuery({ provider, query: protectedInput.text, image: imagePayload, audio: audioPayload, catalog, history, timezone: process.env.APP_TIMEZONE || 'Asia/Calcutta' });
+  let route;
+  try {
+    route = await routeQuery({ provider, query: protectedInput.text, image: imagePayload, audio: audioPayload, catalog, history, timezone: process.env.APP_TIMEZONE || 'Asia/Calcutta', now: Number(message.date || 0) ? new Date(Number(message.date) * 1000).toISOString() : new Date().toISOString() });
+  } catch (error) {
+    if (!audioPayload) throw error;
+    const recordedAt = Number(message.date || 0) * 1000 || Date.now();
+    const recordedLabel = new Date(recordedAt).toLocaleString('en-IN', { timeZone: process.env.APP_TIMEZONE || 'Asia/Calcutta', day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    route = { kind: 'actions', title: 'Audio saved without transcript', markdown: 'The audio was preserved, but a reliable transcript could not be produced.', actions: [{ op: 'create', type: 'Audio', title: `Voice Memo · ${recordedLabel}`, note: 'Audio saved. No transcript is available because the recording could not be understood clearly.', fields: { 'Recorded at': new Date(recordedAt).toISOString(), 'Audio Transcript': 'No transcript available', 'Transcription status': 'Audio only · transcription unavailable' } }] };
+  }
   let responseText;
   if (route.kind === 'actions' && route.actions?.length) {
     const actions = rehydrateActions(route.actions, protectedInput.values);
     if (audioPayload?.data) {
       actions.forEach(act => {
         if (!act.fields) act.fields = {};
-        act.fields['Audio Recording'] = `data:${audioPayload.mimeType};base64,${audioPayload.data}`;
+        if (audioAsset?.assetId) {
+          act.fields['Audio Asset ID'] = audioAsset.assetId;
+          act.fields['Audio MIME type'] = audioAsset.mimeType;
+          act.fields['Audio File name'] = audioAsset.fileName;
+          act.fields['Audio Source'] = 'Telegram';
+        } else {
+          act.fields['Audio Recording'] = `data:${audioPayload.mimeType};base64,${audioPayload.data}`;
+        }
       });
     }
     const queued = queueRuntimeActions(profile.uid, actions, 'telegram'); await persistQueuedActions(profile, queued);
     const summaryLines = actions.map(act => {
-      const fieldList = Object.entries(act.fields || {}).filter(([k]) => k !== 'Audio Recording').map(([k, v]) => `• ${k}: ${v}`).join('\n');
+      const fieldList = Object.entries(act.fields || {}).filter(([k]) => !['Audio Recording', 'Audio Asset ID', 'Audio MIME type', 'Audio File name'].includes(k)).map(([k, v]) => `• ${k}: ${v}`).join('\n');
       return `📌 ${act.title} (${act.type})\n${fieldList}`;
     }).join('\n\n');
-    responseText = `✨ Smart Capture Saved to Vault!\n\n${summaryLines}\n\n🔒 Queued securely with audio attached. Memoir will sync it to your devices automatically.`;
+    responseText = `✨ Smart Capture Saved to Vault!\n\n${summaryLines}\n\n🔒 The audio and transcript were saved securely. Memoir will sync them to your Audio tab automatically.`;
   } else if (audioPayload?.data) {
-    const transcript = cleanTelegramText(route.markdown || query || 'Voice memo');
+    const transcript = cleanTelegramText(route.audioTranscript || '');
+    const recordedAt = Number(message.date || 0) * 1000 || Date.now();
+    const recordedLabel = new Date(recordedAt).toLocaleString('en-IN', { timeZone: process.env.APP_TIMEZONE || 'Asia/Calcutta', day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
     const fallbackAction = {
       op: 'create',
-      type: 'Personal',
-      title: transcript.length > 50 ? transcript.slice(0, 47) + '…' : (transcript || 'Voice Memo'),
-      note: transcript,
+      type: 'Audio',
+      title: transcript.length > 50 ? transcript.slice(0, 47) + '…' : (transcript || `Voice Memo · ${recordedLabel}`),
+      note: transcript || 'Audio saved. No transcript is available because the recording could not be understood clearly.',
       fields: {
-        'Audio Recording': `data:${audioPayload.mimeType};base64,${audioPayload.data}`,
+        ...(audioAsset?.assetId ? { 'Audio Asset ID': audioAsset.assetId, 'Audio MIME type': audioAsset.mimeType, 'Audio File name': audioAsset.fileName, 'Audio Source': 'Telegram' } : { 'Audio Recording': `data:${audioPayload.mimeType};base64,${audioPayload.data}` }),
         'Audio Transcript': transcript,
-        'Recorded at': new Date().toLocaleString('en-US', { timeZone: process.env.APP_TIMEZONE || 'Asia/Calcutta' }),
+        'Transcription status': transcript && transcript !== query ? 'Completed' : 'Audio only · speech unclear',
+        'Recorded at': new Date(recordedAt).toISOString(),
       },
     };
     const queued = queueRuntimeActions(profile.uid, [fallbackAction], 'telegram');
     await persistQueuedActions(profile, queued);
-    responseText = `✨ Voice Note Saved to Vault!\n\n📌 ${fallbackAction.title}\n• Audio recording attached and playable in Memoir app\n• Transcript: ${transcript}\n\n🔒 Synced to your vault.`;
+    responseText = `✨ Voice Note Saved to Vault!\n\n📌 ${fallbackAction.title}\n• Audio recording attached and playable in Memoir\n• ${transcript ? `Transcript: ${transcript}` : 'No transcript was available because the speech was unclear'}\n\n🔒 It will appear in the Audio tab.`;
   } else responseText = answerText(route, items);
 
   const nextHistory = [...history, { role: 'user', text: protectedInput.text.slice(0, 1200) }, { role: 'assistant', text: cleanTelegramText(responseText).slice(0, 1200) }].slice(-12);
   conversations.set(allowedChat, nextHistory);
   return sendToOwner(profile, responseText);
+}
+
+export async function processTelegramUpdate(update, profile = getUserByChatId(update?.message?.chat?.id || update?.callback_query?.message?.chat?.id)) {
+  if (!profile) return;
+  const telegramUpdateId = update?.update_id ?? update?.callback_query?.id ?? update?.message?.message_id;
+  const claim = await claimMessageKey(profile, telegramUpdateId == null ? '' : `incoming:${telegramUpdateId}`);
+  if (!claim.claimed) return;
+  try {
+    return await processTelegramUpdateOnce(update, profile);
+  } catch (error) {
+    await releaseMessageKey(claim);
+    throw error;
+  }
 }
 
 
