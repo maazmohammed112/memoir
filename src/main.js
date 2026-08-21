@@ -343,21 +343,132 @@ function cardDetails(fields = {}) {
     number: normalizedField(fields, ['Card Number', 'Debit Card', 'Debit Card Number', 'Credit Card Number']),
     bank: normalizedField(fields, ['Bank', 'Bank Name']), type: normalizedField(fields, ['Card Type', 'Debit Card Type']),
     holder: normalizedField(fields, ['Card Holder Name', 'Cardholder Name', 'Holder Name']),
-    validFrom: normalizedField(fields, ['Valid From']), validThru: normalizedField(fields, ['Valid Thru', 'Expiry']),
+    validFrom: normalizedField(fields, ['Valid From']), validThru: normalizedField(fields, ['Valid Thru', 'Expiry', 'Expiry Date']),
     cvv: normalizedField(fields, ['CVV', 'Security Code']),
   };
 }
 function isCardRecord(item) { return item?.type === 'Finance' && Boolean(cardDetails(allFields(item)).number); }
+
+const EXPIRY_NOTIFICATION_OFFSETS = [
+  [150 * 24 * 60 * 60 * 1000, '5 months'],
+  [120 * 24 * 60 * 60 * 1000, '4 months'],
+  [90 * 24 * 60 * 60 * 1000, '3 months'],
+  [60 * 24 * 60 * 60 * 1000, '2 months'],
+  [30 * 24 * 60 * 60 * 1000, '1 month'],
+  [10 * 24 * 60 * 60 * 1000, '10 days'],
+  [5 * 24 * 60 * 60 * 1000, '5 days'],
+  [2 * 24 * 60 * 60 * 1000, '2 days'],
+  [1 * 24 * 60 * 60 * 1000, '1 day'],
+  [0, 'today'],
+];
+
+function parseExpiryDate(raw) {
+  if (!raw) return null;
+  const str = String(raw).trim();
+  if (!str) return null;
+  const mmyyMatch = str.match(/^(\d{1,2})\s*[\/\-.]\s*(\d{2}|\d{4})$/);
+  if (mmyyMatch) {
+    const month = parseInt(mmyyMatch[1], 10);
+    let year = parseInt(mmyyMatch[2], 10);
+    if (year < 100) year += 2000;
+    if (month >= 1 && month <= 12) {
+      const lastDay = new Date(year, month, 0).getDate();
+      return new Date(year, month - 1, lastDay, 23, 59, 59).getTime();
+    }
+  }
+  const ymdMatch = str.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+  if (ymdMatch) {
+    return new Date(parseInt(ymdMatch[1], 10), parseInt(ymdMatch[2], 10) - 1, parseInt(ymdMatch[3], 10), 23, 59, 59).getTime();
+  }
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (dmyMatch) {
+    return new Date(parseInt(dmyMatch[3], 10), parseInt(dmyMatch[2], 10) - 1, parseInt(dmyMatch[1], 10), 23, 59, 59).getTime();
+  }
+  const parsed = new Date(str).getTime();
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function formatRemainingTime(expiryTimestamp, now = Date.now()) {
+  const diffMs = expiryTimestamp - now;
+  if (diffMs <= 0) {
+    const daysAgo = Math.floor(Math.abs(diffMs) / (24 * 60 * 60 * 1000));
+    return { text: daysAgo === 0 ? 'Expired today' : `Expired ${daysAgo}d ago`, isCritical: true, isExpired: true, monthsRemaining: 0, daysRemaining: 0 };
+  }
+  const totalDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+  const monthsRemaining = diffMs / (30 * 24 * 60 * 60 * 1000);
+  const isCritical = monthsRemaining <= 5.0;
+  const expDate = new Date(expiryTimestamp);
+  const nowDate = new Date(now);
+  let years = expDate.getFullYear() - nowDate.getFullYear();
+  let months = expDate.getMonth() - nowDate.getMonth();
+  let days = expDate.getDate() - nowDate.getDate();
+  if (days < 0) {
+    months -= 1;
+    days += new Date(expDate.getFullYear(), expDate.getMonth(), 0).getDate();
+  }
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  let text = '';
+  if (years > 0) text = `${years} yr${months > 0 ? ` ${months} mo` : ''} left`;
+  else if (months > 0) text = `${months} mo${days > 0 ? ` ${days} d` : ''} left`;
+  else text = `${totalDays} day${totalDays === 1 ? '' : 's'} left`;
+  return { text, isCritical, isExpired: false, monthsRemaining, daysRemaining: totalDays };
+}
+
+function extractItemExpiry(item, now = Date.now()) {
+  if (!item || !item.fields) return null;
+  const fields = allFields(item);
+  const fieldEntries = Object.entries(fields);
+  const expiryEntry = fieldEntries.find(([k]) => {
+    const key = k.toLowerCase().replace(/[_-]/g, ' ').trim();
+    return /^(expiry date|valid thru|expiry|expires on|valid till|valid up to|policy expiry|renewal date|date of expiry|expires)$/i.test(key) ||
+      (/\b(expiry|expires|valid thru|valid till|renewal)\b/i.test(key) && !/\b(reminder|frequency)\b/i.test(key));
+  });
+  if (!expiryEntry) return null;
+  const rawExpiry = String(expiryEntry[1] || '').trim();
+  const timestamp = parseExpiryDate(rawExpiry);
+  if (!timestamp) return null;
+  const status = formatRemainingTime(timestamp, now);
+  const title = String(item.title || '');
+  const type = String(item.type || '');
+  const cardEntry = fieldEntries.find(([k]) => /\b(card\s*number|debit|credit|account|number)\b/i.test(k));
+  const cardNum = cardEntry ? String(cardEntry[1] || '') : '';
+  const isCard = isCardRecord(item) || /card/i.test(type) || /card/i.test(title) || Boolean(cardNum) || type === 'Finance';
+  let last4 = '';
+  if (cardNum) { const d = String(cardNum).replace(/\D/g, ''); if (d.length >= 4) last4 = d.slice(-4); }
+  if (!last4) { const m = title.match(/(\d{4})/); if (m) last4 = m[1]; }
+  const bankEntry = fieldEntries.find(([k]) => /^(bank|bank\s*name|issuer|provider)$/i.test(k.trim()));
+  const bank = bankEntry ? String(bankEntry[1] || '') : '';
+  const docEntry = fieldEntries.find(([k]) => /^(document\s*number|passport\s*number|license\s*number|policy\s*number|id\s*number|doc\s*#)$/i.test(k.trim()));
+  const docNum = docEntry ? String(docEntry[1] || '') : '';
+  return { item, itemId: item.id, title: item.title, type: item.type, expiryField: expiryEntry[0], rawExpiry, expiryTimestamp: timestamp, status, isCard, last4, bank, docNum };
+}
+
+
+function expiringMemories() {
+  return state.items.filter(item => item.type !== 'Notification' && item.type !== 'Reminder').map(item => extractItemExpiry(item)).filter(Boolean).sort((a, b) => a.expiryTimestamp - b.expiryTimestamp);
+}
+
+function criticalExpiringMemories() {
+  return expiringMemories().filter(e => e.status.isCritical);
+}
+
 function paymentCard(title, fields, compact = false) {
   const card = cardDetails(fields); if (!card.number) return '';
   const digits = String(card.number).replace(/\D/g, ''); const grouped = digits.replace(/(.{4})/g, '$1 ').trim();
   const displayNumber = state.hidden ? `•••• •••• •••• ${digits.slice(-4)}` : grouped;
   const theme = ['onyx', 'violet', 'coral'][Array.from(String(title)).reduce((sum, char) => sum + char.charCodeAt(0), 0) % 3];
-  return `<article class="payment-card ${compact ? 'compact' : ''} card-${theme}"><div class="payment-card-glow"></div><div class="payment-card-head"><span>${escapeHtml(card.bank || title)}</span><small>${escapeHtml(card.type || 'Debit card')}</small></div><div class="payment-card-chip"></div><div class="payment-card-number"><span>${escapeHtml(displayNumber)}</span><button data-copy="${escapeHtml(card.number)}" title="Copy card number">${icon('Copy')}</button></div><div class="payment-card-meta">${card.holder ? `<div><small>Card holder</small><strong>${escapeHtml(card.holder)}</strong></div>` : ''}${card.validFrom ? `<div><small>Valid from</small><strong>${escapeHtml(card.validFrom)}</strong></div>` : ''}${card.validThru ? `<div><small>Valid thru</small><strong>${escapeHtml(card.validThru)}</strong></div>` : ''}${card.cvv ? `<div><small>CVV</small><strong>${escapeHtml(state.hidden ? '•••' : card.cvv)}</strong></div>` : ''}</div></article>`;
+  const expiryInfo = extractItemExpiry({ title, fields, type: 'Finance' });
+  const expiryBadge = expiryInfo ? `<span class="card-expiry-tag ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? '⚠️ ' : ''}${escapeHtml(expiryInfo.status.text)}</span>` : '';
+  return `<article class="payment-card ${compact ? 'compact' : ''} card-${theme}"><div class="payment-card-glow"></div><div class="payment-card-head"><span>${escapeHtml(card.bank || title)}</span>${expiryBadge || `<small>${escapeHtml(card.type || 'Debit card')}</small>`}</div><div class="payment-card-chip"></div><div class="payment-card-number"><span>${escapeHtml(displayNumber)}</span><button data-copy="${escapeHtml(card.number)}" title="Copy card number">${icon('Copy')}</button></div><div class="payment-card-meta">${card.holder ? `<div><small>Card holder</small><strong>${escapeHtml(card.holder)}</strong></div>` : ''}${card.validFrom ? `<div><small>Valid from</small><strong>${escapeHtml(card.validFrom)}</strong></div>` : ''}${card.validThru ? `<div><small>Valid thru</small><strong>${escapeHtml(card.validThru)}</strong></div>` : ''}${card.cvv ? `<div><small>CVV</small><strong>${escapeHtml(state.hidden ? '•••' : card.cvv)}</strong></div>` : ''}</div></article>`;
 }
 
 function memoryCard(item) {
-  return `<article class="memory-card" data-open="${item.id}" tabindex="0"><span class="icon-wrap ${category(item) === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.note || Object.keys(allFields(item)).join(' · '))}</p><div class="memory-card-foot"><span class="chip">${escapeHtml(category(item))}</span>${icon('ArrowUpRight')}</div></article>`;
+  const expiryInfo = extractItemExpiry(item);
+  const expiryChip = expiryInfo ? `<span class="chip expiry-chip ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? '⚠️ ' : icon('Calendar') + ' '}${escapeHtml(expiryInfo.status.text)}</span>` : '';
+  return `<article class="memory-card" data-open="${item.id}" tabindex="0"><span class="icon-wrap ${category(item) === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.note || Object.keys(allFields(item)).join(' · '))}</p><div class="memory-card-foot"><span class="chip">${escapeHtml(category(item))}</span>${expiryChip}${icon('ArrowUpRight')}</div></article>`;
 }
 function reminderCard(item, compact = false) {
   const status = reminderStatus(item); const snoozed = reminderIsSnoozed(item); const completed = status === 'completed' || status === 'no-response';
@@ -367,17 +478,40 @@ function reminderCard(item, compact = false) {
 }
 function homeView() {
   const upcomingReminders = reminders().filter(item => reminderStatus(item) === 'upcoming').sort((a, b) => reminderDue(a) - reminderDue(b));
+  const criticalExpiries = criticalExpiringMemories();
+  const expiriesHtml = criticalExpiries.length ? `
+    <div class="section-head"><h2 style="color:var(--danger)">⚠️ Expiring soon (< 5 months)</h2><button class="text-btn" data-view="vault">View all</button></div>
+    <div class="dashboard-expiries">${criticalExpiries.map(exp => `
+      <article class="expiry-card" data-open="${exp.itemId}" tabindex="0">
+        <div class="expiry-card-main">
+          <span class="icon-wrap ${exp.isCard ? 'green' : 'violet'}">${icon(exp.isCard ? 'CreditCard' : 'FileText')}</span>
+          <div>
+            <h3>${escapeHtml(exp.title)}</h3>
+            <p>${escapeHtml(exp.isCard ? (exp.bank ? exp.bank + ' · ' : '') + (exp.last4 ? '•••• ' + exp.last4 : 'Card') : (exp.docNum ? 'Doc #' + exp.docNum : exp.type))}</p>
+          </div>
+        </div>
+        <div class="expiry-card-foot">
+          <span class="chip expiry-chip critical">${escapeHtml(exp.status.text)}</span>
+          ${icon('ArrowUpRight')}
+        </div>
+      </article>
+    `).join('')}</div>` : '';
+
   return `<div class="hero-grid"><section class="hero"><img class="hero-rhino" src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Your private second brain</p><h2>Everything important, remembered beautifully.</h2><p>Save private details, retrieve only what you need, and never miss a meaningful moment.</p><button class="primary" data-add="memory">${icon('Plus')} Add a memory</button></section>
   <div class="stat-grid"><article class="stat large"><span class="stat-symbol rose">${icon('ShieldCheck')}</span><div><strong>${memories().length}</strong><span>memories kept safe</span></div></article><article class="stat"><span class="stat-symbol violet">${icon('AlarmClock')}</span><div><strong>${upcomingReminders.length}</strong><span>upcoming reminders</span></div></article><article class="stat"><span class="stat-symbol green">${icon('Clipboard')}</span><div><strong>${clips().length}</strong><span>clipboard items</span></div></article></div></div>
+  ${expiriesHtml}
   ${upcomingReminders.length ? `<div class="section-head"><h2>Coming up</h2><button class="text-btn" data-view="reminders">All reminders</button></div><div class="dashboard-reminders">${upcomingReminders.slice(0, 3).map(item => reminderCard(item, true)).join('')}</div>` : ''}
   <div class="section-head"><h2>Recently remembered</h2><button class="text-btn" data-view="vault">View everything</button></div>
   ${memories().length ? `<div class="card-grid">${memories().slice(0, 3).map(memoryCard).join('')}</div>` : emptyState('Gem', 'Your vault is ready', 'Add your first memory. No demo records are included.', 'Add memory', 'memory')}`;
 }
 function vaultRow(item) {
   const filterGroup = memoryFilterGroup(item);
-  if (isCardRecord(item)) return `<article class="finance-memory" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}">${paymentCard(item.title, allFields(item))}<div class="finance-memory-foot"><div><h3>${escapeHtml(item.title)}</h3><p>${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'Banking memory')}</p></div><span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></div></article>`;
-  return `<article class="vault-row" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}"><span class="icon-wrap ${item.type === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><div class="vault-info"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(category(item))} · ${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'No note')}</p></div><span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`;
+  const expiryInfo = extractItemExpiry(item);
+  const expiryChip = expiryInfo ? `<span class="chip expiry-chip ${expiryInfo.status.isCritical ? 'critical' : ''}">${expiryInfo.status.isCritical ? '⚠️ ' : icon('Calendar') + ' '}${escapeHtml(expiryInfo.status.text)}</span>` : '';
+  if (isCardRecord(item)) return `<article class="finance-memory" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}">${paymentCard(item.title, allFields(item))}<div class="finance-memory-foot"><div><h3>${escapeHtml(item.title)}</h3><p>${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'Banking memory')}</p></div>${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></div></article>`;
+  return `<article class="vault-row" data-filter-group="${filterGroup}" data-searchable="${escapeHtml(searchable(item))}"><span class="icon-wrap ${item.type === 'Finance' ? 'green' : ''}">${icon(itemIcon(item))}</span><div class="vault-info"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(category(item))} · ${Object.keys(allFields(item)).length} encrypted fields · ${escapeHtml(item.note || 'No note')}</p></div>${expiryChip}<span class="chip">${icon('LockKeyhole')} Protected</span><div class="row-actions"><button class="icon-btn" data-open="${item.id}" title="Open">${icon('ArrowUpRight')}</button><button class="icon-btn" data-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`;
 }
+
 function detailMarkup(item) {
   return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} Back to memories</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div></div>${isCardRecord(item) ? paymentCard(item.title, allFields(item)) : ''}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${Object.entries(allFields(item)).map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div><p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button><button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
 }
@@ -736,6 +870,70 @@ async function checkBirthdayReminders() {
   }
 }
 
+async function checkExpiryReminders() {
+  if (!navigator.onLine || state.auth.status !== 'signedIn') return;
+  const now = Date.now();
+  const sentKey = `memoir-expiry-sent-${state.auth.profile?.uid || 'unknown'}`;
+  const sent = JSON.parse(localStorage.getItem(sentKey) || '{}');
+  const expList = expiringMemories();
+
+  for (const exp of expList) {
+    const due = exp.expiryTimestamp;
+    if (!due) continue;
+
+    for (const [offset, label] of EXPIRY_NOTIFICATION_OFFSETS) {
+      const sendAt = due - offset;
+      const key = `expiry:${exp.itemId}:${offset}`;
+
+      if (now < sendAt) continue;
+      const grace = 24 * 60 * 60 * 1000;
+      if (now - sendAt > grace) continue;
+
+      if (!sent[key]) {
+        try {
+          const identityToken = await vaultStore.idToken();
+          if (!identityToken) continue;
+
+          const expiryDateFormatted = new Date(due).toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Calcutta',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          });
+
+          let messageText = '';
+          if (exp.isCard) {
+            const cardDesc = exp.bank ? `${exp.bank} ${exp.title}` : exp.title;
+            const endingText = exp.last4 ? ` (ending in ${exp.last4})` : '';
+            messageText = `💳 Card Expiry Alert\n\nYour ${cardDesc}${endingText} is expiring in ${label} (${expiryDateFormatted}).\n\nOpen Memoir to review or request a replacement card from your bank.`;
+          } else {
+            const docDesc = exp.docNum ? ` (Doc #${exp.docNum})` : '';
+            messageText = `📄 Document Expiry Alert\n\nYour ${exp.title}${docDesc} is expiring in ${label} on ${expiryDateFormatted}.\n\nOpen Memoir to check renewal requirements or schedule an appointment.`;
+          }
+
+          const response = await fetch('/api/telegram', {
+            method: 'POST',
+            headers: vaultStore.apiHeaders(identityToken),
+            body: JSON.stringify({ action: 'send', reminderKey: key, text: messageText }),
+          });
+
+          if (response.ok) {
+            sent[key] = Date.now();
+            localStorage.setItem(sentKey, JSON.stringify(sent));
+            await logSentNotification({
+              title: `${exp.title} Expiry Alert`,
+              category: exp.isCard ? 'Finance' : 'Document',
+              scheduledAt: sendAt,
+              sourceId: exp.itemId,
+              deliveryKey: key,
+            });
+          }
+        } catch { /* retry on next interval */ }
+      }
+    }
+  }
+}
+
 async function applyTelegramActions() {
   if (state.telegramSyncing || state.auth.status !== 'signedIn' || !navigator.onLine) return;
   state.telegramSyncing = true;
@@ -784,9 +982,10 @@ async function runBackgroundAutomation() {
   if (navigator.onLine) {
     if (Date.now() - lastRuntimeMirror > 5 * 60000) { lastRuntimeMirror = Date.now(); vaultStore.mirrorSnapshot(); }
     try { const token = await vaultStore.idToken(); if (token) await fetch('/api/reminders', { method: 'POST', headers: vaultStore.apiHeaders(token, false) }); } catch { /* the next interval retries */ }
-    await applyTelegramActions(); await checkBirthdayReminders();
+    await applyTelegramActions(); await checkBirthdayReminders(); await checkExpiryReminders();
   }
 }
+
 
 let currentProfileUid = localStorage.getItem('memoir-selected-profile') || '';
 vaultStore.subscribe((items, status, session) => {

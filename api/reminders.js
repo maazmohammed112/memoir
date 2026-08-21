@@ -3,6 +3,8 @@ import { serverDecrypt, serverEncrypt } from '../lib/serverCrypto.js';
 import { listRuntimeItems, markReminderDelivered, putRuntimeItem, queueRuntimeActions, reminderWasDelivered, replaceRuntimeItems } from '../lib/runtimeVault.js';
 import { getUserByUid, listUserProfiles } from '../lib/users.js';
 import { telegram } from './telegram.js';
+import { EXPIRY_NOTIFICATION_OFFSETS, extractItemExpiry } from '../lib/expiryIntelligence.js';
+
 
 const deliveryReservations = new Set();
 const activeSweeps = new Map();
@@ -118,13 +120,106 @@ async function performReminderSweep(profile, now = Date.now()) {
   return { checked: reminders.length, delivered, autoCompleted };
 }
 
+async function sendExpiryNotification(profile, exp, label, expiryTimestamp) {
+  const expiryDateFormatted = new Date(expiryTimestamp).toLocaleDateString('en-IN', {
+    timeZone: process.env.APP_TIMEZONE || 'Asia/Calcutta',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  let text = '';
+  if (exp.isCard) {
+    const cardDesc = exp.bank ? `${exp.bank} ${exp.title}` : exp.title;
+    const endingText = exp.last4 ? ` (ending in ${exp.last4})` : '';
+    text = `💳 Card Expiry Alert\n\nYour ${cardDesc}${endingText} is expiring in ${label} (${expiryDateFormatted}).\n\nOpen Memoir to review or request a replacement card from your bank.`;
+  } else {
+    const docDesc = exp.docNum ? ` (Doc #${exp.docNum})` : '';
+    text = `📄 Document Expiry Alert\n\nYour ${exp.title}${docDesc} is expiring in ${label} on ${expiryDateFormatted}.\n\nOpen Memoir to check renewal requirements or schedule an appointment.`;
+  }
+
+  await telegram(profile, 'sendMessage', {
+    chat_id: profile.telegramChatId,
+    text: text.slice(0, 4000),
+  });
+}
+
+async function performExpirySweep(profile, now = Date.now()) {
+  if (!profile?.telegramToken || !profile.telegramChatId) return { checked: 0, delivered: 0 };
+  let items = listRuntimeItems(profile.uid);
+  if (!items.length && hasAdminMirror()) {
+    const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
+    items = snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
+    replaceRuntimeItems(profile.uid, items);
+  }
+
+  const expiring = items.map(item => extractItemExpiry(item, now)).filter(Boolean);
+  let delivered = 0;
+
+  for (const exp of expiring) {
+    const due = exp.expiryTimestamp;
+    if (!due) continue;
+
+    for (const [offset, label] of EXPIRY_NOTIFICATION_OFFSETS) {
+      const sendAt = due - offset;
+      const key = `expiry:${exp.itemId}:${offset}`;
+
+      if (now < sendAt) continue;
+      const grace = 24 * 60 * 60 * 1000;
+      if (now - sendAt > grace) continue;
+
+      if (!await reserveDelivery(profile, key)) continue;
+
+      try {
+        await sendExpiryNotification(profile, exp, label, due);
+        await queuePersistedAction(profile, {
+          op: 'create',
+          type: 'Notification',
+          title: `${exp.title} Expiry Alert`,
+          note: `Telegram expiry notice (${label})`,
+          fields: {
+            Category: exp.isCard ? 'Finance' : 'Document',
+            'Scheduled at': String(sendAt),
+            'Sent at': String(Date.now()),
+            'Source id': exp.itemId,
+            'Delivery key': key,
+            Status: 'sent',
+          },
+        }, 'notification-engine');
+        await finishDelivery(profile, key);
+        delivered += 1;
+      } catch (error) {
+        await releaseDelivery(profile, key);
+        console.warn('Expiry notification failed:', error?.message);
+      }
+    }
+  }
+
+  return { checked: expiring.length, delivered };
+}
+
 export async function runReminderSweep(now = Date.now(), targetUid = '') {
   const profiles = targetUid ? [getUserByUid(targetUid)].filter(Boolean) : listUserProfiles();
-  const results = await Promise.all(profiles.map(profile => {
+  const results = await Promise.all(profiles.map(async profile => {
     if (activeSweeps.has(profile.uid)) return activeSweeps.get(profile.uid);
-    const sweep = performReminderSweep(profile, now).finally(() => activeSweeps.delete(profile.uid)); activeSweeps.set(profile.uid, sweep); return sweep;
+    const sweep = Promise.all([
+      performReminderSweep(profile, now),
+      performExpirySweep(profile, now),
+    ]).then(([remindersResult, expiryResult]) => ({
+      checked: remindersResult.checked + expiryResult.checked,
+      delivered: remindersResult.delivered + expiryResult.delivered,
+      autoCompleted: remindersResult.autoCompleted,
+    })).finally(() => activeSweeps.delete(profile.uid));
+
+    activeSweeps.set(profile.uid, sweep);
+    return sweep;
   }));
-  return results.reduce((total, result) => ({ checked: total.checked + result.checked, delivered: total.delivered + result.delivered, autoCompleted: total.autoCompleted + result.autoCompleted }), { checked: 0, delivered: 0, autoCompleted: 0 });
+
+  return results.reduce((total, result) => ({
+    checked: total.checked + result.checked,
+    delivered: total.delivered + result.delivered,
+    autoCompleted: total.autoCompleted + (result.autoCompleted || 0),
+  }), { checked: 0, delivered: 0, autoCompleted: 0 });
 }
 
 export default async function handler(req, res) {
@@ -141,3 +236,4 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) { console.error('Reminder sweep failed:', error?.message); return res.status(503).json({ error: 'Reminder delivery is temporarily unavailable' }); }
 }
+

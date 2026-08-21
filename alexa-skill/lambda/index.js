@@ -130,6 +130,27 @@ const UpcomingRemindersIntentHandler = {
   },
 };
 
+const UpcomingExpiriesIntentHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+      (Alexa.getIntentName(handlerInput.requestEnvelope) === 'UpcomingExpiriesIntent' ||
+       Alexa.getIntentName(handlerInput.requestEnvelope) === 'CheckDocumentExpiryIntent' ||
+       Alexa.getIntentName(handlerInput.requestEnvelope) === 'CardExpiryIntent');
+  },
+  async handle(handlerInput) {
+    const userId = getUserId(handlerInput);
+    const query = Alexa.getSlot(handlerInput.requestEnvelope, 'Query')?.value || '';
+    const result = await callMemoirBridge({ intent: 'UpcomingExpiriesIntent', query, userId });
+    const speakOutput = result.speak || 'You have no expiring documents or cards.';
+
+    return handlerInput.responseBuilder
+      .speak(speakOutput)
+      .reprompt('Can I help you with anything else in Memoir?')
+      .getResponse();
+  },
+};
+
+
 const AddReminderIntentHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
@@ -302,6 +323,7 @@ exports.handler = Alexa.SkillBuilders.custom()
     LaunchRequestHandler,
     UpcomingBirthdaysIntentHandler,
     UpcomingRemindersIntentHandler,
+    UpcomingExpiriesIntentHandler,
     AddReminderIntentHandler,
     SnoozeReminderIntentHandler,
     CompleteReminderIntentHandler,
@@ -313,3 +335,4 @@ exports.handler = Alexa.SkillBuilders.custom()
   )
   .addErrorHandlers(ErrorHandler)
   .lambda();
+

@@ -119,7 +119,54 @@
           ]
         },
         {
+          "name": "UpcomingExpiriesIntent",
+          "slots": [
+            {
+              "name": "Query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "what documents are expiring",
+            "what documents are expiring soon",
+            "which documents are expiring",
+            "what cards are expiring",
+            "which cards are expiring",
+            "what cards expire this year",
+            "what cards expire soon",
+            "what is expiring soon",
+            "what is expiring",
+            "check expiries",
+            "check my expiries",
+            "check expiring documents",
+            "check expiring cards",
+            "when does my passport expire",
+            "when does my driving license expire",
+            "when does my license expire",
+            "when does my insurance expire",
+            "when does my car insurance expire",
+            "when does my debit card expire",
+            "when does my credit card expire",
+            "when does my card expire",
+            "when do my cards expire",
+            "when does my {Query} expire",
+            "when do my {Query} expire",
+            "tell me expiring cards",
+            "tell me expiring documents",
+            "show expiring documents",
+            "show expiring cards",
+            "list expiring cards",
+            "list expiring documents",
+            "do I have any expiring cards",
+            "do I have any expiring documents",
+            "what expiries do I have",
+            "document expiry list",
+            "card expiry list"
+          ]
+        },
+        {
           "name": "AddReminderIntent",
+
           "slots": [
             {
               "name": "ReminderTitle",

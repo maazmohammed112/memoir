@@ -3,6 +3,8 @@ import { getAdmin } from '../lib/firebaseAdmin.js';
 import { serverDecrypt, serverEncrypt } from '../lib/serverCrypto.js';
 import { getUserByUid, listUserProfiles } from '../lib/users.js';
 import { listRuntimeItems, queueRuntimeActions } from '../lib/runtimeVault.js';
+import { extractItemExpiry } from '../lib/expiryIntelligence.js';
+
 
 const SENSITIVE_PATTERNS = /password|passcode|\bpin\b|cvv|security code|secret|token|card number|account number|ifsc|transaction password|login password|net banking|atm|passport|aadhaar|pan card|license number|govt id|social security/i;
 
@@ -137,6 +139,43 @@ function getUpcomingReminders(items) {
 
   return `You have ${sorted.length} active reminder${sorted.length > 1 ? 's' : ''}: ${speechList.join(' ')}`;
 }
+
+function getUpcomingExpiries(items, query = '') {
+  const now = Date.now();
+  const expiring = items.map(item => extractItemExpiry(item, now)).filter(Boolean);
+
+  if (!expiring.length) {
+    return 'You have no documents or cards with saved expiry dates in Memoir.';
+  }
+
+  let filtered = expiring;
+  if (query) {
+    const q = query.toLowerCase();
+    const match = expiring.filter(e => e.title.toLowerCase().includes(q) || e.type.toLowerCase().includes(q) || (e.bank && e.bank.toLowerCase().includes(q)));
+    if (match.length) filtered = match;
+  }
+
+  filtered.sort((a, b) => a.expiryTimestamp - b.expiryTimestamp);
+
+  const speechList = filtered.slice(0, 5).map(exp => {
+    const dateFormatted = new Date(exp.expiryTimestamp).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: getAppTimezone(),
+    });
+    const label = exp.status.text;
+    if (exp.isCard) {
+      const cardTitle = exp.bank ? `${exp.bank} ${exp.title}` : exp.title;
+      const ending = exp.last4 ? ` ending in ${exp.last4}` : '';
+      return `Your ${cardTitle}${ending} is expiring in ${label} on ${dateFormatted}.`;
+    }
+    return `Your ${exp.title} is expiring in ${label} on ${dateFormatted}.`;
+  });
+
+  return `Here are your upcoming expiries: ${speechList.join(' ')}`;
+}
+
 
 const WORD_NUMBERS = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -491,6 +530,13 @@ export default async function alexaHandler(req, res) {
         speech = getUpcomingReminders(items);
         break;
 
+      case 'UpcomingExpiriesIntent':
+      case 'CheckDocumentExpiryIntent':
+      case 'CardExpiryIntent':
+      case 'expiries':
+        speech = getUpcomingExpiries(items, query);
+        break;
+
       case 'AddReminderIntent':
       case 'add_reminder':
         speech = await handleAddReminder(profile, { title: title || query, dueAt });
@@ -515,15 +561,17 @@ export default async function alexaHandler(req, res) {
           speech = getUpcomingBirthdays(items);
         } else if (/reminder|due|schedule|todo/i.test(query)) {
           speech = getUpcomingReminders(items);
+        } else if (/expiry|expire|expiring|valid thru|valid till|valid up to|when does my|when do my/i.test(query)) {
+          speech = getUpcomingExpiries(items, query);
         } else if (query) {
           speech = handleSafeLookup(items, query || title);
         } else {
-          speech = `Rhino Memoir is ready. You can ask for upcoming birthdays, today's reminders, or safe notes.`;
+          speech = `Rhino Memoir is ready. You can ask for upcoming birthdays, today's reminders, card and document expiries, or safe notes.`;
         }
         break;
 
       case 'LaunchRequest':
-        speech = `Welcome to Rhino Memoir for ${profile.name}. You can ask for upcoming birthdays, today's reminders, safe notes, or to add a reminder. What would you like to do?`;
+        speech = `Welcome to Rhino Memoir for ${profile.name}. You can ask for upcoming birthdays, today's reminders, expiring cards and documents, or to add a reminder. What would you like to do?`;
         break;
 
       default:
@@ -531,11 +579,14 @@ export default async function alexaHandler(req, res) {
           speech = getUpcomingBirthdays(items);
         } else if (/reminder|due|schedule|todo/i.test(query)) {
           speech = getUpcomingReminders(items);
+        } else if (/expiry|expire|expiring|valid thru|valid till|valid up to/i.test(query)) {
+          speech = getUpcomingExpiries(items, query);
         } else if (query) {
           speech = handleSafeLookup(items, query);
         } else {
-          speech = `Rhino Memoir is ready. Ask for birthdays, reminders, or safe notes.`;
+          speech = `Rhino Memoir is ready. Ask for birthdays, reminders, expiries, or safe notes.`;
         }
+
 
     }
 
