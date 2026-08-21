@@ -9,6 +9,7 @@ import AlarmClock from 'lucide/dist/esm/icons/alarm-clock.mjs';
 import BadgeCheck from 'lucide/dist/esm/icons/badge-check.mjs';
 import BellRing from 'lucide/dist/esm/icons/bell-ring.mjs';
 import CakeSlice from 'lucide/dist/esm/icons/cake-slice.mjs';
+import Camera from 'lucide/dist/esm/icons/camera.mjs';
 import Check from 'lucide/dist/esm/icons/check.mjs';
 import CircleCheckBig from 'lucide/dist/esm/icons/circle-check-big.mjs';
 import CirclePause from 'lucide/dist/esm/icons/circle-pause.mjs';
@@ -30,12 +31,20 @@ import KeyRound from 'lucide/dist/esm/icons/key-round.mjs';
 import Landmark from 'lucide/dist/esm/icons/landmark.mjs';
 import LockKeyhole from 'lucide/dist/esm/icons/lock-keyhole.mjs';
 import LogOut from 'lucide/dist/esm/icons/log-out.mjs';
+import Mail from 'lucide/dist/esm/icons/mail.mjs';
+import MessageCircle from 'lucide/dist/esm/icons/message-circle.mjs';
+import Mic from 'lucide/dist/esm/icons/mic.mjs';
 import NotebookText from 'lucide/dist/esm/icons/notebook-text.mjs';
+import Paperclip from 'lucide/dist/esm/icons/paperclip.mjs';
 import Pencil from 'lucide/dist/esm/icons/pencil.mjs';
 import Plus from 'lucide/dist/esm/icons/plus.mjs';
 import Search from 'lucide/dist/esm/icons/search.mjs';
+import Send from 'lucide/dist/esm/icons/send.mjs';
+import Share2 from 'lucide/dist/esm/icons/share-2.mjs';
+import ShieldAlert from 'lucide/dist/esm/icons/shield-alert.mjs';
 import ShieldCheck from 'lucide/dist/esm/icons/shield-check.mjs';
 import Trash2 from 'lucide/dist/esm/icons/trash-2.mjs';
+import TriangleAlert from 'lucide/dist/esm/icons/triangle-alert.mjs';
 import WandSparkles from 'lucide/dist/esm/icons/wand-sparkles.mjs';
 import Wifi from 'lucide/dist/esm/icons/wifi.mjs';
 import X from 'lucide/dist/esm/icons/x.mjs';
@@ -46,7 +55,18 @@ const nav = [
   ['reminders', 'AlarmClock', 'Reminders'], ['clipboard', 'Clipboard', 'Clipboard'], ['birthdays', 'CakeSlice', 'Birthdays'],
 ];
 const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', 'Government Document': 'FileBadge', Personal: 'NotebookText', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
-const iconSet = { AlarmClock, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Copy, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, Gem, House, KeyRound, Landmark, LockKeyhole, LogOut, NotebookText, Pencil, Plus, Search, ShieldCheck, Trash2, WandSparkles, Wifi, X };
+const customBrandIcons = {
+  WhatsApp: '<path fill="currentColor" d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24m4.52 11.53c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.03-1.25-.75-.67-1.26-1.5-1.41-1.75-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.44.06-.67.31-.23.25-.87.85-.87 2.08 0 1.23.89 2.42 1.02 2.59.13.17 1.76 2.69 4.27 3.77.6.26 1.06.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.17-.48-.29"/>',
+  Telegram: '<path fill="currentColor" d="m20.665 3.717-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l-.313 4.693c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/>',
+  Instagram: '<rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>',
+};
+const iconSet = {
+  AlarmClock, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, BellRing, CakeSlice, Camera,
+  Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste,
+  Copy, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, Gem, House, KeyRound, Landmark,
+  LockKeyhole, LogOut, Mail, MessageCircle, Mic, NotebookText, Paperclip, Pencil, Plus, Search,
+  Send, Share2, ShieldAlert, ShieldCheck, Trash2, TriangleAlert, WandSparkles, Wifi, X,
+};
 const fieldMap = {
   Login: ['Username / ID', 'Password'], Finance: ['Account number', 'IFSC code', 'Debit card number', 'Expiry', 'CVV', 'ATM PIN'],
   Identity: ['Document number', 'Document type', 'Issued by', 'Expiry date', 'Soft copy link'],
@@ -64,16 +84,19 @@ const state = {
   chatAttachment: null, isRecordingVoice: false,
 };
 
-
 marked.setOptions({ gfm: true, breaks: true });
 localStorage.removeItem('memoir-theme');
 document.body.classList.remove('dark');
 
 function icon(name, className = '') {
+  if (customBrandIcons[name]) {
+    return `<svg class="icon ${className}" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${customBrandIcons[name]}</svg>`;
+  }
   const item = iconSet[name] || Circle;
   const nodes = item.map(([tag, attrs]) => `<${tag} ${Object.entries(attrs).filter(([key]) => key !== 'key').map(([key, value]) => `${key.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}="${String(value).replace(/"/g, '&quot;')}"`).join(' ')}/>`).join('');
   return `<svg class="icon ${className}" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${nodes}</svg>`;
 }
+
 function escapeHtml(value = '') { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char])); }
 function toast(text, tone = '') { toastNode.textContent = text; toastNode.classList.toggle('success', tone === 'success'); toastNode.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => toastNode.classList.remove('show', 'success'), 2400); }
 function securityCountdown(timestamp) {
@@ -813,9 +836,9 @@ function isSecretField(key) {
 function formatShareText(item, selectedFields, includeNote = false) {
   const senderName = activeProfile()?.name || 'Maaz';
   const lines = [
-    `🔒 Shared via Memoir by ${senderName}`,
+    `Shared via Memoir (${senderName})`,
     '',
-    `📌 ${item.title}`,
+    `${item.title}`,
   ];
 
   selectedFields.forEach(([label, value]) => {
@@ -823,10 +846,10 @@ function formatShareText(item, selectedFields, includeNote = false) {
   });
 
   if (includeNote && item.note) {
-    lines.push('', `📝 Note: ${item.note}`);
+    lines.push('', `Note: ${item.note}`);
   }
 
-  lines.push('', '⚡ Kept safe in Memoir Vault');
+  lines.push('', 'Verified with Memoir Vault');
   return lines.join('\n');
 }
 
@@ -857,8 +880,8 @@ function openShareModal(id) {
           <button type="button" class="modal-close" aria-label="Close">${icon('X')}</button>
         </div>
 
-        <p style="font-size:11px;color:var(--muted);margin:10px 0 6px">
-          Select the exact fields you want to share. ${hasHiddenSecrets ? '<span style="color:var(--green);font-weight:600">🛡️ Passwords, PINs & CVVs are automatically protected and excluded.</span>' : ''}
+        <p style="font-size:11.5px;color:var(--muted);margin:10px 0 8px;line-height:1.45">
+          Select the exact fields you want to share. ${hasHiddenSecrets ? '<span style="color:var(--green);font-weight:600">Confidential credentials (passwords, PINs, CVVs) are automatically excluded.</span>' : ''}
         </p>
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -898,7 +921,7 @@ function openShareModal(id) {
         <pre class="share-preview-box" id="share-preview-box">${escapeHtml(previewText)}</pre>
 
         <div class="share-warning-banner">
-          ${icon('AlertTriangle')}
+          ${icon('ShieldAlert')}
           <div>
             <strong>Security verification</strong><br>
             Please verify the recipient before sharing sensitive account or identity details. Memoir will format and send only the checkboxes you selected.
@@ -907,16 +930,16 @@ function openShareModal(id) {
 
         <div class="share-platform-grid">
           <button type="button" class="platform-btn whatsapp" data-platform="whatsapp">
-            ${icon('MessageCircle')} WhatsApp
+            ${icon('WhatsApp')} WhatsApp
           </button>
           <button type="button" class="platform-btn telegram" data-platform="telegram">
-            ${icon('Send')} Telegram
+            ${icon('Telegram')} Telegram
           </button>
           <button type="button" class="platform-btn gmail" data-platform="gmail">
             ${icon('Mail')} Gmail / Mail
           </button>
           <button type="button" class="platform-btn instagram" data-platform="instagram">
-            ${icon('Camera')} Instagram
+            ${icon('Instagram')} Instagram
           </button>
           <button type="button" class="platform-btn copy" data-platform="copy">
             ${icon('Copy')} Copy text
@@ -929,6 +952,7 @@ function openShareModal(id) {
         </div>
       </div>
     `;
+
 
     modal.querySelector('.modal-close').onclick = closeModal;
 

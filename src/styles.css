@@ -19,27 +19,86 @@
 .icon-btn-mini{width:28px;height:28px;border:1px solid var(--line);border-radius:8px;display:grid;place-items:center;background:var(--surface2);color:var(--muted);transition:.2s}
 .icon-btn-mini:hover{color:var(--rose);background:var(--surface);transform:translateY(-1px)}
 .share-modal{max-width:540px}
-.share-field-list{display:grid;gap:7px;margin:14px 0 18px;max-height:220px;overflow-y:auto;padding-right:4px}
-.share-field-item{display:flex;align-items:center;gap:11px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface2);cursor:pointer;transition:.18s}
+.share-field-list{display:grid;gap:8px;margin:12px 0 16px;max-height:220px;overflow-y:auto;padding-right:4px}
+.share-field-item{display:flex;align-items:center;gap:12px;padding:11px 15px;border:1px solid var(--line);border-radius:14px;background:var(--surface2);cursor:pointer;transition:.18s}
 .share-field-item:hover{border-color:var(--rose);background:var(--surface)}
-.share-field-item input[type="checkbox"]{width:16px;height:16px;accent-color:var(--rose);cursor:pointer;margin:0}
+.share-field-item input[type="checkbox"]{width:17px;height:17px;accent-color:var(--rose);cursor:pointer;margin:0}
 .share-field-item>div{min-width:0;flex:1}
-.share-field-item strong{display:block;font-size:12px}
-.share-field-item small{display:block;color:var(--muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.share-preview-box{padding:14px;border:1px solid var(--line);border-radius:16px;background:#131113;color:#f0ebef;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-word;max-height:140px;overflow-y:auto;margin:12px 0}
-.share-platform-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:16px}
+.share-field-item strong{display:block;font-size:12px;color:var(--ink);letter-spacing:0.01em}
+.share-field-item small{display:block;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+
+.share-preview-box{
+  padding:15px 18px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:var(--surface2);
+  color:var(--ink);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  font-size:11.5px;
+  line-height:1.55;
+  white-space:pre-wrap;
+  word-break:break-word;
+  max-height:150px;
+  overflow-y:auto;
+  margin:10px 0 14px;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.share-platform-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
 @media(max-width:480px){.share-platform-grid{grid-template-columns:repeat(2,1fr)}}
-.platform-btn{min-height:44px;padding:8px 12px;border:0;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px;font-weight:700;color:#fff;transition:.2s;cursor:pointer}
-.platform-btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,0.18)}
-.platform-btn.whatsapp{background:#25D366;box-shadow:0 6px 18px rgba(37,211,102,0.3)}
-.platform-btn.telegram{background:#229ED9;box-shadow:0 6px 18px rgba(34,158,217,0.3)}
-.platform-btn.gmail{background:#EA4335;box-shadow:0 6px 18px rgba(234,67,53,0.3)}
-.platform-btn.instagram{background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);box-shadow:0 6px 18px rgba(220,39,67,0.3)}
-.platform-btn.native{background:linear-gradient(135deg,var(--coral),var(--rose),var(--violet));box-shadow:0 6px 18px rgba(243,46,139,0.3)}
-.platform-btn.copy{background:#262326;color:#fff}
-.share-warning-banner{display:flex;align-items:flex-start;gap:9px;padding:11px 13px;border:1px solid rgba(243,163,61,0.4);border-radius:14px;background:rgba(243,163,61,0.1);color:#c77918;font-size:10px;line-height:1.4;margin-top:12px}
-.dark .share-warning-banner{color:#f5b35c}
-.share-warning-banner .icon{flex:none;color:var(--amber)}
+
+.platform-btn{
+  min-height:44px;
+  padding:10px 14px;
+  border-radius:13px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:12px;
+  font-weight:600;
+  transition:.2s cubic-bezier(0.16,1,0.3,1);
+  cursor:pointer;
+  border:1px solid transparent;
+}
+.platform-btn .icon{width:16px;height:16px;flex:none}
+.platform-btn:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,0.08)}
+.platform-btn:active{transform:translateY(0)}
+
+.platform-btn.whatsapp{background:#eafaf1;color:#0d8a47;border-color:#b9ebd0}
+.platform-btn.whatsapp:hover{background:#25D366;color:#fff;border-color:#25D366;box-shadow:0 8px 20px rgba(37,211,102,0.28)}
+
+.platform-btn.telegram{background:#eef7fc;color:#1782b8;border-color:#c4e4f7}
+.platform-btn.telegram:hover{background:#229ED9;color:#fff;border-color:#229ED9;box-shadow:0 8px 20px rgba(34,158,217,0.28)}
+
+.platform-btn.gmail{background:#fdf0ee;color:#c93b2b;border-color:#f7c7c0}
+.platform-btn.gmail:hover{background:#EA4335;color:#fff;border-color:#EA4335;box-shadow:0 8px 20px rgba(234,67,53,0.28)}
+
+.platform-btn.instagram{background:#fdf0f6;color:#b8236d;border-color:#f8c7de}
+.platform-btn.instagram:hover{background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#fff;border-color:transparent;box-shadow:0 8px 20px rgba(220,39,67,0.28)}
+
+.platform-btn.copy{background:var(--surface2);color:var(--ink);border-color:var(--line)}
+.platform-btn.copy:hover{background:var(--surface);border-color:var(--rose);color:var(--rose)}
+
+.platform-btn.native{background:#f4effd;color:#693bc9;border-color:#dcd0fa}
+.platform-btn.native:hover{background:linear-gradient(135deg,var(--coral),var(--rose),var(--violet));color:#fff;border-color:transparent;box-shadow:0 8px 20px rgba(243,46,139,0.28)}
+
+.share-warning-banner{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  padding:12px 14px;
+  border:1px solid rgba(224,159,62,0.3);
+  border-radius:14px;
+  background:rgba(224,159,62,0.08);
+  color:#9e600b;
+  font-size:11px;
+  line-height:1.45;
+  margin:12px 0 16px;
+}
+.dark .share-warning-banner{color:#f5b35c;border-color:rgba(224,159,62,0.4);background:rgba(224,159,62,0.12)}
+.share-warning-banner .icon{flex:none;color:#d97706;width:18px;height:18px}
+
 
 .chat-input-row{display:flex;align-items:center;gap:6px;width:100%}
 .chat-media-btn{width:36px;height:36px;flex:none;border:1px solid var(--line);border-radius:12px;display:grid;place-items:center;background:var(--surface);color:var(--muted);transition:.2s}
