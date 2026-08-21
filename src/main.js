@@ -1867,7 +1867,7 @@ function isSecretField(key) {
   return /password|passcode|\bpin\b|cvv|security code|atm pin|transaction pin|secret|private key/i.test(k);
 }
 
-function formatShareText(item, selectedFields, includeNote = false) {
+function formatShareText(item, selectedFields, includeNote = false, selectedAttachments = []) {
   const senderName = activeProfile()?.name || 'Maaz';
   const lines = [
     `Shared via Memoir (${senderName})`,
@@ -1883,6 +1883,13 @@ function formatShareText(item, selectedFields, includeNote = false) {
     lines.push('', `Note: ${item.note}`);
   }
 
+  if (selectedAttachments && selectedAttachments.length) {
+    lines.push('', `Attached Files (${selectedAttachments.length}):`);
+    selectedAttachments.forEach(att => {
+      lines.push(`  - ${att.fileName} (${formatFileSize(att.byteLength)})`);
+    });
+  }
+
   lines.push('', 'Verified with Memoir Vault');
   return lines.join('\n');
 }
@@ -1892,15 +1899,17 @@ function openShareModal(id) {
   if (!item) return;
 
   const entries = Object.entries(allFields(item));
-  const shareableEntries = entries.filter(([label]) => !isSecretField(label) && !audioDataLabels.has(label) && !audioMetadataLabels.has(label));
+  const shareableEntries = entries.filter(([label]) => !isSecretField(label) && !audioDataLabels.has(label) && !audioMetadataLabels.has(label) && !documentDataLabels.has(label));
+  const attachments = parseItemAttachments(item);
   const hasHiddenSecrets = entries.some(([label]) => isSecretField(label));
   const initialFields = [...shareableEntries];
+  const initialAttachments = [...attachments];
   let includeNote = Boolean(item.note);
 
   modal.className = 'modal share-modal';
 
   const renderModalContent = () => {
-    const previewText = formatShareText(item, initialFields, includeNote);
+    const previewText = formatShareText(item, initialFields, includeNote, initialAttachments);
     modal.innerHTML = `
       <div class="modal-inner">
         <div class="modal-head">
@@ -1915,8 +1924,29 @@ function openShareModal(id) {
         </div>
 
         <p style="font-size:11.5px;color:var(--muted);margin:10px 0 8px;line-height:1.45">
-          Select the exact fields you want to share. ${hasHiddenSecrets ? '<span style="color:var(--green);font-weight:600">Confidential credentials (passwords, PINs, CVVs) are automatically excluded.</span>' : ''}
+          Select the exact fields and attached files you want to share. ${hasHiddenSecrets ? '<span style="color:var(--green);font-weight:600">Confidential credentials (passwords, PINs, CVVs) are automatically excluded.</span>' : ''}
         </p>
+
+        ${attachments.length ? `
+          <div class="share-section-heading">
+            <small style="color:var(--muted);font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:0.06em">Attached Documents & Images (${attachments.length})</small>
+            <span class="share-badge-hint">Decrypted on share</span>
+          </div>
+          <div class="share-attachments-list">
+            ${attachments.map((att, idx) => `
+              <label class="share-attachment-row">
+                <input type="checkbox" class="share-attachment-checkbox" data-att-index="${idx}" ${initialAttachments.some(a => a.assetId === att.assetId) ? 'checked' : ''}>
+                <span class="share-doc-icon ${isPdf(att.mimeType, att.fileName) ? 'pdf' : 'image'}">
+                  ${icon(isPdf(att.mimeType, att.fileName) ? 'FileText' : 'Image')}
+                </span>
+                <div class="share-doc-info">
+                  <strong>${escapeHtml(att.fileName)}</strong>
+                  <small>${formatFileSize(att.byteLength)} · ${isPdf(att.mimeType, att.fileName) ? 'PDF Document' : 'Photo'}</small>
+                </div>
+              </label>
+            `).join('')}
+          </div>
+        ` : ''}
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <small style="color:var(--muted);font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:0.06em">Available Fields (${shareableEntries.length})</small>
@@ -1949,7 +1979,7 @@ function openShareModal(id) {
 
         <div style="display:flex;align-items:center;justify-content:space-between">
           <small style="color:var(--muted);font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:0.06em">Message Preview</small>
-          <span style="font-size:10px;color:var(--muted)"><span id="share-count">${initialFields.length}</span> field${initialFields.length === 1 ? '' : 's'} selected</span>
+          <span style="font-size:10px;color:var(--muted)"><span id="share-count">${initialFields.length + initialAttachments.length}</span> item${(initialFields.length + initialAttachments.length) === 1 ? '' : 's'} selected</span>
         </div>
 
         <pre class="share-preview-box" id="share-preview-box">${escapeHtml(previewText)}</pre>
@@ -1958,7 +1988,7 @@ function openShareModal(id) {
           ${icon('ShieldAlert')}
           <div>
             <strong>Security verification</strong><br>
-            Please verify the recipient before sharing sensitive account or identity details. Memoir will format and send only the checkboxes you selected.
+            Please verify the recipient before sharing sensitive details or decrypted files. Memoir will decrypt and forward only the items you selected.
           </div>
         </div>
 
@@ -1987,7 +2017,6 @@ function openShareModal(id) {
       </div>
     `;
 
-
     modal.querySelector('.modal-close').onclick = closeModal;
 
     const updatePreview = () => {
@@ -1996,38 +2025,43 @@ function openShareModal(id) {
         const idx = Number(cb.dataset.index);
         if (shareableEntries[idx]) selected.push(shareableEntries[idx]);
       });
+      const selectedAtts = [];
+      modal.querySelectorAll('.share-attachment-checkbox:checked').forEach(cb => {
+        const idx = Number(cb.dataset.attIndex);
+        if (attachments[idx]) selectedAtts.push(attachments[idx]);
+      });
       const incNote = modal.querySelector('#share-include-note')?.checked || false;
-      const text = formatShareText(item, selected, incNote);
+      const text = formatShareText(item, selected, incNote, selectedAtts);
       modal.querySelector('#share-preview-box').textContent = text;
-      modal.querySelector('#share-count').textContent = selected.length;
-      return { selected, incNote, text };
+      modal.querySelector('#share-count').textContent = selected.length + selectedAtts.length;
+      return { selected, incNote, selectedAtts, text };
     };
 
-    modal.querySelectorAll('.share-field-checkbox, #share-include-note').forEach(input => {
+    modal.querySelectorAll('.share-field-checkbox, .share-attachment-checkbox, #share-include-note').forEach(input => {
       input.onchange = updatePreview;
     });
 
     modal.querySelector('#share-select-all').onclick = () => {
-      modal.querySelectorAll('.share-field-checkbox').forEach(cb => cb.checked = true);
+      modal.querySelectorAll('.share-field-checkbox, .share-attachment-checkbox').forEach(cb => cb.checked = true);
       if (modal.querySelector('#share-include-note')) modal.querySelector('#share-include-note').checked = true;
       updatePreview();
     };
 
     modal.querySelector('#share-clear-all').onclick = () => {
-      modal.querySelectorAll('.share-field-checkbox').forEach(cb => cb.checked = false);
+      modal.querySelectorAll('.share-field-checkbox, .share-attachment-checkbox').forEach(cb => cb.checked = false);
       if (modal.querySelector('#share-include-note')) modal.querySelector('#share-include-note').checked = false;
       updatePreview();
     };
 
     modal.querySelectorAll('[data-platform]').forEach(btn => {
       btn.onclick = async () => {
-        const { selected, text } = updatePreview();
-        if (!selected.length && !(modal.querySelector('#share-include-note')?.checked && item.note)) {
-          return toast('Select at least one field to share');
+        const { selected, selectedAtts, text } = updatePreview();
+        if (!selected.length && !selectedAtts.length && !(modal.querySelector('#share-include-note')?.checked && item.note)) {
+          return toast('Select at least one field or attached file to share');
         }
         const platform = btn.dataset.platform;
         closeModal();
-        await executeShare(platform, text, item.title);
+        await executeShare(platform, text, item.title, selectedAtts);
       };
     });
   };
@@ -2036,46 +2070,77 @@ function openShareModal(id) {
   showModal();
 }
 
-async function executeShare(platform, text, itemTitle) {
+async function executeShare(platform, text, itemTitle, selectedAttachments = []) {
   const encoded = encodeURIComponent(text);
+
+  let files = [];
+  if (selectedAttachments && selectedAttachments.length > 0) {
+    await withRhinoActivity('Decrypting attachments for share…', async () => {
+      for (const att of selectedAttachments) {
+        try {
+          const doc = await vaultStore.getDocument(att.assetId, att.mimeType, att.fileName);
+          files.push(new File([doc.blob], att.fileName, { type: doc.mimeType }));
+        } catch (e) {
+          console.warn('Could not decrypt attachment for share', att.fileName, e);
+        }
+      }
+    });
+  }
+
+  // If System Share or if device supports Web Share with Files
+  if (platform === 'native' || (files.length > 0 && navigator.canShare && navigator.canShare({ files }))) {
+    if (navigator.share) {
+      try {
+        const shareData = { title: itemTitle, text };
+        if (files.length > 0 && navigator.canShare && navigator.canShare({ files })) {
+          shareData.files = files;
+        }
+        await navigator.share(shareData);
+        toast('Shared successfully');
+        return;
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+  }
+
+  // If there are files and sharing to a web URL platform (e.g. WhatsApp / Telegram web):
+  // Since browsers cannot directly attach local files into external URLs,
+  // we download the decrypted files to the device so the user can easily attach them in the chat.
+  if (files.length > 0) {
+    files.forEach(file => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  }
+
   if (platform === 'whatsapp') {
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank', 'noopener,noreferrer');
-    toast('Forwarding to WhatsApp…');
+    toast(files.length ? 'Decrypted files saved to device & forwarded to WhatsApp' : 'Forwarding to WhatsApp…');
   } else if (platform === 'telegram') {
     window.open(`https://t.me/share/url?url=&text=${encoded}`, '_blank', 'noopener,noreferrer');
-    toast('Forwarding to Telegram…');
+    toast(files.length ? 'Decrypted files saved to device & forwarded to Telegram' : 'Forwarding to Telegram…');
   } else if (platform === 'gmail' || platform === 'mail') {
     const subject = encodeURIComponent(`${itemTitle} (via Memoir)`);
     window.open(`mailto:?subject=${subject}&body=${encoded}`, '_blank');
-    toast('Opening Email client…');
+    toast(files.length ? 'Decrypted files saved to device & opening Email…' : 'Opening Email client…');
   } else if (platform === 'instagram') {
     try {
       await navigator.clipboard.writeText(text);
-      toast('Copied details! Opening Instagram…');
+      toast(files.length ? 'Decrypted files saved & details copied! Opening Instagram…' : 'Copied details! Opening Instagram…');
     } catch {
       toast('Opening Instagram…');
     }
     setTimeout(() => {
       window.open('https://www.instagram.com/direct/inbox/', '_blank', 'noopener,noreferrer');
     }, 400);
-  } else if (platform === 'native') {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: itemTitle, text });
-        toast('Shared successfully');
-      } catch (err) {
-        if (err?.name !== 'AbortError') {
-          await navigator.clipboard.writeText(text);
-          toast('Copied details to clipboard');
-        }
-      }
-    } else {
-      await navigator.clipboard.writeText(text);
-      toast('Copied details to clipboard');
-    }
   } else if (platform === 'copy') {
     await navigator.clipboard.writeText(text);
-    toast('Copied formatted details to clipboard');
+    toast(files.length ? 'Decrypted files saved to device & details copied to clipboard' : 'Copied formatted details to clipboard');
   }
 }
 
