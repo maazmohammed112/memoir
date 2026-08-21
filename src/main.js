@@ -365,7 +365,7 @@ function showWhatsNewModal() {
         </div>
 
         <div class="whats-new-footer-note">
-          <p>${icon('Info')} <strong>Want to see this tutorial again?</strong> You can reopen this guide anytime by tapping the 🔔 Notification bell at the top of your vault.</p>
+          <p>${icon('Info')} <strong>Want to see this tutorial again?</strong> You can reopen this guide anytime by tapping the Notification bell at the top of your vault.</p>
         </div>
 
         <div class="signature-section">
@@ -647,7 +647,7 @@ async function openDocumentViewer(assetId, fileName, mimeType) {
         <div class="rhino-pulse-ring">
           <img src="/brand/memoir-rhino-ui.png" class="upload-rhino-spinner" alt="">
         </div>
-        <strong>🔒 Retrieving & Decrypting Document…</strong>
+        <strong>Retrieving and Decrypting Document…</strong>
         <p>Safely fetching from your encrypted vault storage. Please wait a moment.</p>
       </div>
     </div>
@@ -1002,11 +1002,11 @@ function assistantView() {
   const voiceIndicator = state.isRecordingVoice ? `
     <div class="chat-voice-indicator">
       <span class="voice-pulse-dot"></span>
-      <span>🎙️ Listening… Speak your note, warranty, or reminder</span>
+      <span>Listening… Speak your note, warranty, or reminder</span>
     </div>` : '';
 
   return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div>${attachmentMarkup}${voiceIndicator}<form class="chat-form" id="chat-form"><input type="file" id="chat-camera-input" accept="image/*" capture="environment" hidden><input type="file" id="chat-upload-input" accept="image/*" hidden><input type="file" id="chat-audio-input" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac" hidden><div class="chat-input-row"><button type="button" class="chat-media-btn" id="chat-camera-btn" title="Snap photo of document/warranty">${icon('Camera')}</button><button type="button" class="chat-media-btn" id="chat-upload-btn" title="Upload image or invoice">${icon('Paperclip')}</button><button type="button" class="chat-media-btn" id="chat-audio-upload-btn" title="Upload an audio recording">${icon('AudioLines')}</button><button type="button" class="chat-media-btn ${state.isRecordingVoice ? 'recording' : ''}" id="chat-voice-btn" title="Record a voice memo">${icon('Mic')}</button><input id="chat-query" autocomplete="off" placeholder="${state.chatAttachment ? 'Add notes or tap Send to extract…' : 'Ask Rhinous or dictate memory/reminder…'}"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></div></form></section>
-  <aside class="panel"><p class="eyebrow">Smart Multi-Modal</p><h3>Capture, snap & transcribe</h3><div class="suggestions">${['📸 Snap a warranty card or invoice to auto-extract fields', '🎙️ Dictate: “Remember my appliance warranty with 2 years validity”', 'Remind me to renew my passport tomorrow at 6 PM', 'Give me only my EPFO password'].map(text => `<button class="suggestion" data-ask="${escapeHtml(text.replace(/^[📸🎙️]\s*/, ''))}">${escapeHtml(text)}</button>`).join('')}</div><div class="privacy-line">${icon('ShieldCheck')}<span>Smart Capture extracts structured records on device. Credentials stay encrypted in your isolated vault.</span></div></aside></div>`;
+  <aside class="panel"><p class="eyebrow">Smart Multi-Modal</p><h3>Capture, snap & transcribe</h3><div class="suggestions">${['Snap a warranty card or invoice to auto-extract fields', 'Dictate: “Remember my appliance warranty with 2 years validity”', 'Remind me to renew my passport tomorrow at 6 PM', 'Give me only my EPFO password'].map(text => `<button class="suggestion" data-ask="${escapeHtml(text)}">${escapeHtml(text)}</button>`).join('')}</div><div class="privacy-line">${icon('ShieldCheck')}<span>Smart Capture extracts structured records on device. Credentials stay encrypted in your isolated vault.</span></div></aside></div>`;
 }
 
 function renderMessage(message, messageIndex = 0) {
@@ -1452,7 +1452,7 @@ function openEditor(item = null, initialType = 'Personal') {
         <img src="/brand/memoir-rhino-ui.png" class="upload-rhino-spinner" alt="">
       </div>
       <div class="uploading-copy">
-        <strong>🔒 Encrypting & Securing Document…</strong>
+        <strong>Encrypting & Securing Document…</strong>
         <p>Encrypting with AES-256-GCM and saving into your private vault. Please wait…</p>
       </div>
     </div>
@@ -1534,7 +1534,7 @@ function openEditor(item = null, initialType = 'Personal') {
 
       try {
         if (uploadBanner) uploadBanner.style.display = 'flex';
-        await withRhinoActivity('🔒 Encrypting & saving to vault…', async () => {
+        await withRhinoActivity('Encrypting & saving to vault…', async () => {
           const saved = await vaultStore.uploadDocument({ file, fileName: file.name, mimeType: file.type });
           pendingAttachments.push(saved);
           renderAttachmentChips();
@@ -2392,7 +2392,7 @@ async function checkBirthdayReminders() {
   if (!navigator.onLine) return; const now = Date.now(); const sentKey = `memoir-reminders-sent-${state.auth.profile?.uid || 'unknown'}`; const sent = JSON.parse(localStorage.getItem(sentKey) || '{}'); const offsets = [[48 * 3600000, 'in two days'], [24 * 3600000, 'tomorrow'], [5 * 3600000, 'in five hours'], [2 * 3600000, 'in two hours'], [0, 'today']];
   for (const item of memories().filter(row => row.type === 'Birthday' && row.fields?.Date)) {
     const next = nextBirthday(item, new Date(now)); if (!next) continue; const birthday = next.occurrence.getTime(); const occurrenceKey = next.occurrence.toISOString().slice(0, 10);
-    for (const [offset, label] of offsets) { const due = birthday - offset; const key = `birthday:${item.id}:${occurrenceKey}:${offset}`; if (!sent[key] && now >= due && now - due < 10 * 60000) { const name = item.title.replace(/['’]s birthday/i, ''); try { const identityToken = await vaultStore.idToken(); if (!identityToken) continue; const response = await fetch('/api/telegram', { method: 'POST', headers: vaultStore.apiHeaders(identityToken), body: JSON.stringify({ action: 'send', reminderKey: key, text: `🎂 Birthday reminder\n\n${name}'s birthday is ${label}.\n${item.note ? `\n📝 ${item.note}` : ''}\n\nOpen Memoir to prepare a thoughtful wish.` }) }); if (response.ok) { const result = await response.json().catch(() => ({})); sent[key] = Date.now(); localStorage.setItem(sentKey, JSON.stringify(sent)); if (!result.deduplicated) await logSentNotification({ title: item.title, category: 'Birthday', scheduledAt: due, sourceId: item.id, deliveryKey: key }); } } catch { /* retry on next interval */ } } }
+    for (const [offset, label] of offsets) { const due = birthday - offset; const key = `birthday:${item.id}:${occurrenceKey}:${offset}`; if (!sent[key] && now >= due && now - due < 10 * 60000) { const name = item.title.replace(/['’]s birthday/i, ''); try { const identityToken = await vaultStore.idToken(); if (!identityToken) continue; const response = await fetch('/api/telegram', { method: 'POST', headers: vaultStore.apiHeaders(identityToken), body: JSON.stringify({ action: 'send', reminderKey: key, text: `Birthday reminder\n\n${name}'s birthday is ${label}.\n${item.note ? `\nNote: ${item.note}` : ''}\n\nOpen Memoir to prepare a thoughtful wish.` }) }); if (response.ok) { const result = await response.json().catch(() => ({})); sent[key] = Date.now(); localStorage.setItem(sentKey, JSON.stringify(sent)); if (!result.deduplicated) await logSentNotification({ title: item.title, category: 'Birthday', scheduledAt: due, sourceId: item.id, deliveryKey: key }); } } catch { /* retry on next interval */ } } }
   }
 }
 
@@ -2431,10 +2431,10 @@ async function checkExpiryReminders() {
           if (exp.isCard) {
             const cardDesc = exp.bank ? `${exp.bank} ${exp.title}` : exp.title;
             const endingText = exp.last4 ? ` (ending in ${exp.last4})` : '';
-            messageText = `💳 Card Expiry Alert\n\nYour ${cardDesc}${endingText} is expiring in ${label} (${expiryDateFormatted}).\n\nOpen Memoir to review or request a replacement card from your bank.`;
+            messageText = `Card Expiry Alert\n\nYour ${cardDesc}${endingText} is expiring in ${label} (${expiryDateFormatted}).\n\nOpen Memoir to review or request a replacement card from your bank.`;
           } else {
             const docDesc = exp.docNum ? ` (Doc #${exp.docNum})` : '';
-            messageText = `📄 Document Expiry Alert\n\nYour ${exp.title}${docDesc} is expiring in ${label} on ${expiryDateFormatted}.\n\nOpen Memoir to check renewal requirements or schedule an appointment.`;
+            messageText = `Document Expiry Alert\n\nYour ${exp.title}${docDesc} is expiring in ${label} on ${expiryDateFormatted}.\n\nOpen Memoir to check renewal requirements or schedule an appointment.`;
           }
 
           const response = await fetch('/api/telegram', {

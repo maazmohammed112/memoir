@@ -79,8 +79,8 @@ async function queuePersistedAction(profile, action, source) {
 async function sendReminder(profile, item, label, due) {
   const dueText = new Date(due).toLocaleString('en-IN', { timeZone: process.env.APP_TIMEZONE || 'Asia/Calcutta', dateStyle: 'medium', timeStyle: 'short' });
   const when = label === 'now' ? 'is due now' : `is due in ${label}`;
-  const text = `⏰ Memoir reminder\n\n${item.title} ${when}.\nDue: ${dueText}${item.note ? `\nNote: ${String(item.note).slice(0, 800)}` : ''}\n\nOpen Memoir to mark it complete or snooze it.`;
-  await telegram(profile, 'sendMessage', { chat_id: profile.telegramChatId, text: text.slice(0, 4000), reply_markup: { inline_keyboard: [[{ text: '✅ Done', callback_data: `m:done:${item.id}:${due}` }, { text: '⏰ Snooze 30m', callback_data: `m:snooze:${item.id}:${due}` }]] } });
+  const text = `Memoir Reminder\n\n${item.title} ${when}.\nDue: ${dueText}${item.note ? `\nNote: ${String(item.note).slice(0, 800)}` : ''}\n\nOpen Memoir to mark it complete or snooze it.`;
+  await telegram(profile, 'sendMessage', { chat_id: profile.telegramChatId, text: text.slice(0, 4000), reply_markup: { inline_keyboard: [[{ text: 'Done', callback_data: `m:done:${item.id}:${due}` }, { text: 'Snooze 30m', callback_data: `m:snooze:${item.id}:${due}` }]] } });
 }
 
 async function performReminderSweep(profile, now = Date.now()) {
@@ -132,10 +132,10 @@ async function sendExpiryNotification(profile, exp, label, expiryTimestamp) {
   if (exp.isCard) {
     const cardDesc = exp.bank ? `${exp.bank} ${exp.title}` : exp.title;
     const endingText = exp.last4 ? ` (ending in ${exp.last4})` : '';
-    text = `💳 Card Expiry Alert\n\nYour ${cardDesc}${endingText} is expiring in ${label} (${expiryDateFormatted}).\n\nOpen Memoir to review or request a replacement card from your bank.`;
+    text = `Card Expiry Alert\n\nYour ${cardDesc}${endingText} is expiring in ${label} (${expiryDateFormatted}).\n\nOpen Memoir to review or request a replacement card from your bank.`;
   } else {
     const docDesc = exp.docNum ? ` (Doc #${exp.docNum})` : '';
-    text = `📄 Document Expiry Alert\n\nYour ${exp.title}${docDesc} is expiring in ${label} on ${expiryDateFormatted}.\n\nOpen Memoir to check renewal requirements or schedule an appointment.`;
+    text = `Document Expiry Alert\n\nYour ${exp.title}${docDesc} is expiring in ${label} on ${expiryDateFormatted}.\n\nOpen Memoir to check renewal requirements or schedule an appointment.`;
   }
 
   await telegram(profile, 'sendMessage', {

@@ -165,10 +165,10 @@ async function processTelegramUpdateOnce(update, profile = getUserByChatId(updat
       const base64Data = await downloadTelegramFile(profile, bestPhoto.file_id);
       imagePayload = { data: base64Data, mimeType: 'image/jpeg' };
       if (!query) query = 'Extract warranty, invoice, receipt, card or document details from this image';
-      await sendToOwner(profile, '📸 Analyzing image with Smart Capture…');
+      await sendToOwner(profile, 'Analyzing image with Smart Capture…');
     } catch (err) {
       console.error('Error downloading Telegram photo:', err);
-      return sendToOwner(profile, '⚠️ Could not download the photo from Telegram.');
+      return sendToOwner(profile, 'Could not download the photo from Telegram.');
     }
   } else if (message.voice || message.audio) {
     try {
@@ -187,10 +187,10 @@ async function processTelegramUpdateOnce(update, profile = getUserByChatId(updat
         console.warn('Encrypted audio asset storage was unavailable; using the legacy attachment path:', assetError?.message);
       }
       if (!query) query = 'Transcribe this voice memo and extract memory or reminder details into JSON';
-      await sendToOwner(profile, '🎙️ Voice memo received.\n\nRhinous is transcribing and securing it now. This can take 1–2 minutes—please relax; it will appear automatically in your Memoir Audio tab when ready.');
+      await sendToOwner(profile, 'Voice memo received.\n\nRhinous is transcribing and securing it now. This can take 1–2 minutes—please relax; it will appear automatically in your Memoir Audio tab when ready.');
     } catch (err) {
       console.error('Error downloading Telegram audio:', err);
-      return sendToOwner(profile, '⚠️ Could not download the voice note from Telegram.');
+      return sendToOwner(profile, 'Could not download the voice note from Telegram.');
     }
   } else if (!query) {
     return;
@@ -243,12 +243,12 @@ async function processTelegramUpdateOnce(update, profile = getUserByChatId(updat
     const queued = queueRuntimeActions(profile.uid, actions, 'telegram'); await persistQueuedActions(profile, queued);
     const summaryLines = actions.map(act => {
       const fieldList = Object.entries(act.fields || {}).filter(([k]) => !['Audio Recording', 'Audio Asset ID', 'Audio MIME type', 'Audio File name'].includes(k)).map(([k, v]) => `• ${k}: ${v}`).join('\n');
-      return `📌 ${act.title} (${act.type})\n${fieldList}`;
+      return `${act.title} (${act.type})\n${fieldList}`;
     }).join('\n\n');
     const isAudioCapture = Boolean(audioPayload?.data);
     const isFinanceCapture = actions.some(act => act.type === 'Finance' || /invoice|bill|receipt|order/i.test(act.title) || act.fields?.['Amount (INR)'] || act.fields?.Amount);
-    const captureKicker = isFinanceCapture ? '🧾 Smart Capture · Invoice & Amount Saved!' : isAudioCapture ? '🎙️ Smart Capture · Voice Memo Saved!' : '✨ Smart Capture Saved to Vault!';
-    const captureFooter = isAudioCapture ? '🔒 The audio and transcript were saved securely. Memoir will sync them to your Audio tab automatically.' : '🔒 Encrypted and queued for your Memoir Vault. Open the Memoir app to sync.';
+    const captureKicker = isFinanceCapture ? 'Smart Capture · Invoice & Amount Saved' : isAudioCapture ? 'Smart Capture · Voice Memo Saved' : 'Smart Capture Saved to Vault';
+    const captureFooter = isAudioCapture ? 'The audio and transcript were saved securely. Memoir will sync them to your Audio tab automatically.' : 'Encrypted and queued for your Memoir Vault. Open the Memoir app to sync.';
     responseText = `${captureKicker}\n\n${summaryLines}\n\n${captureFooter}`;
   } else if (audioPayload?.data) {
     const transcript = cleanTelegramText(route.audioTranscript || '');
@@ -268,7 +268,7 @@ async function processTelegramUpdateOnce(update, profile = getUserByChatId(updat
     };
     const queued = queueRuntimeActions(profile.uid, [fallbackAction], 'telegram');
     await persistQueuedActions(profile, queued);
-    responseText = `✨ Voice Note Saved to Vault!\n\n📌 ${fallbackAction.title}\n• Audio recording attached and playable in Memoir\n• ${transcript ? `Transcript: ${transcript}` : 'No transcript was available because the speech was unclear'}\n\n🔒 It will appear in the Audio tab.`;
+    responseText = `Voice Note Saved to Vault\n\n${fallbackAction.title}\n• Audio recording attached and playable in Memoir\n• ${transcript ? `Transcript: ${transcript}` : 'No transcript was available because the speech was unclear'}\n\nIt will appear in the Audio tab.`;
   } else responseText = answerText(route, items);
 
   const nextHistory = [...history, { role: 'user', text: protectedInput.text.slice(0, 1200) }, { role: 'assistant', text: cleanTelegramText(responseText).slice(0, 1200) }].slice(-12);

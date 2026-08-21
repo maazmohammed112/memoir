@@ -125,7 +125,7 @@ async function requestOtp(identity) {
   try {
     await telegramRequest(profile, 'sendMessage', {
       chat_id: profile.telegramChatId,
-      text: `🔐 Memoir sign-in code\n\n${code}\n\nThis code is for ${profile.name}'s vault and expires in 5 minutes. Never share it with anyone.`,
+      text: `Memoir Sign-in Code\n\n${code}\n\nThis verification code is for ${profile.name}'s vault and expires in 5 minutes. Do not share this code with anyone.`,
     });
     await ref.set({ sentAt: new Date(), status: 'sent' }, { merge: true });
   } catch (error) {
