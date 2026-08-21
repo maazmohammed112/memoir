@@ -11,7 +11,8 @@ import alexa from './api/alexa.js';
 dotenv.config({ path: '.env.local', override: true });
 const server = express();
 server.disable('x-powered-by');
-server.use(express.json({ limit: '256kb' }));
+server.use(express.json({ limit: '15mb' }));
+
 server.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); next(); });
 server.post('/api/assistant', assistant);
 server.post('/api/auth', auth);

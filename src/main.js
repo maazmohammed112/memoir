@@ -1097,21 +1097,41 @@ let mediaStream = null;
 let mediaRecorder = null;
 let audioChunks = [];
 
-async function requestMicrophonePermission() {
-  if (!navigator.mediaDevices?.getUserMedia) return false;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach(t => t.stop());
-    return true;
-  } catch (err) {
-    console.warn('Microphone permission status:', err?.name || err?.message);
-    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-      toast('Microphone access is blocked. Please allow microphone permissions in your browser address bar / site settings.');
-    } else {
-      toast('Microphone is unavailable on this device.');
+function openMicrophonePermissionModal() {
+  modal.className = 'modal';
+  modal.innerHTML = `
+    <div class="modal-inner">
+      <div class="modal-head">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="icon-wrap violet">${icon('Mic')}</span>
+          <div>
+            <p class="eyebrow">Voice Recording</p>
+            <h2>Microphone Access</h2>
+          </div>
+        </div>
+        <button type="button" class="modal-close">${icon('X')}</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:14px 0;line-height:1.5">
+        Memoir uses your microphone to transcribe voice notes, warranties, and reminders. Tap below to grant permission in your browser.
+      </p>
+      <div class="modal-actions">
+        <button type="button" class="secondary modal-cancel">Cancel</button>
+        <button type="button" class="primary" id="btn-allow-mic-start">${icon('Mic')} Enable & Start Recording</button>
+      </div>
+    </div>
+  `;
+  showModal();
+
+  document.querySelector('#btn-allow-mic-start').onclick = async () => {
+    closeModal();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      startLiveVoiceSession(stream);
+    } catch (err) {
+      console.warn('Microphone permission grant failed:', err);
+      toast('Permission was denied. Please tap the lock icon in your browser address bar to allow microphone access.');
     }
-    return false;
-  }
+  };
 }
 
 async function toggleVoiceRecording() {
@@ -1120,21 +1140,35 @@ async function toggleVoiceRecording() {
     return;
   }
 
-  const hasPermission = await requestMicrophonePermission();
-  if (!hasPermission) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    toast('Microphone is not supported in this browser.');
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    startLiveVoiceSession(stream);
+  } catch (err) {
+    console.warn('Direct mic access prompt required:', err?.name);
+    openMicrophonePermissionModal();
+  }
+}
+
+function startLiveVoiceSession(stream) {
+  state.isRecordingVoice = true;
+  mediaStream = stream;
+  renderView();
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   if (SpeechRecognition) {
     try {
       speechRecognizer = new SpeechRecognition();
-      speechRecognizer.continuous = false;
+      speechRecognizer.continuous = true;
       speechRecognizer.interimResults = true;
       speechRecognizer.lang = 'en-US';
 
       speechRecognizer.onstart = () => {
-        state.isRecordingVoice = true;
-        renderView();
         toast('Listening… Speak your note, warranty, or reminder');
       };
 
@@ -1156,32 +1190,28 @@ async function toggleVoiceRecording() {
 
       speechRecognizer.onerror = event => {
         console.warn('Speech recognition error:', event.error);
-        state.isRecordingVoice = false;
-        renderView();
-        if (event.error === 'not-allowed') {
-          toast('Microphone access blocked. Please enable microphone in browser settings.');
-        } else if (event.error !== 'no-speech') {
+        if (event.error !== 'no-speech') {
           toast(`Voice input: ${event.error}`);
         }
       };
 
       speechRecognizer.onend = () => {
-        state.isRecordingVoice = false;
-        renderView();
+        if (state.isRecordingVoice) {
+          stopVoiceRecording();
+        }
       };
 
       speechRecognizer.start();
       return;
     } catch (err) {
-      console.warn('Speech recognition initialization error, trying MediaRecorder fallback:', err);
+      console.warn('SpeechRecognition failed, using MediaRecorder fallback:', err);
     }
   }
 
-  // Fallback for browsers without Web Speech API
+  // Fallback MediaRecorder
   try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioChunks = [];
-    mediaRecorder = new MediaRecorder(mediaStream);
+    mediaRecorder = new MediaRecorder(stream);
     mediaRecorder.ondataavailable = e => {
       if (e.data && e.data.size > 0) audioChunks.push(e.data);
     };
@@ -1207,13 +1237,10 @@ async function toggleVoiceRecording() {
       }
     };
     mediaRecorder.start();
-    state.isRecordingVoice = true;
-    renderView();
     toast('Recording voice memo… Tap mic again when finished');
   } catch (err) {
-    console.error('Audio recording failed:', err);
-    state.isRecordingVoice = false;
-    renderView();
+    console.error('Audio recorder failed:', err);
+    stopVoiceRecording();
     toast('Could not start audio recording');
   }
 }
@@ -1227,8 +1254,13 @@ function stopVoiceRecording() {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     try { mediaRecorder.stop(); } catch {}
   }
+  if (mediaStream) {
+    try { mediaStream.getTracks().forEach(track => track.stop()); } catch {}
+    mediaStream = null;
+  }
   renderView();
 }
+
 
 
 async function askAssistant(query) {

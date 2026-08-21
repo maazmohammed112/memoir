@@ -132,15 +132,52 @@ async function callGemini(contents) {
   });
 }
 
-async function callMistral(prompt) {
+const mistralVisionModels = ['pixtral-12b-2409', 'pixtral-large-latest', 'mistral-small-latest'];
+const mistralTextModels = (process.env.MISTRAL_MODELS || 'ministral-8b-latest,mistral-small-latest,ministral-3b-2512,ministral-8b-2512,mistral-small-2603,mistral-medium-latest').split(',');
+
+async function callMistral(prompt, image = null) {
   if (!process.env.MISTRAL_API_KEY) throw new Error('Mistral is not configured');
   const { Mistral } = await import('@mistralai/mistralai');
   const client = new Mistral({ apiKey: process.env.MISTRAL_API_KEY });
-  return withFallback('mistral', async model => {
-    const response = await client.chat.complete({ model, responseFormat: { type: 'json_object' }, temperature: 0.15, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: prompt }] });
-    const content = response.choices?.[0]?.message?.content;
-    return Array.isArray(content) ? content.map(part => part.text || '').join('') : content;
-  });
+  const models = image?.data ? mistralVisionModels : mistralTextModels;
+
+  let lastError;
+  for (const raw of models) {
+    const model = raw.trim();
+    if (!model || (coolingDown.get(`mistral:${model}`) || 0) > Date.now()) continue;
+    try {
+      let content = prompt;
+      if (image?.data) {
+        const cleanBase64 = String(image.data).replace(/^data:[^;]+;base64,/, '').trim();
+        const dataUrl = `data:${image.mimeType || 'image/jpeg'};base64,${cleanBase64}`;
+        content = [
+          { type: 'text', text: prompt },
+          { type: 'image_url', imageUrl: dataUrl },
+        ];
+      }
+      const response = await client.chat.complete({
+        model,
+        responseFormat: { type: 'json_object' },
+        temperature: 0.15,
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content },
+        ],
+      });
+      const text = response.choices?.[0]?.message?.content;
+      const parsed = Array.isArray(text) ? text.map(part => part.text || '').join('') : text;
+      return { result: parsed, model };
+    } catch (error) {
+      lastError = error;
+      const status = Number(error?.status || error?.statusCode || 0);
+      if ([404, 429, 500, 502, 503, 504].includes(status) || /quota|rate|limit|overload|not found/i.test(error?.message || '')) {
+        coolingDown.set(`mistral:${model}`, Date.now() + (status === 429 ? 60000 : 15000));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError || new Error('No Mistral model is currently available');
 }
 
 export async function routeQuery({ provider = 'gemini', query, image, audio, catalog, history, timezone = 'Asia/Calcutta', now = new Date().toISOString() }) {
@@ -199,7 +236,9 @@ REDACTED VAULT CATALOG:
 ${JSON.stringify(cleanCatalog)}`;
 
   let response;
-  if (image?.data || audio?.data || provider === 'gemini') {
+  let activeProvider = provider;
+
+  const tryGemini = async () => {
     const contents = [promptText];
     if (image?.data) {
       contents.push({
@@ -217,13 +256,43 @@ ${JSON.stringify(cleanCatalog)}`;
         },
       });
     }
-    response = await callGemini(contents);
+    return callGemini(contents);
+  };
+
+  const tryMistral = async () => {
+    return callMistral(promptText, image);
+  };
+
+  if (activeProvider === 'mistral') {
+    try {
+      response = await tryMistral();
+    } catch (e) {
+      console.warn('Mistral failed, attempting Gemini fallback:', e?.message);
+      try {
+        response = await tryGemini();
+        activeProvider = 'gemini';
+      } catch (geminiError) {
+        throw e;
+      }
+    }
   } else {
-    response = await callMistral(promptText);
+    try {
+      response = await tryGemini();
+      activeProvider = 'gemini';
+    } catch (e) {
+      console.warn('Gemini failed, attempting Mistral fallback:', e?.message);
+      try {
+        response = await tryMistral();
+        activeProvider = 'mistral';
+      } catch (mistralError) {
+        throw e;
+      }
+    }
   }
 
-  return { ...normalize(parseJson(response.result), cleanCatalog), provider: image?.data || audio?.data ? 'gemini' : provider, model: response.model };
+  return { ...normalize(parseJson(response.result), cleanCatalog), provider: activeProvider, model: response.model };
 }
+
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
