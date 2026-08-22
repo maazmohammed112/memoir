@@ -3101,6 +3101,7 @@ let mediaRecorder = null;
 let audioChunks = [];
 let voiceTranscript = '';
 let recordingStartedAt = 0;
+let speechRecognizer = null;
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
