@@ -506,7 +506,7 @@ function renderAuthGate() {
   else if (otp) {
     const deviceLimit = status === 'deviceLimit';
     const success = status === 'otpSuccess'; const denied = state.auth.verificationState === 'error'; const lockedUntil = Number(state.auth.otpVerifyLockedUntil || 0); const locked = lockedUntil > Date.now();
-    const resendAt = Number(state.auth.otpResendAt || 0); const resendWaiting = resendAt > Date.now(); const requestsRemaining = Number(state.auth.otpRequestsRemaining ?? 0); const attemptsRemaining = Number(state.auth.otpAttemptsRemaining ?? 3);
+    const resendAt = Number(state.auth.otpResendAt || 0); const resendWaiting = resendAt > Date.now(); const requestsRemaining = Number(state.auth.otpRequestsRemaining ?? 5); const attemptsRemaining = Number(state.auth.otpAttemptsRemaining ?? 3);
     if (deviceLimit) {
       const activeDevices = (state.auth.activeDevices || []).slice(0, 2).map((device, index) => {
         const signedIn = Number(device.verifiedAt || 0); const when = signedIn ? new Date(signedIn).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Active session';
@@ -514,8 +514,8 @@ function renderAuthGate() {
       }).join('');
       content = `<div class="auth-copy"><p class="eyebrow">Device protection</p><h1>Maximum login reached.</h1><p>Two devices are already using ${escapeHtml(profile.name)}’s Memoir vault.</p></div><section class="device-limit-panel"><div class="device-limit-heading"><span>${icon('LockKeyhole')}</span><div><strong>Two active devices</strong><p>Your OTP is correct. Choose whether to keep those sessions or continue on this device.</p></div></div><div class="device-session-list">${activeDevices}</div><div class="device-limit-warning">${icon('ShieldCheck')}<span>Logging in here immediately signs out both existing devices, even if their 12-hour sessions have not ended.</span></div></section>${error}<button class="primary auth-submit device-takeover" id="replace-devices">${icon('LogOut')} Login here and sign out both</button><div class="auth-secondary-actions"><button type="button" data-back-login>Keep current devices</button><button type="button" data-switch-account>Switch account</button></div><div class="auth-trust">${icon('ShieldCheck')}<span>Memoir permits a maximum of two verified devices per account. Every normal session still expires after 12 hours.</span></div>`;
     } else {
-      const verificationNotice = success ? `<div class="otp-result success">${icon('CircleCheckBig')}<div><strong>OTP verified</strong><span>Opening your encrypted vault securely…</span></div></div>` : locked ? `<div class="otp-result locked">${icon('LockKeyhole')}<div><strong>Verification locked</strong><span>Try again in <b data-security-countdown="${lockedUntil}"></b>.</span></div></div>` : denied ? `<div class="otp-result denied">${icon('X')}<div><strong>Incorrect security code</strong><span>${attemptsRemaining} attempt${attemptsRemaining === 1 ? '' : 's'} remaining before a 4-hour lock.</span></div></div>` : '';
-      content = `<div class="auth-copy"><p class="eyebrow">Telegram verification</p><h1>${success ? 'Identity confirmed.' : `Check Telegram, ${escapeHtml(profile.name)}.`}</h1><p>${escapeHtml(state.auth.message || 'Enter the 6-digit code sent to your private Telegram account.')}</p></div>${verificationNotice}<form class="auth-form otp-verification ${success ? 'is-success' : denied ? 'is-denied' : ''}" id="otp-form"><label>6-digit security code<input id="auth-otp" class="otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required autofocus placeholder="000000" ${success || locked ? `disabled${locked ? ` data-enable-at="${lockedUntil}"` : ''}` : ''}></label>${error}<button class="primary auth-submit" ${status === 'verifyingOtp' || success || locked ? `disabled${locked ? ` data-enable-at="${lockedUntil}"` : ''}` : ''}>${status === 'verifyingOtp' ? '<span class="button-spinner"></span> Verifying securely…' : success ? `${icon('CircleCheckBig')} Verified` : `${icon('ShieldCheck')} Verify and open Memoir`}</button></form><div class="otp-security-meta"><span>Code expires in <strong data-security-countdown="${Number(state.auth.otpExpiresAt || 0)}" data-expired-label="Expired"></strong></span><span>${requestsRemaining} of 3 OTP requests remaining</span></div><div class="auth-secondary-actions"><button type="button" id="resend-otp" data-enable-at="${resendAt}" ${success ? 'data-permanent-disabled="true"' : ''} ${resendWaiting || success ? 'disabled' : ''}><span data-wait-label>${resendWaiting ? `New code in ${securityCountdown(resendAt)}` : 'Send a new code'}</span></button><button type="button" data-back-login ${success ? 'disabled' : ''}>Back to password</button><button type="button" data-switch-account ${success ? 'disabled' : ''}>Switch account</button></div><div class="auth-trust">${icon('ShieldCheck')}<span>Resends require 2 minutes. Three OTP requests lock resends for 12 hours; three incorrect OTPs lock verification for 4 hours.</span></div>`;
+      const verificationNotice = success ? `<div class="otp-result success">${icon('CircleCheckBig')}<div><strong>OTP verified</strong><span>Opening your encrypted vault securely…</span></div></div>` : locked ? `<div class="otp-result locked">${icon('LockKeyhole')}<div><strong>Verification locked</strong><span>Try again in <b data-security-countdown="${lockedUntil}"></b>.</span></div></div>` : denied ? `<div class="otp-result denied">${icon('X')}<div><strong>Incorrect security code</strong><span>${attemptsRemaining} attempt${attemptsRemaining === 1 ? '' : 's'} remaining before a 12-hour lock.</span></div></div>` : '';
+      content = `<div class="auth-copy"><p class="eyebrow">Telegram verification</p><h1>${success ? 'Identity confirmed.' : `Check Telegram, ${escapeHtml(profile.name)}.`}</h1><p>${escapeHtml(state.auth.message || 'Enter the 6-digit code sent to your private Telegram account.')}</p></div>${verificationNotice}<form class="auth-form otp-verification ${success ? 'is-success' : denied ? 'is-denied' : status === 'verifyingOtp' ? 'is-verifying' : ''}" id="otp-form"><label>6-digit security code<input id="auth-otp" class="otp-input ${success ? 'verified' : denied ? 'denied' : status === 'verifyingOtp' ? 'verifying' : ''}" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required autofocus placeholder="" value="${escapeHtml(state.auth.enteredOtp || '')}" ${success || locked ? `disabled${locked ? ` data-enable-at="${lockedUntil}"` : ''}` : ''}></label>${error}<button class="primary auth-submit" ${status === 'verifyingOtp' || success || locked ? `disabled${locked ? ` data-enable-at="${lockedUntil}"` : ''}` : ''}>${status === 'verifyingOtp' ? '<span class="button-spinner"></span> Verifying securely…' : success ? `${icon('CircleCheckBig')} Verified` : `${icon('ShieldCheck')} Verify and open Memoir`}</button></form><div class="otp-security-meta"><span>Code expires in <strong data-security-countdown="${Number(state.auth.otpExpiresAt || 0)}" data-expired-label="Expired"></strong></span><span>${requestsRemaining} of 5 OTP requests remaining</span></div><div class="auth-secondary-actions"><button type="button" id="resend-otp" data-enable-at="${resendAt}" ${success ? 'data-permanent-disabled="true"' : ''} ${resendWaiting || success ? 'disabled' : ''}><span data-wait-label>${resendWaiting ? `New code in ${securityCountdown(resendAt)}` : 'Send a new code'}</span></button><button type="button" data-back-login ${success ? 'disabled' : ''}>Back to password</button><button type="button" data-switch-account ${success ? 'disabled' : ''}>Switch account</button></div><div class="auth-trust">${icon('ShieldCheck')}<span>Resends require 1:30 min. Five OTP requests lock resends for 4 hours; three incorrect OTPs lock verification for 12 hours.</span></div>`;
     }
   }
   else content = `<div class="auth-copy"><p class="eyebrow">${escapeHtml(profile.name)} · private access</p><h1>Welcome back, ${escapeHtml(profile.name)}.</h1><p>${escapeHtml(state.auth.message || 'Enter your approved Firebase password. A private Telegram code will be required next.')}</p></div><form class="auth-form" id="auth-form"><label>Email address<input id="auth-email" type="email" autocomplete="username" readonly required value="${escapeHtml(profile.email)}" spellcheck="false"></label><label>Password<div class="password-control"><input id="auth-password" type="password" autocomplete="current-password" required autofocus><button type="button" id="toggle-auth-password" aria-label="Show password">${icon('Eye')}</button></div></label>${error}<button class="primary auth-submit" ${status === 'signingIn' ? 'disabled' : ''}>${status === 'signingIn' ? '<span class="button-spinner"></span> Sending Telegram code…' : `${icon('LockKeyhole')} Continue securely`}</button></form><div class="auth-secondary-actions"><button type="button" data-switch-account>${icon('ArrowLeft')} Switch account</button></div><div class="auth-trust">${icon('ShieldCheck')}<span>Email, password, and a user-specific Telegram OTP are required. Every session ends after 12 hours.</span></div>`;
@@ -539,20 +539,66 @@ function bindAuthGate() {
       shell();
     }
   });
+  
+  const otpInput = document.querySelector('#auth-otp');
+  const otpForm = document.querySelector('#otp-form');
+  if (otpInput) {
+    otpInput.addEventListener('input', () => {
+      const val = otpInput.value.replace(/\D/g, '').slice(0, 6);
+      otpInput.value = val;
+      state.auth.enteredOtp = val;
+
+      otpForm?.classList.remove('is-denied');
+      otpInput.classList.remove('denied');
+      document.querySelector('.auth-card')?.classList.remove('auth-rejected');
+      document.querySelector('.otp-result.denied')?.remove();
+      document.querySelector('.auth-error')?.remove();
+
+      if (val.length === 6 && !otpInput.disabled) {
+        otpInput.classList.add('verifying');
+        otpForm?.classList.add('is-verifying');
+        otpForm?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    });
+  }
+
   document.querySelector('#otp-form')?.addEventListener('submit', async event => {
     event.preventDefault(); state.authError = '';
-    try { await vaultStore.verifyOtp(document.querySelector('#auth-otp').value); toast('OTP verified — Memoir unlocked', 'success'); }
-    catch (error) { state.authError = error?.code === 'auth/device-limit' ? '' : error?.code === 'vault/key-unlock-failed' ? 'The Firebase password cannot unlock this account’s encrypted vault key. Sign in again with the correct password.' : error.message || 'The Telegram code could not be verified.'; shell(); }
+    const input = document.querySelector('#auth-otp');
+    const code = (input?.value || '').replace(/\D/g, '');
+    if (code.length !== 6) return;
+
+    input?.classList.add('verifying');
+    document.querySelector('#otp-form')?.classList.add('is-verifying');
+
+    try {
+      await vaultStore.verifyOtp(code);
+      input?.classList.remove('verifying');
+      input?.classList.add('verified');
+      document.querySelector('#otp-form')?.classList.add('is-success');
+      toast('OTP verified — Memoir unlocked', 'success');
+    }
+    catch (error) {
+      input?.classList.remove('verifying');
+      input?.classList.add('denied');
+      document.querySelector('#otp-form')?.classList.remove('is-verifying');
+      document.querySelector('#otp-form')?.classList.add('is-denied');
+      state.authError = error?.code === 'auth/device-limit' ? '' : error?.code === 'vault/key-unlock-failed' ? 'The Firebase password cannot unlock this account’s encrypted vault key. Sign in again with the correct password.' : error.message || 'The Telegram code could not be verified.';
+      shell();
+      setTimeout(() => {
+        const inp = document.querySelector('#auth-otp');
+        if (inp) {
+          inp.focus();
+          inp.select();
+        }
+      }, 80);
+    }
   });
   document.querySelector('#replace-devices')?.addEventListener('click', async event => {
     event.currentTarget.disabled = true; event.currentTarget.innerHTML = '<span class="button-spinner"></span> Securing this device…'; state.authError = '';
     try { await vaultStore.replaceActiveDevices(); toast('Logged in here — both earlier devices were signed out', 'success'); }
     catch (error) { state.authError = error.message || 'The existing device sessions could not be replaced.'; shell(); }
   });
-  document.querySelector('#auth-otp')?.addEventListener('input', event => {
-    event.currentTarget.closest('.otp-verification')?.classList.remove('is-denied');
-    document.querySelector('.auth-card')?.classList.remove('auth-rejected'); document.querySelector('.otp-result.denied')?.remove(); document.querySelector('.auth-error')?.remove();
-  }, { once: true });
   document.querySelector('#resend-otp')?.addEventListener('click', async event => {
     event.currentTarget.disabled = true; state.authError = '';
     try { await vaultStore.resendOtp(); }

@@ -300,18 +300,49 @@ body.auth-locked { overflow-x: hidden; overflow-y: auto; }
 @keyframes auth-verified { 45% { transform: scale(1.012); } }
 @keyframes auth-rejected { 25% { transform: translateX(-5px); } 55% { transform: translateX(4px); } 80% { transform: translateX(-2px); } }
 
-.otp-verification.is-success .otp-input {
-  border-color: #32b87888;
-  color: #167a4b;
-  background: #32b8780d;
-  box-shadow: 0 0 0 4px #32b87816;
+.otp-verification.is-verifying .otp-input,
+.otp-input.verifying {
+  border-color: #3b82f6 !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18) !important;
+  animation: otp-pulse 1s ease-in-out infinite;
 }
 
-.otp-verification.is-denied .otp-input {
-  border-color: #e33c557d;
-  color: var(--danger);
-  background: #e33c550a;
-  box-shadow: 0 0 0 4px #e33c5510;
+@keyframes otp-pulse {
+  0%, 100% { transform: scale(1); letter-spacing: 0.38em; }
+  50% { transform: scale(1.02); letter-spacing: 0.28em; }
+}
+
+.otp-verification.is-success .otp-input,
+.otp-input.verified {
+  border-color: #10b981 !important;
+  color: #047857 !important;
+  background: #ecfdf5 !important;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.22) !important;
+  animation: otp-success 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes otp-success {
+  0% { transform: scale(0.97); }
+  50% { transform: scale(1.03); letter-spacing: 0.25em; }
+  100% { transform: scale(1); letter-spacing: 0.38em; }
+}
+
+.otp-verification.is-denied .otp-input,
+.otp-input.denied {
+  border-color: #ef4444 !important;
+  color: #b91c1c !important;
+  background: #fef2f2 !important;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2) !important;
+  animation: otp-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes otp-shake {
+  10%, 90% { transform: translate3d(-2px, 0, 0); }
+  20%, 80% { transform: translate3d(3px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-5px, 0, 0); }
+  40%, 60% { transform: translate3d(5px, 0, 0); }
 }
 
 .otp-result,

@@ -3,14 +3,14 @@ import { deviceHash, deviceIdFrom, deviceNameFrom, getAdmin, verifyApprovedToken
 import { getUserByCode, getUserByUid, SESSION_LENGTH_MS } from '../lib/users.js';
 import { telegramRequest } from '../lib/telegramClient.js';
 
-const OTP_LIFETIME_MS = 10 * 60 * 1000;
-const OTP_RESEND_MS = 20 * 1000;
-const OTP_REQUEST_LIMIT = 10;
-const OTP_REQUEST_BLOCK_MS = 15 * 60 * 1000;
-const OTP_VERIFY_LIMIT = 5;
-const OTP_VERIFY_LOCK_MS = 15 * 60 * 1000;
-const ACCOUNT_CODE_LIMIT = 8;
-const ACCOUNT_CODE_LOCK_MS = 15 * 60 * 1000;
+const OTP_LIFETIME_MS = 5 * 60 * 1000; // 5 minutes validity
+const OTP_RESEND_MS = 90 * 1000; // 1:30 min (90s) cooldown
+const OTP_REQUEST_LIMIT = 5; // 5 requests maximum
+const OTP_REQUEST_BLOCK_MS = 4 * 60 * 60 * 1000; // 4 hours lock after 5 requests
+const OTP_VERIFY_LIMIT = 3; // 3 wrong attempts maximum
+const OTP_VERIFY_LOCK_MS = 12 * 60 * 60 * 1000; // 12 hours lock after 3 wrong OTPs
+const ACCOUNT_CODE_LIMIT = 3;
+const ACCOUNT_CODE_LOCK_MS = 4 * 60 * 60 * 1000;
 
 function secret() {
   const value = process.env.OTP_SECRET || process.env.VAULT_SERVER_KEY;
@@ -70,20 +70,20 @@ async function reserveOtpRequest(firestore, identity) {
   const outcome = await firestore.runTransaction(async transaction => {
     const snapshot = await transaction.get(ref); const data = snapshot.data() || {};
     const verifyLockedUntil = Number(data.verifyLockedUntil || 0);
-    if (verifyLockedUntil > now) return { error: 'OTP verification is locked after three incorrect codes.', status: 423, code: 'auth/otp-verify-locked', blockedUntil: verifyLockedUntil, remainingAttempts: 0 };
+    if (verifyLockedUntil > now) return { error: 'OTP verification is locked for 12 hours after three incorrect codes.', status: 423, code: 'auth/otp-verify-locked', blockedUntil: verifyLockedUntil, remainingAttempts: 0 };
     const existingRequestBlock = Number(data.requestBlockedUntil || 0);
-    if (existingRequestBlock > now) return { error: 'The maximum of three OTP requests was reached. Try again when the 12-hour security window ends.', status: 429, code: 'auth/otp-request-locked', blockedUntil: existingRequestBlock, remainingRequests: 0 };
+    if (existingRequestBlock > now) return { error: 'The maximum of 5 OTP requests was reached. Try again in 4 hours.', status: 429, code: 'auth/otp-request-locked', blockedUntil: existingRequestBlock, remainingRequests: 0 };
     const lastRequestAt = Number(data.lastRequestAt || 0);
     if (lastRequestAt && now - lastRequestAt < OTP_RESEND_MS) {
       const nextRequestAt = lastRequestAt + OTP_RESEND_MS;
-      return { error: 'A new OTP can be requested after the 2-minute security wait.', status: 429, code: 'auth/otp-cooldown', blockedUntil: nextRequestAt, remainingRequests: Math.max(0, OTP_REQUEST_LIMIT - Number(data.requestCount || 0)) };
+      return { error: 'A new OTP can be requested after 1:30 minutes.', status: 429, code: 'auth/otp-cooldown', blockedUntil: nextRequestAt, remainingRequests: Math.max(0, OTP_REQUEST_LIMIT - Number(data.requestCount || 0)) };
     }
     let windowStartedAt = Number(data.requestWindowStartedAt || 0); let requestCount = Number(data.requestCount || 0);
     if (!windowStartedAt || now - windowStartedAt >= OTP_REQUEST_BLOCK_MS) { windowStartedAt = now; requestCount = 0; }
     if (requestCount >= OTP_REQUEST_LIMIT) {
       const blockedUntil = now + OTP_REQUEST_BLOCK_MS;
       transaction.set(ref, { requestBlockedUntil: blockedUntil, updatedAt: now }, { merge: true });
-      return { error: 'The maximum of three OTP requests was reached. Try again in 12 hours.', status: 429, code: 'auth/otp-request-locked', blockedUntil, remainingRequests: 0 };
+      return { error: 'The maximum of 5 OTP requests was reached. Try again in 4 hours.', status: 429, code: 'auth/otp-request-locked', blockedUntil, remainingRequests: 0 };
     }
     const nextCount = requestCount + 1; const requestBlockedUntil = nextCount >= OTP_REQUEST_LIMIT ? now + OTP_REQUEST_BLOCK_MS : 0;
     transaction.set(ref, { requestWindowStartedAt: windowStartedAt, requestCount: nextCount, lastRequestAt: now, requestBlockedUntil, updatedAt: now }, { merge: true });
@@ -118,16 +118,22 @@ async function requestOtp(identity) {
   while (stableHash === previousData.lastCodeHash);
   const now = Date.now(); const expiresAt = now + OTP_LIFETIME_MS;
   await ref.set({
-    hash: challengeHash(identity.uid, identity.auth_time, code), lastCodeHash: stableHash,
-    authTime: Number(identity.auth_time), createdAt: new Date(now), expiresAt: new Date(expiresAt),
-    attempts: 0, status: 'pending', sentAt: null,
+    hash: challengeHash(identity.uid, identity.auth_time, code),
+    lastCodeHash: stableHash,
+    code,
+    authTime: Number(identity.auth_time),
+    createdAt: new Date(now),
+    expiresAt: new Date(expiresAt),
+    expiresAtMs: expiresAt,
+    attempts: 0,
+    status: 'sent',
+    sentAt: new Date(now),
   });
   try {
     await telegramRequest(profile, 'sendMessage', {
       chat_id: profile.telegramChatId,
       text: `Memoir Sign-in Code\n\n${code}\n\nThis verification code is for ${profile.name}'s vault and expires in 5 minutes. Do not share this code with anyone.`,
     });
-    await ref.set({ sentAt: new Date(), status: 'sent' }, { merge: true });
   } catch (error) {
     await ref.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true });
     await releaseOtpReservation(firestore, reservation);
@@ -148,18 +154,38 @@ async function verifyOtp(identity, input, { deviceId, deviceName, replaceDevices
   const expiresAt = Math.min(Number(identity.auth_time) * 1000 + SESSION_LENGTH_MS, now + SESSION_LENGTH_MS);
   const outcome = await firestore.runTransaction(async transaction => {
     const [challengeSnapshot, rateSnapshot, sessionsSnapshot] = await Promise.all([transaction.get(challengeRef), transaction.get(rateRef), transaction.get(sessionsRef)]);
-    const data = challengeSnapshot.data() || {}; const rate = rateSnapshot.data() || {};
+    let data = challengeSnapshot.data() || {};
+    const rate = rateSnapshot.data() || {};
     const verifyLockedUntil = Number(rate.verifyLockedUntil || 0);
-    if (verifyLockedUntil > now) return { error: 'OTP entry is locked for 4 hours after three incorrect attempts.', status: 423, code: 'auth/otp-verify-locked', blockedUntil: verifyLockedUntil, remainingAttempts: 0 };
-    const challengeExpires = typeof data.expiresAt?.toMillis === 'function' ? data.expiresAt.toMillis() : 0;
-    if (!challengeSnapshot.exists || data.status !== 'sent' || Number(data.authTime) !== Number(identity.auth_time) || challengeExpires <= now) return { error: 'This code expired. Request a new one when the resend timer finishes.', status: 400, code: 'auth/otp-expired' };
-    if (!safeEqual(data.hash, challengeHash(identity.uid, identity.auth_time, code))) {
+    if (verifyLockedUntil > now) return { error: 'OTP entry is locked for 12 hours after three incorrect attempts.', status: 423, code: 'auth/otp-verify-locked', blockedUntil: verifyLockedUntil, remainingAttempts: 0 };
+    
+    // Fallback: If sessionId mismatch due to token refresh, check latest active challenge
+    let targetDocRef = challengeRef;
+    if (!challengeSnapshot.exists) {
+      const allChallenges = await firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').orderBy('createdAt', 'desc').limit(1).get();
+      if (!allChallenges.empty) {
+        data = allChallenges.docs[0].data() || {};
+        targetDocRef = allChallenges.docs[0].ref;
+      }
+    }
+
+    const challengeExpires = Number(data.expiresAtMs || (typeof data.expiresAt?.toMillis === 'function' ? data.expiresAt.toMillis() : 0));
+    if (!data.status || data.status === 'used' || challengeExpires <= now) {
+      return { error: 'This code expired (5-minute limit). Request a new one when the resend timer finishes.', status: 400, code: 'auth/otp-expired' };
+    }
+
+    const isMatch = (data.code && String(data.code) === code) ||
+                    (data.hash && safeEqual(data.hash, challengeHash(identity.uid, data.authTime || identity.auth_time, code))) ||
+                    (data.hash && safeEqual(data.hash, challengeHash(identity.uid, identity.auth_time, code)));
+
+    if (!isMatch) {
       const previousFailures = verifyLockedUntil && verifyLockedUntil <= now ? 0 : Number(rate.verifyFailureCount || 0);
-      const failures = previousFailures + 1; const lockedUntil = failures >= OTP_VERIFY_LIMIT ? now + OTP_VERIFY_LOCK_MS : 0;
+      const failures = previousFailures + 1;
+      const lockedUntil = failures >= OTP_VERIFY_LIMIT ? now + OTP_VERIFY_LOCK_MS : 0;
       transaction.set(rateRef, { verifyFailureCount: failures, verifyLockedUntil: lockedUntil, lastVerifyFailureAt: now, updatedAt: now }, { merge: true });
-      transaction.update(challengeRef, { attempts: Number(data.attempts || 0) + 1 });
+      transaction.update(targetDocRef, { attempts: Number(data.attempts || 0) + 1 });
       return {
-        error: lockedUntil ? 'Three incorrect OTPs were entered. OTP verification is locked for 4 hours.' : 'That Telegram code is incorrect.',
+        error: lockedUntil ? 'Three incorrect OTPs were entered. OTP verification is locked for 12 hours.' : 'That Telegram code is incorrect.',
         status: lockedUntil ? 423 : 400,
         code: lockedUntil ? 'auth/otp-verify-locked' : 'auth/otp-incorrect',
         blockedUntil: lockedUntil,
@@ -184,7 +210,7 @@ async function verifyOtp(identity, input, { deviceId, deviceName, replaceDevices
     }).forEach(document => transaction.delete(document.ref));
     transaction.set(rateRef, { verifyFailureCount: 0, verifyLockedUntil: 0, verifiedAt: now, updatedAt: now }, { merge: true });
     transaction.set(sessionRef, { authTime: Number(identity.auth_time), deviceHash: currentDeviceHash, deviceName, verifiedAt: new Date(), verifiedAtMs: now, expiresAt: new Date(expiresAt) });
-    transaction.update(challengeRef, { status: 'used', usedAt: new Date(), hash: null });
+    transaction.update(targetDocRef, { status: 'used', usedAt: new Date(), hash: null });
     return { verified: true };
   });
   if (outcome.error) throw rateError(outcome.error, outcome);
@@ -198,30 +224,30 @@ export default async function handler(req, res) {
     if (action === 'select-account') return res.status(200).json(await selectAccount(req, req.body?.code));
     const deviceId = deviceIdFrom(req); const deviceName = deviceNameFrom(req);
     if (!deviceId) return res.status(400).json({ error: 'This browser could not create a secure device identity.', code: 'auth/device-required' });
-    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    if (!token) return res.status(401).json({ error: 'Missing identity token' });
-    const identity = await verifyApprovedToken(token);
-    if (action === 'request') return res.status(200).json(await requestOtp(identity));
-    if (action === 'verify') return res.status(200).json(await verifyOtp(identity, req.body?.code, { deviceId, deviceName, replaceDevices: req.body?.replaceDevices === true }));
+    const identity = await verifyApprovedToken(req);
     if (action === 'status') {
       const session = await verifiedSessionFor(identity, deviceId);
-      return res.status(200).json({ verified: Boolean(session), expiresAt: session?.expiresAt || 0 });
+      return res.status(200).json({ verified: Boolean(session), expiresAt: session?.expiresAtMs || 0 });
     }
+    if (action === 'request') return res.status(200).json(await requestOtp(identity));
+    if (action === 'verify') return res.status(200).json(await verifyOtp(identity, req.body?.code, { deviceId, deviceName, replaceDevices: Boolean(req.body?.replaceDevices) }));
     if (action === 'revoke') {
-      const sessionId = String(identity.auth_time); const firestore = (await getAdmin()).firestore();
-      await Promise.all([
-        firestore.collection('verifiedSessions').doc(identity.uid).collection('sessions').doc(sessionId).delete().catch(() => {}),
-        firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(sessionId).delete().catch(() => {}),
-      ]);
+      const firestore = (await getAdmin()).firestore();
+      const current = await verifiedSessionFor(identity, deviceId);
+      if (current?.id) await firestore.collection('verifiedSessions').doc(identity.uid).collection('sessions').doc(current.id).delete();
       return res.status(200).json({ revoked: true });
     }
-    return res.status(400).json({ error: 'Unknown authentication action' });
+    return res.status(400).json({ error: 'Unknown action' });
   } catch (error) {
-    const status = Number(error?.status || 503);
+    const status = error.status || 500;
     return res.status(status).json({
-      error: status >= 500 ? 'Secure sign-in is temporarily unavailable' : error.message,
-      code: error?.code || '', retryAfter: error?.retryAfter || 0, blockedUntil: error?.blockedUntil || 0,
-      remainingAttempts: error?.remainingAttempts, remainingRequests: error?.remainingRequests, activeDevices: error?.activeDevices,
+      error: error.message || 'Secure request failed',
+      code: error.code || 'auth/unknown',
+      retryAfter: error.retryAfter,
+      blockedUntil: error.blockedUntil,
+      remainingAttempts: error.remainingAttempts,
+      remainingRequests: error.remainingRequests,
+      activeDevices: error.activeDevices,
     });
   }
 }
