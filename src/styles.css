@@ -425,75 +425,115 @@
 }
 
 /* Rhino Guard Security Dashboard */
-.guard-hero{display:flex;flex-direction:column;gap:18px;margin-bottom:24px;padding:24px;border:1px solid var(--line);border-radius:24px;background:radial-gradient(circle at top right, rgba(20,184,166,0.08), transparent 70%), var(--surface)}
-.guard-score-box{display:flex;align-items:center;gap:24px}
-.guard-gauge{position:relative;width:104px;height:104px;flex:none;display:grid;place-items:center}
+.guard-layout{display:flex;flex-direction:column;gap:20px;max-width:960px;margin:0 auto;width:100%}
+.guard-hero{display:flex;flex-direction:column;gap:18px;padding:24px;border:1px solid var(--line);border-radius:24px;background:radial-gradient(circle at top right, rgba(20,184,166,0.07), transparent 70%), var(--surface)}
+.guard-score-box{display:flex;align-items:center;gap:22px}
+.guard-gauge{position:relative;width:108px;height:108px;flex:none;display:grid;place-items:center}
 .guard-gauge-svg{width:100%;height:100%;transform:rotate(-90deg)}
-.guard-gauge-bg{fill:none;stroke:var(--surface2);stroke-width:8}
-.guard-gauge-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 0.8s cubic-bezier(0.16,1,0.3,1), stroke 0.5s ease}
+.guard-gauge-bg{fill:none;stroke:var(--surface2);stroke-width:9}
+.guard-gauge-fill{fill:none;stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset 0.8s cubic-bezier(0.16,1,0.3,1), stroke 0.5s ease}
 .guard-gauge-label{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
 .guard-gauge-label strong{font-size:22px;font-weight:800;letter-spacing:-0.03em;color:var(--ink);line-height:1}
-.guard-gauge-label small{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:3px;color:var(--muted)}
+.guard-gauge-label small{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;margin-top:4px;color:var(--muted)}
 
-.guard-hero-text{flex:1}
-.guard-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(20,184,166,0.12);color:var(--emerald);margin-bottom:8px}
-.guard-badge .icon{width:14px;height:14px}
-.guard-hero-text h2{font-size:22px;font-weight:800;letter-spacing:-0.03em;margin:0 0 6px;color:var(--ink)}
+.guard-hero-text{flex:1;display:flex;flex-direction:column;gap:6px}
+.guard-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(20,184,166,0.12);color:var(--emerald);align-self:flex-start}
+.guard-badge .icon{width:13px;height:13px}
+.guard-hero-text h2{font-size:20px;font-weight:800;letter-spacing:-0.03em;margin:0;color:var(--ink);line-height:1.25}
 .guard-hero-text p{margin:0;font-size:12px;line-height:1.5;color:var(--muted)}
 
-.guard-stats-row{display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-top:6px}
-.guard-stat-card{padding:12px 14px;border:1px solid var(--line);border-radius:16px;background:var(--surface2);display:flex;flex-direction:column;gap:3px;transition:.2s}
-.guard-stat-card.alert{border-color:rgba(239,68,68,0.35);background:rgba(239,68,68,0.06)}
-.guard-stat-card.alert .stat-num{color:var(--danger)}
-.guard-stat-card.warning{border-color:rgba(245,158,11,0.35);background:rgba(245,158,11,0.06)}
-.guard-stat-card.warning .stat-num{color:var(--amber)}
-.guard-stat-card .stat-num{font-size:20px;font-weight:800;letter-spacing:-0.02em;color:var(--ink)}
-.guard-stat-card .stat-desc{font-size:11px;font-weight:600;color:var(--muted)}
+/* Grade explanation banner */
+.guard-grade-banner{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:14px;background:var(--surface2);border:1px solid var(--line);margin-top:4px}
+.guard-grade-banner.critical{background:rgba(239,68,68,0.06);border-color:rgba(239,68,68,0.25)}
+.guard-grade-banner.warning{background:rgba(245,158,11,0.06);border-color:rgba(245,158,11,0.25)}
+.guard-grade-banner.good{background:rgba(16,185,129,0.06);border-color:rgba(16,185,129,0.25)}
+.guard-grade-banner .icon-wrap{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none}
+.guard-grade-banner .icon-wrap .icon{width:15px;height:15px}
+.guard-grade-banner p{margin:0;font-size:11.5px;line-height:1.45;color:var(--ink)}
+.guard-grade-banner strong{font-weight:700}
 
-.guard-tab-bar{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:18px}
-.guard-tab-btn{padding:8px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.guard-stats-row{display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;margin-top:4px}
+.guard-stat-card{padding:12px 14px;border:1px solid var(--line);border-radius:16px;background:var(--surface2);display:flex;flex-direction:column;gap:2px;transition:.2s}
+.guard-stat-card.alert{border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.05)}
+.guard-stat-card.alert .stat-num{color:var(--danger)}
+.guard-stat-card.warning{border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.05)}
+.guard-stat-card.warning .stat-num{color:var(--amber)}
+.guard-stat-card .stat-num{font-size:18px;font-weight:800;letter-spacing:-0.02em;color:var(--ink);line-height:1.2}
+.guard-stat-card .stat-desc{font-size:11px;font-weight:600;color:var(--muted);line-height:1.2}
+
+/* Smart Generator */
+.guard-generator-card{padding:20px;border:1px solid var(--line);border-radius:20px;background:var(--surface);display:flex;flex-direction:column;gap:16px}
+.guard-generator-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.guard-gen-title-block{display:flex;align-items:center;gap:12px}
+.guard-gen-title-block .icon-wrap{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;flex:none}
+.guard-gen-title-block h3{margin:0;font-size:15px;font-weight:800;color:var(--ink);letter-spacing:-0.02em}
+.guard-generator-grid{display:grid;grid-template-columns:repeat(2, 1fr);gap:14px}
+.guard-gen-block{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--surface2)}
+.guard-gen-block-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.guard-gen-block-head strong{font-size:12px;font-weight:700;color:var(--ink);display:block}
+.guard-gen-block-head small{font-size:10px;color:var(--muted);display:block}
+.guard-pill-btn{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:11px;font-weight:700;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:.15s;white-space:nowrap}
+.guard-pill-btn:hover{background:var(--surface2);border-color:var(--muted)}
+.guard-pill-btn .icon{width:12px;height:12px}
+.guard-output-box{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);padding:7px 10px;border-radius:10px}
+.guard-output-code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13.5px;font-weight:700;color:var(--ink);letter-spacing:0.03em;flex:1;overflow-x:auto;white-space:nowrap;line-height:1.2}
+.guard-copy-btn{height:28px;padding:0 9px;border-radius:7px;border:1px solid var(--line);background:var(--surface2);font-size:11px;font-weight:700;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:4px;flex:none;transition:.15s}
+.guard-copy-btn:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.guard-copy-btn .icon{width:12px;height:12px}
+
+/* Tabs */
+.guard-tab-bar{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.guard-tab-bar::-webkit-scrollbar{display:none}
+.guard-tab-btn{padding:7px 13px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px;flex:none}
 .guard-tab-btn:hover{color:var(--ink);border-color:var(--muted)}
 .guard-tab-btn.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.guard-tab-badge{padding:2px 6px;border-radius:10px;font-size:10px;font-weight:700;background:var(--surface2);color:var(--ink)}
+.guard-tab-badge{padding:2px 6px;border-radius:8px;font-size:10px;font-weight:700;background:var(--surface2);color:var(--ink)}
 .guard-tab-btn.active .guard-tab-badge{background:rgba(255,255,255,0.2);color:#fff}
 
+/* Issues List */
 .guard-issues-grid{display:flex;flex-direction:column;gap:12px}
-.guard-issue-card{padding:16px 18px;border:1px solid var(--line);border-radius:18px;background:var(--surface);display:flex;flex-direction:column;gap:10px;transition:.2s;animation:enter .2s ease both}
-.guard-issue-card:hover{border-color:rgba(0,0,0,0.18);box-shadow:0 6px 20px rgba(0,0,0,0.04)}
-.guard-issue-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.guard-issue-title-wrap{display:flex;align-items:center;gap:10px}
+.guard-issue-card{padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--surface);display:flex;flex-direction:column;gap:12px;transition:.2s;animation:enter .2s ease both}
+.guard-issue-card:hover{border-color:rgba(0,0,0,0.16);box-shadow:0 4px 16px rgba(0,0,0,0.03)}
+.guard-issue-head{display:flex;align-items:flex-start;gap:12px}
 .guard-issue-icon{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;flex:none}
 .guard-issue-icon.critical{background:rgba(239,68,68,0.12);color:var(--danger)}
 .guard-issue-icon.high{background:rgba(245,158,11,0.12);color:var(--amber)}
 .guard-issue-icon.medium{background:rgba(59,130,246,0.12);color:var(--cyan)}
-.guard-issue-info strong{display:block;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px}
-.guard-issue-info p{margin:0;font-size:11px;color:var(--muted);line-height:1.4}
-.guard-severity-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:3px 8px;border-radius:20px;flex:none}
+.guard-issue-icon .icon{width:18px;height:18px}
+.guard-issue-title-wrap{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.guard-issue-top-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.guard-severity-tag{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;padding:2px 7px;border-radius:12px;line-height:1.2}
 .guard-severity-tag.critical{background:rgba(239,68,68,0.12);color:var(--danger)}
 .guard-severity-tag.high{background:rgba(245,158,11,0.12);color:var(--amber)}
 .guard-severity-tag.medium{background:rgba(59,130,246,0.12);color:var(--cyan)}
+.guard-type-tag{font-size:10px;font-weight:700;color:var(--muted);padding:2px 6px;border-radius:6px;background:var(--surface2)}
+.guard-issue-title-wrap strong{font-size:13px;font-weight:700;color:var(--ink);line-height:1.35;word-break:break-word}
+.guard-issue-title-wrap p{margin:0;font-size:11px;color:var(--muted);line-height:1.35}
 
-.guard-affected-list{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;background:var(--surface2);border-radius:12px;border:1px solid var(--line)}
-.guard-affected-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;background:var(--surface);border:1px solid var(--line);font-size:11px;font-weight:600;color:var(--ink)}
-.guard-affected-chip .icon{width:13px;height:13px;color:var(--muted)}
-.guard-fix-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:2px}
+/* Affected Accounts List */
+.guard-affected-list{display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--surface2);border-radius:14px;border:1px solid var(--line)}
+.guard-affected-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px 4px;border-bottom:1px solid var(--line)}
+.guard-affected-list-head span{font-size:10px;font-weight:800;letter-spacing:0.04em;color:var(--ink);text-transform:uppercase}
+.guard-affected-list-head small{font-size:10px;color:var(--muted)}
+.guard-account-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 8px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.guard-account-info{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+.guard-account-info .icon-wrap{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none}
+.guard-account-info .icon-wrap .icon{width:14px;height:14px}
+.guard-account-info div{min-width:0;flex:1}
+.guard-account-info strong{display:block;font-size:11.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.guard-account-info small{display:block;font-size:10px;color:var(--muted);line-height:1}
 
-.guard-generator-card{padding:22px;border:1px solid var(--line);border-radius:20px;background:var(--surface);display:flex;flex-direction:column;gap:18px;margin-bottom:18px}
-.guard-generator-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.guard-generator-head h3{margin:0;font-size:16px;font-weight:800;color:var(--ink)}
-.guard-output-row{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--line);padding:8px 12px;border-radius:14px}
-.guard-output-text{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:15px;font-weight:700;color:var(--ink);letter-spacing:0.04em;flex:1;overflow-x:auto;white-space:nowrap}
-.guard-gen-btn{height:36px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.15s}
-.guard-gen-btn:hover{background:var(--surface2);border-color:var(--muted)}
+.mini-action-btn{height:28px;padding:0 10px;border-radius:8px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;flex:none;cursor:pointer;line-height:1}
+.mini-action-btn .icon{width:12px;height:12px}
 
-@media(max-width:560px){
-  .guard-score-box{flex-direction:column;align-items:flex-start;gap:16px}
-  .guard-gauge{width:88px;height:88px}
-  .guard-gauge-label strong{font-size:18px}
-  .guard-stats-row{grid-template-columns:1fr 1fr}
-  .guard-issue-head{flex-direction:column;align-items:flex-start;gap:8px}
-  .guard-severity-tag{align-self:flex-start}
-  .guard-fix-actions{width:100%;justify-content:stretch}
-  .guard-fix-actions button{flex:1}
+.guard-card-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:4px;border-top:1px solid var(--line);flex-wrap:wrap}
+.guard-suggestion-text{font-size:11px;color:var(--muted);line-height:1.3}
+
+@media(max-width:680px){
+  .guard-score-box{flex-direction:column;align-items:flex-start;gap:14px}
+  .guard-stats-row{grid-template-columns:repeat(2, 1fr)}
+  .guard-generator-grid{grid-template-columns:minmax(0, 1fr)}
+  .guard-card-footer{flex-direction:column;align-items:stretch;gap:8px}
+  .guard-card-footer button{width:100%;justify-content:center}
 }
 

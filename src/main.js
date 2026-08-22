@@ -1255,30 +1255,76 @@ function guardView() {
   if (!state.generatedPassword) state.generatedPassword = generateStrongSecret('password', 18);
   if (!state.generatedPin) state.generatedPin = generateStrongSecret('pin', 4);
 
+  const gradeLetter = audit.grade.charAt(0);
+  const gradeStatus = audit.score >= 90 ? 'Fortified & Pristine' : audit.score >= 75 ? 'Good Protection' : audit.score >= 55 ? 'Needs Attention' : 'High Vulnerability Risk';
+  const gradeExplanation = audit.score >= 90
+    ? `Your vault credentials follow top-tier security standards with zero reused passwords or weak PINs.`
+    : audit.score >= 75
+    ? `Overall solid security with minor recommendations. Update flagged items to reach Grade A+.`
+    : audit.score >= 55
+    ? `Moderate vulnerability risks detected. You have reused passwords or easily guessable secrets.`
+    : `Critical security risks detected. Essential banking or email accounts share identical passwords or guessable PINs. Update them below to secure your vault.`;
+
   const issuesMarkup = filtered.length ? filtered.map(vuln => {
     const isReused = vuln.category === 'reused';
     const firstItem = isReused ? vuln.items[0] : vuln.item;
+
+    if (isReused) {
+      return `
+        <article class="guard-issue-card reused-cluster">
+          <div class="guard-issue-head">
+            <span class="guard-issue-icon ${vuln.severity}">${icon('KeyRound')}</span>
+            <div class="guard-issue-title-wrap">
+              <div class="guard-issue-top-line">
+                <span class="guard-severity-tag ${vuln.severity}">${escapeHtml(vuln.severity.toUpperCase())}</span>
+                <span class="guard-type-tag">Reused Secret (${vuln.count} Accounts)</span>
+              </div>
+              <strong>${escapeHtml(vuln.reason)}</strong>
+              <p>A single data breach in one service exposes all ${vuln.count} accounts simultaneously.</p>
+            </div>
+          </div>
+          <div class="guard-affected-list">
+            <div class="guard-affected-list-head">
+              <span>AFFECTED ACCOUNTS (${vuln.items.length})</span>
+              <small>Update each with a unique password</small>
+            </div>
+            ${vuln.items.map(it => `
+              <div class="guard-account-row">
+                <div class="guard-account-info">
+                  <span class="icon-wrap ${it.type === 'Finance' ? 'green' : 'violet'}">${icon(itemIcon(it))}</span>
+                  <div>
+                    <strong>${escapeHtml(it.title)}</strong>
+                    <small>${escapeHtml(category(it))}</small>
+                  </div>
+                </div>
+                <button type="button" class="secondary mini-action-btn" data-edit="${it.id}">
+                  ${icon('Pencil')} <span>Update</span>
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        </article>
+      `;
+    }
+
     return `
       <article class="guard-issue-card">
         <div class="guard-issue-head">
+          <span class="guard-issue-icon ${vuln.severity}">${icon(vuln.severity === 'critical' ? 'ShieldAlert' : 'TriangleAlert')}</span>
           <div class="guard-issue-title-wrap">
-            <span class="guard-issue-icon ${vuln.severity}">${icon(vuln.severity === 'critical' ? 'ShieldAlert' : vuln.category === 'reused' ? 'KeyRound' : 'TriangleAlert')}</span>
-            <div class="guard-issue-info">
-              <strong>${escapeHtml(vuln.reason)}</strong>
-              <p>${isReused ? `Affects ${vuln.count} accounts in your vault` : `Detected in ${escapeHtml(vuln.item?.title || 'Saved memory')}`}</p>
+            <div class="guard-issue-top-line">
+              <span class="guard-severity-tag ${vuln.severity}">${escapeHtml(vuln.severity.toUpperCase())}</span>
+              <span class="guard-type-tag">${escapeHtml(vuln.type || 'Security')}</span>
             </div>
+            <strong>${escapeHtml(vuln.reason)}</strong>
+            <p>Found in: <strong>${escapeHtml(vuln.item?.title || 'Vault Record')}</strong> (${escapeHtml(category(vuln.item))})</p>
           </div>
-          <span class="guard-severity-tag ${vuln.severity}">${escapeHtml(vuln.severity)}</span>
         </div>
-        ${isReused ? `
-          <div class="guard-affected-list">
-            ${vuln.items.map(it => `<span class="guard-affected-chip">${icon(itemIcon(it))} ${escapeHtml(it.title)}</span>`).join('')}
-          </div>
-        ` : ''}
-        <div class="guard-fix-actions">
-          ${isReused ? vuln.items.map(it => `<button type="button" class="guard-gen-btn" data-edit="${it.id}">${icon('Pencil')} Fix ${escapeHtml(it.title)}</button>`).join('') : (firstItem ? `
-            <button type="button" class="guard-gen-btn" data-edit="${firstItem.id}">${icon('Pencil')} Update in Vault</button>
-          ` : '')}
+        <div class="guard-card-footer">
+          <span class="guard-suggestion-text">💡 Suggestion: Use a unique 16+ character password or high-entropy PIN.</span>
+          <button type="button" class="primary mini-action-btn" data-edit="${firstItem.id}">
+            ${icon('Pencil')} <span>Update in Vault</span>
+          </button>
         </div>
       </article>
     `;
@@ -1301,13 +1347,17 @@ function guardView() {
             </svg>
             <div class="guard-gauge-label">
               <strong>${audit.score}%</strong>
-              <small>${escapeHtml(audit.grade.split(' ')[0])}</small>
+              <small>Grade ${gradeLetter}</small>
             </div>
           </div>
           <div class="guard-hero-text">
             <div class="guard-badge"><span class="icon-wrap">${icon('ShieldCheck')}</span><span>Rhino Guard Active</span></div>
             <h2>Vault Vulnerability & Credential Intelligence</h2>
             <p>Real-time on-device cryptographic audit of passwords, ATM PINs, CVVs, and personal identity leaks for <strong>${escapeHtml(profile.name)}</strong>.</p>
+            <div class="guard-grade-banner ${audit.score < 55 ? 'critical' : audit.score < 75 ? 'warning' : 'good'}">
+              <span class="icon-wrap ${audit.score < 55 ? 'rose' : audit.score < 75 ? 'coral' : 'green'}">${icon(audit.score < 55 ? 'ShieldAlert' : 'ShieldCheck')}</span>
+              <p><strong>Grade ${gradeLetter} (${gradeStatus}):</strong> ${escapeHtml(gradeExplanation)}</p>
+            </div>
           </div>
         </div>
         <div class="guard-stats-row">
@@ -1320,23 +1370,48 @@ function guardView() {
 
       <section class="guard-generator-card">
         <div class="guard-generator-head">
-          <div>
-            <p class="eyebrow">Smart Generator</p>
-            <h3>Cryptographic Password & ATM PIN Generator</h3>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button type="button" class="guard-gen-btn" id="guard-refresh-pwd">${icon('WandSparkles')} New Password</button>
-            <button type="button" class="guard-gen-btn" id="guard-refresh-pin">${icon('WandSparkles')} New PIN</button>
+          <div class="guard-gen-title-block">
+            <span class="icon-wrap cyan">${icon('WandSparkles')}</span>
+            <div>
+              <p class="eyebrow">Smart Generator</p>
+              <h3>Cryptographic Password & ATM PIN Generator</h3>
+            </div>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px">
-          <div class="guard-output-row">
-            <span class="guard-output-text">${escapeHtml(state.generatedPassword)}</span>
-            <button type="button" class="icon-btn-mini" data-copy="${escapeHtml(state.generatedPassword)}" title="Copy strong password">${icon('Copy')}</button>
+        <div class="guard-generator-grid">
+          <div class="guard-gen-block">
+            <div class="guard-gen-block-head">
+              <div>
+                <strong>Strong Password</strong>
+                <small>18 characters · High entropy</small>
+              </div>
+              <button type="button" class="guard-pill-btn" id="guard-refresh-pwd">
+                ${icon('WandSparkles')} <span>Regenerate</span>
+              </button>
+            </div>
+            <div class="guard-output-box">
+              <code class="guard-output-code">${escapeHtml(state.generatedPassword)}</code>
+              <button type="button" class="guard-copy-btn" data-copy="${escapeHtml(state.generatedPassword)}" title="Copy strong password">
+                ${icon('Copy')} <span>Copy</span>
+              </button>
+            </div>
           </div>
-          <div class="guard-output-row">
-            <span class="guard-output-text">${escapeHtml(state.generatedPin)} (4-Digit ATM PIN)</span>
-            <button type="button" class="icon-btn-mini" data-copy="${escapeHtml(state.generatedPin)}" title="Copy strong PIN">${icon('Copy')}</button>
+          <div class="guard-gen-block">
+            <div class="guard-gen-block-head">
+              <div>
+                <strong>Secure ATM / UPI PIN</strong>
+                <small>4 digits · Non-sequential</small>
+              </div>
+              <button type="button" class="guard-pill-btn" id="guard-refresh-pin">
+                ${icon('WandSparkles')} <span>Regenerate</span>
+              </button>
+            </div>
+            <div class="guard-output-box">
+              <code class="guard-output-code">${escapeHtml(state.generatedPin)}</code>
+              <button type="button" class="guard-copy-btn" data-copy="${escapeHtml(state.generatedPin)}" title="Copy secure PIN">
+                ${icon('Copy')} <span>Copy</span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
