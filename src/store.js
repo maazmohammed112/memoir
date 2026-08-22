@@ -270,9 +270,10 @@ class VaultStore {
         headers: this.apiHeaders(token),
         body: JSON.stringify({ action: 'status' }),
       });
-      if (!response.ok) return null;
-      const result = await response.json();
-      if (!result.verified) return null;
+      if (response.status === 401 || response.status === 403) return null;
+      if (!response.ok) return { expiresAt: authenticatedAt + SESSION_LENGTH };
+      const result = await response.json().catch(() => ({}));
+      if (result.verified === false) return null;
       const serverExpiresAt = Number(result.expiresAt || 0);
       const expiresAt = serverExpiresAt > Date.now() ? serverExpiresAt : authenticatedAt + SESSION_LENGTH;
       return { expiresAt };

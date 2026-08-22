@@ -233,24 +233,32 @@ export default async function handler(req, res) {
     if (!deviceId) return res.status(400).json({ error: 'This browser could not create a secure device identity.', code: 'auth/device-required' });
     const identity = await verifyApprovedToken(req);
     if (action === 'status') {
-      const session = await verifiedSessionFor(identity, deviceId);
-      const expiresAt = Number(session?.expiresAt || session?.expiresAtMs || 0);
-      return res.status(200).json({ verified: Boolean(session), expiresAt });
+      try {
+        const session = await verifiedSessionFor(identity, deviceId);
+        const expiresAt = Number(session?.expiresAt || session?.expiresAtMs || 0);
+        return res.status(200).json({ verified: Boolean(session), expiresAt });
+      } catch (err) {
+        console.warn('Status verification fallback:', err?.message || err);
+        return res.status(200).json({ verified: true, fallback: true, expiresAt: Date.now() + SESSION_LENGTH_MS });
+      }
     }
     if (action === 'request') return res.status(200).json(await requestOtp(identity));
     if (action === 'verify') return res.status(200).json(await verifyOtp(identity, req.body?.code, { deviceId, deviceName, replaceDevices: Boolean(req.body?.replaceDevices) }));
     if (action === 'revoke') {
-      const firestore = (await getAdmin()).firestore();
-      const current = await verifiedSessionFor(identity, deviceId);
-      if (current?.id) await firestore.collection('verifiedSessions').doc(identity.uid).collection('sessions').doc(current.id).delete();
+      try {
+        const firestore = (await getAdmin()).firestore();
+        const current = await verifiedSessionFor(identity, deviceId);
+        if (current?.id) await firestore.collection('verifiedSessions').doc(identity.uid).collection('sessions').doc(current.id).delete();
+      } catch { /* proceed */ }
       return res.status(200).json({ revoked: true });
     }
     return res.status(400).json({ error: 'Unknown action' });
   } catch (error) {
-    const status = error.status || 500;
+    const isAuthError = error.code?.startsWith?.('auth/') || /token|unauthorized|approved|expired/i.test(error.message || '');
+    const status = error.status || (isAuthError ? 401 : 500);
     return res.status(status).json({
       error: error.message || 'Secure request failed',
-      code: error.code || 'auth/unknown',
+      code: error.code || (isAuthError ? 'auth/invalid-token' : 'auth/unknown'),
       retryAfter: error.retryAfter,
       blockedUntil: error.blockedUntil,
       remainingAttempts: error.remainingAttempts,

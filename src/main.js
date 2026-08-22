@@ -3854,14 +3854,22 @@ async function purgeExpiredNotifications() {
 }
 
 let lastRuntimeMirror = 0;
+let isAutomationRunning = false;
 async function runBackgroundAutomation() {
-  if (state.auth.status !== 'signedIn') return;
-  if (navigator.onLine && !await vaultStore.ensureActiveSession()) return;
-  await autoCompleteExpiredReminders(); await purgeExpiredNotifications();
-  if (navigator.onLine) {
-    if (Date.now() - lastRuntimeMirror > 5 * 60000) { lastRuntimeMirror = Date.now(); vaultStore.mirrorSnapshot(); }
-    try { const token = await vaultStore.idToken(); if (token) await fetch('/api/reminders', { method: 'POST', headers: vaultStore.apiHeaders(token, false) }); } catch { /* the next interval retries */ }
-    await applyTelegramActions();
+  if (state.auth.status !== 'signedIn' || isAutomationRunning) return;
+  isAutomationRunning = true;
+  try {
+    if (navigator.onLine && !await vaultStore.ensureActiveSession()) return;
+    await autoCompleteExpiredReminders(); await purgeExpiredNotifications();
+    if (navigator.onLine) {
+      if (Date.now() - lastRuntimeMirror > 5 * 60000) { lastRuntimeMirror = Date.now(); vaultStore.mirrorSnapshot(); }
+      try { const token = await vaultStore.idToken(); if (token) await fetch('/api/reminders', { method: 'POST', headers: vaultStore.apiHeaders(token, false) }); } catch { /* the next interval retries */ }
+      await applyTelegramActions();
+    }
+  } catch (err) {
+    console.warn('Background automation tick skipped:', err?.message || err);
+  } finally {
+    isAutomationRunning = false;
   }
 }
 
@@ -3878,10 +3886,10 @@ vaultStore.subscribe((items, status, session) => {
     if (!document.querySelector('.detail') && !isEditingTodo) renderView();
   }
   else shell();
-  if (state.auth.status === 'signedIn') { updateNotificationBadge(); runBackgroundAutomation(); }
+  if (state.auth.status === 'signedIn') { updateNotificationBadge(); }
 });
 shell(); vaultStore.init();
-setInterval(runBackgroundAutomation, 30000);
+setInterval(runBackgroundAutomation, 45000);
 setInterval(updateReminderCountdowns, 1000);
 setInterval(updateSecurityCountdowns, 1000);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));

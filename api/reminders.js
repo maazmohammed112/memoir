@@ -669,6 +669,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
     console.error('Reminder sweep failed:', error?.message);
-    return res.status(503).json({ error: 'Reminder delivery is temporarily unavailable' });
+    const status = Number(error?.status || 500);
+    return res.status(status).json({ error: error?.message || 'Reminder delivery is temporarily unavailable', code: error?.code || 'reminders/failed' });
   }
 }
