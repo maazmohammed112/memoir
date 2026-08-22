@@ -57,6 +57,16 @@ FOR REMINDERS AND TEMPORAL INTELLIGENCE:
 
 FOR TO-DO LISTS:
 - Use type "Todo" with fields "Todo items" as a valid JSON array [{"id":"1","text":"item text","done":false,"amount":""}], "Status":"active", "Currency":"INR".
+- TITLE SMART 2-WORD NAMING: Generate a smart, concise title of exactly 2 words that specifically reflects the category or intent mentioned by the user:
+  • If user says "buy tomato, onion, milk" or mentions groceries -> "Grocery Shopping" or "Fresh Groceries"
+  • If user says "buy laptop, charger, mouse" or electronic items -> "Hardware Purchase" or "Tech Gear"
+  • If user says "medicines, paracetamol, bandage" -> "Pharmacy Run" or "Medical Supplies"
+  • If user says "pack bag, clothes, passport" -> "Travel Packing" or "Trip Essentials"
+  • If user says "clean room, wash car, laundry" -> "Home Chores" or "House Cleaning"
+  • If user says "review PR, write tests, meeting" -> "Work Tasks" or "Project Sprint"
+  • If user says "books, notebook, pens" -> "Study Supplies" or "Stationery List"
+  • General shopping items -> "Shopping List" or "Buy Items"
+  • NEVER set a generic title like "Grocery" for non-grocery items. Always pick an accurate 2-word title matching what the user asked!
 
 Return ONLY valid JSON in this schema:
 {"kind":"lookup"|"general"|"actions"|"refusal","title":"short polished title","markdown":"brief natural answer","matches":[{"id":"exact catalog id","fields":["exact field names"]}],"actions":[{"op":"create"|"update"|"delete","id":"exact catalog id for update/delete","type":"Login|Finance|Identity|Government Document|Personal|Audio|Todo|Birthday|Wi-Fi|Clipboard|Reminder","title":"record title","note":"optional note","fields":{"exact field label":"value or unchanged [[PRIVATE_N]] placeholder"}}]}

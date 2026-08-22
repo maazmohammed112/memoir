@@ -394,7 +394,13 @@
     const container = contextElement?.closest?.('form, .form, .container, main, article, table, body') || document.body;
     const inputs = Array.from(container.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="image"])'));
     
-    const inspected = inputs.map(inspectInput).filter(info => info.hasValue && info.val.length >= 2);
+    const inspected = inputs.map(inspectInput).filter(info => {
+      if (!info.hasValue || info.val.length < 2) return false;
+      const isRadioOrCheck = info.input.type === 'checkbox' || info.input.type === 'radio';
+      const isNoise = /^(on|off|true|false|yes|no)$/i.test(info.val);
+      if (isRadioOrCheck && isNoise) return false;
+      return true;
+    });
     if (!inspected.length) return;
 
     const capturedFields = {};
@@ -444,6 +450,10 @@
     }
 
     inspected.forEach(info => {
+      const val = String(info.val || '').trim();
+      const isNoise = /^(on|off|true|false|yes|no|undefined|null|1|0)$/i.test(val);
+      const isRadioOrCheck = info.input.type === 'checkbox' || info.input.type === 'radio';
+      if (isRadioOrCheck || (isNoise && !info.isPassword && !info.isAckOrApp)) return;
       if (!info.isPassword && !capturedFields[info.labelText]) {
         capturedFields[info.labelText] = info.val;
       }

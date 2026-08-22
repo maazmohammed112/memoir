@@ -1,4 +1,4 @@
-// Memoir Extension Luxury Popup Controller with Full View, Password Eye, Copy, Edit & Delete
+// Memoir Extension Luxury Popup Controller with Pure Vector SVGs, Internal Scrolling & Deep Noise Filtering
 
 document.addEventListener('DOMContentLoaded', async () => {
   const viewLogin = document.getElementById('view-login');
@@ -64,6 +64,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   let allCapturedItems = [];
   let siteMatchedItems = [];
   let expandedCardId = null;
+
+  // Vector SVG Icons
+  const SVGS = {
+    eye: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+    eyeOff: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>',
+    copy: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>',
+    check: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>',
+    edit: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>',
+    delete: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
+    zap: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    chevronDown: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>',
+    chevronUp: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>',
+  };
 
   function generateStrongPassword(len = 16) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()_+~';
@@ -157,10 +170,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  function filterMeaningfulFields(fields = {}) {
+    return Object.entries(fields).filter(([key, val]) => {
+      if (key === 'Website URL' || key === 'Captured from') return false;
+      const str = String(val || '').trim().toLowerCase();
+      if (!str) return false;
+      // Filter out radio / checkbox states like "on", "true", "yes", "1"
+      if (/^(on|off|true|false|yes|no|undefined|null)$/i.test(str) && !/password|pin|cvv/i.test(key)) return false;
+      return true;
+    });
+  }
+
   function renderList() {
     let itemsToDisplay = currentTabMode === 'site' ? siteMatchedItems : allCapturedItems;
     
-    // Apply search query if in 'all' mode or search has value
+    // Apply search query
     const query = popupSearchInput.value.trim().toLowerCase();
     if (query) {
       itemsToDisplay = itemsToDisplay.filter(item => {
@@ -187,36 +211,44 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderItemCard(item) {
     const isExpanded = expandedCardId === item.id;
     const user = item.fields?.['Username / ID'] || item.fields?.['Username'] || item.fields?.['Document number'] || item.fields?.['Reference number'] || item.fields?.['Debit card number'] || 'Account';
-    const pwd = item.fields?.['Password'] || item.fields?.['Passcode'] || item.fields?.['CVV'] || '';
     const note = item.note || '';
     const domain = item.domain || '';
     const date = item.provenance?.capturedDate || (item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '');
+    const cleanFields = filterMeaningfulFields(item.fields);
 
     let fieldsHtml = '';
     if (isExpanded) {
       fieldsHtml = `
         <div class="card-details-drawer">
-          ${Object.entries(item.fields || {}).map(([key, val]) => {
-            const isSecret = /password|pin|cvv|passcode/i.test(key);
-            return `
-              <div class="field-detail-row">
-                <span class="field-name">${escapeHtml(key)}:</span>
-                <div class="field-val-wrap">
-                  <span class="field-val ${isSecret ? 'secret-mask' : ''}" data-secret-val="${escapeHtml(val)}" data-revealed="false">${isSecret ? '••••••••' : escapeHtml(val)}</span>
-                  ${isSecret ? `<button type="button" class="btn-icon-mini btn-toggle-eye" title="Reveal/Hide">👁️</button>` : ''}
-                  <button type="button" class="btn-icon-mini btn-copy-field" data-copy-val="${escapeHtml(val)}" title="Copy ${escapeHtml(key)}">📋</button>
+          <div class="drawer-fields-scroll">
+            ${cleanFields.map(([key, val]) => {
+              const isSecret = /password|pin|cvv|passcode/i.test(key);
+              return `
+                <div class="field-detail-row">
+                  <span class="field-name">${escapeHtml(key)}:</span>
+                  <div class="field-val-wrap">
+                    <span class="field-val ${isSecret ? 'secret-mask' : ''}" data-secret-val="${escapeHtml(val)}" data-revealed="false">${isSecret ? '••••••••' : escapeHtml(val)}</span>
+                    ${isSecret ? `<button type="button" class="btn-icon-mini btn-toggle-eye" title="Reveal / Hide password">${SVGS.eye}</button>` : ''}
+                    <button type="button" class="btn-icon-mini btn-copy-field" data-copy-val="${escapeHtml(val)}" title="Copy ${escapeHtml(key)}">${SVGS.copy}</button>
+                  </div>
                 </div>
-              </div>
-            `;
-          }).join('')}
+              `;
+            }).join('')}
 
-          ${note ? `<div class="card-note-row"><small>Note:</small> <span>${escapeHtml(note)}</span></div>` : ''}
-          ${domain ? `<div class="card-meta-row"><small>Portal:</small> <span>${escapeHtml(domain)} ${date ? `· ${escapeHtml(date)}` : ''}</span></div>` : ''}
+            ${note ? `<div class="card-note-row"><small>Note:</small> <span>${escapeHtml(note)}</span></div>` : ''}
+            ${domain ? `<div class="card-meta-row"><small>Portal:</small> <span>${escapeHtml(domain)} ${date ? `· ${escapeHtml(date)}` : ''}</span></div>` : ''}
+          </div>
 
           <div class="card-action-bar">
-            <button type="button" class="btn primary-mini btn-autofill-action" data-item-id="${item.id}">⚡ Autofill</button>
-            <button type="button" class="btn secondary-mini btn-edit-action" data-item-id="${item.id}">✏️ Edit</button>
-            <button type="button" class="btn danger-mini btn-delete-action" data-item-id="${item.id}">🗑️ Delete</button>
+            <button type="button" class="btn primary-mini btn-autofill-action" data-item-id="${item.id}">
+              ${SVGS.zap} <span>Autofill</span>
+            </button>
+            <button type="button" class="btn secondary-mini btn-edit-action" data-item-id="${item.id}">
+              ${SVGS.edit} <span>Edit</span>
+            </button>
+            <button type="button" class="btn danger-mini btn-delete-action" data-item-id="${item.id}">
+              ${SVGS.delete} <span>Delete</span>
+            </button>
           </div>
         </div>
       `;
@@ -231,7 +263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           <div class="cred-card-quick-actions">
             <button type="button" class="btn-mini btn-quick-autofill" data-item-id="${item.id}">Autofill</button>
-            <button type="button" class="expand-arrow-btn" title="View details">${isExpanded ? '▲' : '▼'}</button>
+            <button type="button" class="expand-arrow-btn" title="View details">${isExpanded ? SVGS.chevronUp : SVGS.chevronDown}</button>
           </div>
         </div>
         ${fieldsHtml}
@@ -285,11 +317,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (isRevealed) {
           valSpan.textContent = '••••••••';
           valSpan.dataset.revealed = 'false';
-          btn.textContent = '👁️';
+          btn.innerHTML = SVGS.eye;
         } else {
           valSpan.textContent = secretVal;
           valSpan.dataset.revealed = 'true';
-          btn.textContent = '🙈';
+          btn.innerHTML = SVGS.eyeOff;
         }
       });
     });
@@ -301,9 +333,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const val = btn.dataset.copyVal;
         if (val) {
           navigator.clipboard.writeText(val);
-          const orig = btn.textContent;
-          btn.textContent = '✓';
-          setTimeout(() => btn.textContent = orig, 1500);
+          btn.innerHTML = SVGS.check;
+          setTimeout(() => { btn.innerHTML = SVGS.copy; }, 1500);
         }
       });
     });
@@ -375,8 +406,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Edit Modal Handlers
   btnToggleEditPwd.addEventListener('click', () => {
-    editPwd.type = editPwd.type === 'password' ? 'text' : 'password';
-    btnToggleEditPwd.textContent = editPwd.type === 'password' ? '👁️' : '🙈';
+    const isPass = editPwd.type === 'password';
+    editPwd.type = isPass ? 'text' : 'password';
+    btnToggleEditPwd.innerHTML = isPass ? SVGS.eyeOff : SVGS.eye;
   });
 
   btnCloseEdit.addEventListener('click', () => { editModal.style.display = 'none'; });

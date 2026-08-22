@@ -2002,19 +2002,47 @@ function openClipEditor(value, existing = null) {
   document.querySelector('#clip-form').onsubmit = async event => { event.preventDefault(); await withRhinoActivity(existing ? 'Updating clipboard…' : 'Saving clipboard…', () => vaultStore.save({ ...(existing || {}), kind: 'clipboard', type: 'Clipboard', title: document.querySelector('#clip-title').value.trim() || 'Untitled clip', note: document.querySelector('#clip-title').value.trim(), fields: { Content: document.querySelector('#clip-content').value.trim() } })); closeModal(); toast(existing ? 'Clipboard updated' : 'Clipboard saved'); };
 }
 
+function smartTodoTitleFromText(text) {
+  const lower = String(text || '').toLowerCase();
+  if (/tomato|potato|onion|milk|bread|butter|vegetable|fruit|rice|dal|cheese|egg|snack|paneer|curd|oil|sugar|salt|grocery/i.test(lower)) return 'Grocery Shopping';
+  if (/medicine|tablet|syrup|paracetamol|bandage|drops|pharma|capsule|ointment|crocin|dolo/i.test(lower)) return 'Pharmacy Run';
+  if (/laptop|charger|mouse|keyboard|cable|monitor|usb|headphone|ram|ssd|phone|adapter/i.test(lower)) return 'Tech Gear';
+  if (/pack|passport|visa|clothes|luggage|ticket|boarding|hotel|travel|trip|suitcase/i.test(lower)) return 'Travel Packing';
+  if (/clean|wash|laundry|mop|dust|vacuum|garage|dishes|broom|detergent/i.test(lower)) return 'Home Chores';
+  if (/pr|bug|test|deploy|review|meeting|roadmap|docs|design|sprint|standup/i.test(lower)) return 'Work Tasks';
+  if (/book|notebook|pen|pencil|notes|assignment|exam|quiz|stationery/i.test(lower)) return 'Study Supplies';
+  if (/buy|purchase|order|shop|gift|shirt|shoes|dress|jeans/i.test(lower)) return 'Buy Items';
+  return 'Personal Tasks';
+}
+
 function splitTodoInput(value) {
   return String(value || '').split(/[,\n]+/).map(text => text.trim()).filter(Boolean).slice(0, 200);
 }
 function openTodoEditor(item = null) {
   modal.className = 'modal todo-modal';
   const existingText = item ? parseTodoItems(item).map(row => row.text).join('\n') : '';
-  modal.innerHTML = `<form class="modal-inner" id="todo-form"><div class="modal-head"><div><p class="eyebrow">${item ? 'Edit list' : 'New to-do list'}</p><h2>${item ? 'Update your list' : 'What are you planning?'}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><label>List title<input id="todo-title" required maxlength="160" placeholder="e.g. Grocery shopping" value="${escapeHtml(item?.title || '')}"></label><label>Items<textarea id="todo-items-input" rows="7" required placeholder="Tomato 2 kg, potato, coriander&#10;Separate items with commas or new lines">${escapeHtml(existingText)}</textarea></label><p class="todo-form-help">Every comma or new line becomes a separate checkable item. Amounts are optional and can be added later.</p><div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Check')} ${item ? 'Save list' : 'Create list'}</button></div></form>`;
+  modal.innerHTML = `<form class="modal-inner" id="todo-form"><div class="modal-head"><div><p class="eyebrow">${item ? 'Edit list' : 'New to-do list'}</p><h2>${item ? 'Update your list' : 'What are you planning?'}</h2></div><button type="button" class="modal-close">${icon('X')}</button></div><label>List title<input id="todo-title" required maxlength="160" placeholder="e.g. Buy Items" value="${escapeHtml(item?.title || '')}"></label><label>Items<textarea id="todo-items-input" rows="7" required placeholder="Tomato 2 kg, potato, coriander&#10;Separate items with commas or new lines">${escapeHtml(existingText)}</textarea></label><p class="todo-form-help">Every comma or new line becomes a separate checkable item. Amounts are optional and can be added later.</p><div class="modal-actions"><button type="button" class="secondary modal-cancel">Cancel</button><button class="primary">${icon('Check')} ${item ? 'Save list' : 'Create list'}</button></div></form>`;
   showModal();
+
+  const titleInput = document.querySelector('#todo-title');
+  const itemsTextarea = document.querySelector('#todo-items-input');
+  if (!item && itemsTextarea && titleInput) {
+    itemsTextarea.addEventListener('input', () => {
+      if (!titleInput.dataset.userEdited) {
+        const val = itemsTextarea.value.trim();
+        if (val) titleInput.value = smartTodoTitleFromText(val);
+      }
+    });
+    titleInput.addEventListener('input', () => {
+      titleInput.dataset.userEdited = 'true';
+    });
+  }
+
   document.querySelector('#todo-form').onsubmit = async event => {
     event.preventDefault(); const names = splitTodoInput(document.querySelector('#todo-items-input').value); if (!names.length) return toast('Add at least one list item');
     const previous = item ? parseTodoItems(item) : []; const rows = names.map((text, index) => { const match = previous.find(row => row.text.toLowerCase() === text.toLowerCase()) || previous[index]; return { id: match?.id || crypto.randomUUID(), text, done: Boolean(match?.done), amount: match?.amount ?? '' }; });
     const fields = { ...(item?.fields || {}), 'Todo items': JSON.stringify(rows), Status: item?.fields?.Status || 'active', Currency: 'INR' };
-    await withRhinoActivity(item ? 'Updating to-do list…' : 'Creating to-do list…', () => vaultStore.save({ ...(item || {}), kind: 'memory', type: 'Todo', title: document.querySelector('#todo-title').value.trim(), note: item?.note || '', fields }));
+    await withRhinoActivity(item ? 'Updating to-do list…' : 'Creating to-do list…', () => vaultStore.save({ ...(item || {}), kind: 'memory', type: 'Todo', title: document.querySelector('#todo-title').value.trim() || 'Buy Items', note: item?.note || '', fields }));
     closeModal(); state.todoTab = 'active'; state.plannerSection = 'todos'; state.view = 'planner'; renderView(); toast(item ? 'To-do list updated' : 'To-do list created');
   };
 }
