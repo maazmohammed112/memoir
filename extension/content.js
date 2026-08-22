@@ -618,4 +618,31 @@
   });
   observer.observe(document.body, { childList: true, subtree: true });
 
+  // Memoir Web App Direct Real-Time Sync Bridge
+  const isMemoirApp = window.location.hostname.includes('memoir') || window.location.hostname.includes('localhost') || document.title.toLowerCase().includes('memoir');
+  
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'MEMOIR_SYNC_UPDATE' || request.action === 'MEMOIR_SYNC_DELETE') {
+      window.postMessage({ type: 'MEMOIR_EXTENSION_SYNC_EVENT', action: request.action, item: request.item, items: request.items, id: request.id }, '*');
+    }
+  });
+
+  if (isMemoirApp) {
+    const pushAllToApp = () => {
+      chrome.runtime.sendMessage({ action: 'GET_ALL_CAPTURED' }, res => {
+        if (res && res.ok && Array.isArray(res.items) && res.items.length) {
+          window.postMessage({ type: 'MEMOIR_EXTENSION_SYNC_EVENT', action: 'MEMOIR_SYNC_UPDATE', items: res.items }, '*');
+        }
+      });
+    };
+
+    pushAllToApp();
+    setTimeout(pushAllToApp, 1500);
+
+    window.addEventListener('message', event => {
+      if (event.data?.type === 'MEMOIR_APP_REQUEST_EXTENSION_SYNC') {
+        pushAllToApp();
+      }
+    });
+  }
 })();

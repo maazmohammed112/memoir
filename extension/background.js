@@ -33,6 +33,20 @@ function extractDomain(url) {
   }
 }
 
+function broadcastToAllTabs(msg) {
+  try {
+    chrome.tabs.query({}, tabs => {
+      (tabs || []).forEach(tab => {
+        if (tab && tab.id) {
+          chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
+        }
+      });
+    });
+  } catch (err) {
+    console.warn('Tab broadcast skipped:', err.message);
+  }
+}
+
 async function syncItemToCloud(auth, op, item, id) {
   try {
     const targetUrl = auth.serverUrl || DEFAULT_SERVER_URL;
@@ -190,6 +204,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         await setStoredCaptured(updatedList);
         await syncItemToCloud(state.auth, 'put', finalItem);
+        broadcastToAllTabs({ action: 'MEMOIR_SYNC_UPDATE', item: finalItem, items: updatedList });
 
         return { ok: true, item: finalItem };
       }
@@ -204,6 +219,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         updated[idx] = { ...updated[idx], ...item, updatedAt: new Date().toISOString() };
         await setStoredCaptured(updated);
         await syncItemToCloud(state.auth, 'put', updated[idx]);
+        broadcastToAllTabs({ action: 'MEMOIR_SYNC_UPDATE', item: updated[idx], items: updated });
 
         return { ok: true, item: updated[idx] };
       }
@@ -216,6 +232,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const remaining = state.capturedItems.filter(i => i.id !== request.id);
         await setStoredCaptured(remaining);
         await syncItemToCloud(state.auth, 'delete', null, request.id);
+        broadcastToAllTabs({ action: 'MEMOIR_SYNC_DELETE', id: request.id, items: remaining });
         return { ok: true };
       }
 
@@ -239,6 +256,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         for (const id of toDeleteIds) {
           await syncItemToCloud(state.auth, 'delete', null, id);
         }
+        broadcastToAllTabs({ action: 'MEMOIR_SYNC_UPDATE', items: deduped });
 
         return { ok: true, removedCount: toDeleteIds.length, items: deduped };
       }

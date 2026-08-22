@@ -155,6 +155,7 @@ class VaultStore {
 
   async init() {
     this.emit();
+    this.initExtensionBridge();
     if (!this.networkListenersAttached) {
       this.networkListenersAttached = true;
       window.addEventListener('online', () => this.connect());
@@ -457,6 +458,16 @@ class VaultStore {
       if (!cloud || Number(row.updatedAt) > Number(cloud.updatedAt)) await idb('queue', 'readwrite', store => store.put({ id: row.id, op: 'put', updatedAt: row.updatedAt, payload: row.payload }));
     }
     this.items = await localList(); this.emit();
+
+    try {
+      const res = await fetch(`/api/sync?uid=${encodeURIComponent(this.uid)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.items) && data.items.length) {
+          await this.ingestExtensionItems(data.items);
+        }
+      }
+    } catch { /* offline fallback */ }
   }
 
   listen() {
@@ -639,6 +650,75 @@ class VaultStore {
     });
     
     return saved;
+  }
+
+  initExtensionBridge() {
+    if (typeof window === 'undefined') return;
+    window.addEventListener('message', async event => {
+      if (event.data?.type === 'MEMOIR_EXTENSION_SYNC_EVENT') {
+        const { action, item, items, id } = event.data;
+        if (action === 'MEMOIR_SYNC_DELETE' && id) {
+          await this.ingestExtensionDelete(id);
+        } else {
+          const list = Array.isArray(items) ? items : (item ? [item] : []);
+          if (list.length) await this.ingestExtensionItems(list);
+        }
+      }
+    });
+
+    // Request full sync on page load and periodically
+    window.postMessage({ type: 'MEMOIR_APP_REQUEST_EXTENSION_SYNC' }, '*');
+    setTimeout(() => {
+      window.postMessage({ type: 'MEMOIR_APP_REQUEST_EXTENSION_SYNC' }, '*');
+    }, 1000);
+  }
+
+  async ingestExtensionItems(incoming) {
+    if (!Array.isArray(incoming) || !incoming.length) return;
+    let changed = false;
+    for (const raw of incoming) {
+      if (!raw || !raw.id) continue;
+      const now = Date.now();
+      const item = {
+        ...raw,
+        kind: raw.kind || 'memory',
+        type: raw.type || 'Login',
+        title: raw.title || 'Saved Record',
+        createdAt: raw.createdAt || now,
+        updatedAt: raw.updatedAt || now,
+        provenance: raw.provenance || {
+          source: 'Chrome Extension',
+          domain: raw.domain || '',
+          url: raw.url || '',
+          capturedDate: raw.capturedDate || new Date().toLocaleDateString(),
+          createdAt: new Date().toISOString(),
+        },
+      };
+      const existing = this.items.find(i => i.id === item.id);
+      if (!existing || Number(new Date(item.updatedAt || 0)) >= Number(new Date(existing.updatedAt || 0))) {
+        try {
+          const payload = await localPut(item);
+          await idb('queue', 'readwrite', store => store.put({ id: item.id, op: 'put', updatedAt: Date.now(), payload }));
+          this.items = [item, ...this.items.filter(i => i.id !== item.id)].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+          changed = true;
+        } catch (err) {
+          console.warn('Failed to ingest extension item:', err);
+        }
+      }
+    }
+    if (changed) {
+      this.emit();
+      if (this.uid) this.flush();
+    }
+  }
+
+  async ingestExtensionDelete(id) {
+    if (!id) return;
+    await localRemove(id);
+    this.items = this.items.filter(i => i.id !== id);
+    await idb('queue', 'readwrite', store => store.put({ id, op: 'delete', updatedAt: Date.now() }));
+    this.emit();
+    if (this.uid) this.flush();
   }
 
   async getDocument(assetId, mimeType = 'application/pdf', fileName = 'document') {

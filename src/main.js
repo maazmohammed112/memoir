@@ -1078,7 +1078,7 @@ function homeView() {
       </article>
     `).join('')}</div>` : '';
 
-  const extensionItems = state.items.filter(item => /extension|chrome/i.test(String(item?.provenance?.source || item?.fields?.['Created via'] || '')) || Boolean(item.domain));
+  const extensionItems = state.items.filter(isBrowserCapture);
   const extensionBannerHtml = `
     <article class="guard-stat-card warning" style="margin:16px 0;cursor:pointer;border-color:rgba(16,185,129,0.3);background:linear-gradient(135deg,rgba(16,185,129,0.06),var(--surface))" data-view="extension">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
@@ -1536,9 +1536,17 @@ function detailMarkup(item) {
   return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} ${backLabel}</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div>${provenanceBadge(item)}</div>${browserBox}${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div>${documentsMarkup}<p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button>${attachment ? `<button class="secondary" data-audio-retry="${item.id}">${icon('AudioLines')} Transcribe again</button><button class="secondary" data-audio-transcript-edit="${item.id}">${icon('Pencil')} Edit transcript</button>` : `<button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button>`}<button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
 }
 
+function isBrowserCapture(item) {
+  if (!item) return false;
+  const source = String(item?.provenance?.source || item?.fields?.['Created via'] || '').toLowerCase();
+  if (source.includes('extension') || source.includes('chrome') || source.includes('browser')) return true;
+  if (item.domain || (item.url && !item.url.startsWith('blob:')) || item.fields?.['Website URL'] || item.provenance?.domain) return true;
+  return false;
+}
+
 function browserCapturesView() {
-  const allCaptures = state.items.filter(item => /extension|chrome/i.test(String(item?.provenance?.source || item?.fields?.['Created via'] || '')) || Boolean(item.domain));
-  const domains = Array.from(new Set(allCaptures.map(i => i.domain || (i.url ? new URL(i.url).hostname : '')).filter(Boolean)));
+  const allCaptures = state.items.filter(isBrowserCapture);
+  const domains = Array.from(new Set(allCaptures.map(i => i.domain || (i.url ? new URL(i.url).hostname.replace(/^www\./i, '') : '')).filter(Boolean)));
   
   const extCategory = state.extCategory || 'all';
   const filterList = [
@@ -1605,7 +1613,7 @@ function vaultView() {
   if (selected && selected.type !== 'Birthday') return detailMarkup(selected);
   state.selectedMemoryId = null;
   const guardAudit = auditVaultSecurity(state.items, activeProfile());
-  const allCaptures = state.items.filter(item => /extension|chrome/i.test(String(item?.provenance?.source || item?.fields?.['Created via'] || '')) || Boolean(item.domain));
+  const allCaptures = state.items.filter(isBrowserCapture);
   const switcher = workspaceSwitch('vault', state.vaultSection || 'memories', [
     ['memories', 'Gem', 'All Memories', 'Vault items, documents & logins'],
     ['extension', 'Globe', 'Browser Captures', `${allCaptures.length} synced web items`],
