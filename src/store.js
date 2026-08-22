@@ -700,17 +700,20 @@ class VaultStore {
       const now = Date.now();
       const item = {
         ...raw,
+        isExtensionCapture: true,
+        source: 'extension',
         kind: raw.kind || 'memory',
         type: raw.type || 'Login',
         title: raw.title || 'Saved Record',
         createdAt: raw.createdAt || now,
         updatedAt: raw.updatedAt || now,
-        provenance: raw.provenance || {
+        provenance: {
+          ...(raw.provenance || {}),
           source: 'Chrome Extension',
-          domain: raw.domain || '',
-          url: raw.url || '',
-          capturedDate: raw.capturedDate || new Date().toLocaleDateString(),
-          createdAt: new Date().toISOString(),
+          domain: raw.domain || raw.provenance?.domain || '',
+          url: raw.url || raw.provenance?.url || '',
+          capturedDate: raw.capturedDate || raw.provenance?.capturedDate || new Date().toLocaleDateString(),
+          createdAt: raw.provenance?.createdAt || new Date().toISOString(),
         },
       };
       const existing = this.items.find(i => i.id === item.id);

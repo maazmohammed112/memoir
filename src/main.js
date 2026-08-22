@@ -1537,9 +1537,11 @@ function detailMarkup(item) {
 
 function isBrowserCapture(item) {
   if (!item) return false;
-  const source = String(item?.provenance?.source || item?.fields?.['Created via'] || '').toLowerCase();
-  if (source.includes('extension') || source.includes('chrome') || source.includes('browser')) return true;
-  if (item.domain || (item.url && !item.url.startsWith('blob:')) || item.fields?.['Website URL'] || item.provenance?.domain) return true;
+  if (item.isExtensionCapture === true || item.capturedBy === 'extension' || item.source === 'extension') return true;
+  const provSource = String(item?.provenance?.source || '').toLowerCase();
+  if (provSource.includes('extension') || provSource.includes('chrome extension')) return true;
+  const createdVia = String(item?.fields?.['Created via'] || '').toLowerCase();
+  if (createdVia.includes('extension') || createdVia.includes('chrome extension')) return true;
   return false;
 }
 
