@@ -1154,8 +1154,34 @@ function homeView() {
   `;
 
   const normalMemories = vaultMemories();
+  const quickActionsHtml = `
+    <div class="mobile-quick-dock" aria-label="Quick Actions">
+      <button type="button" class="quick-dock-item" data-add="memory">
+        <span class="dock-circle rose">${icon('Plus')}</span>
+        <span>Memory</span>
+      </button>
+      <button type="button" class="quick-dock-item" data-action="snap">
+        <span class="dock-circle coral">${icon('Camera')}</span>
+        <span>Snap</span>
+      </button>
+      <button type="button" class="quick-dock-item" data-action="voice">
+        <span class="dock-circle amber">${icon('Mic')}</span>
+        <span>Voice</span>
+      </button>
+      <button type="button" class="quick-dock-item" data-add="reminder">
+        <span class="dock-circle violet">${icon('BellRing')}</span>
+        <span>Reminder</span>
+      </button>
+      <button type="button" class="quick-dock-item" data-add="birthday">
+        <span class="dock-circle green">${icon('CakeSlice')}</span>
+        <span>Birthday</span>
+      </button>
+    </div>
+  `;
+
   return `<div class="hero-grid"><section class="hero"><img class="hero-rhino" src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Your private second brain</p><h2>Everything important, remembered beautifully.</h2><p>Save private details, retrieve only what you need, and never miss a meaningful moment.</p><button class="primary" data-add="memory">${icon('Plus')} Add a memory</button></section>
   <div class="stat-grid"><article class="stat large" data-view="vault" style="cursor:pointer"><span class="stat-symbol rose">${icon('ShieldCheck')}</span><div><strong>${normalMemories.length}</strong><span>memories kept safe</span></div></article><article class="stat" data-view="extension" style="cursor:pointer"><span class="stat-symbol green">${icon('Globe')}</span><div><strong>${extensionItems.length}</strong><span>browser captures</span></div></article><article class="stat" data-view="reminders" style="cursor:pointer"><span class="stat-symbol violet">${icon('AlarmClock')}</span><div><strong>${upcomingReminders.length}</strong><span>upcoming reminders</span></div></article></div></div>
+  ${quickActionsHtml}
   ${extensionBannerHtml}
   ${guardBannerHtml}
   ${expiriesHtml}
@@ -1773,7 +1799,35 @@ function birthdaysView() {
 }
 
 function assistantView() {
-  const messages = state.messages.length ? state.messages.map(renderMessage).join('') : `<div class="message bot"><strong>RHINOUS</strong><p>Your private vault intelligence. Ask for an exact detail, manage memories, capture warranties/documents from photos, or transcribe voice notes naturally.</p></div>`;
+  const emptyChatIntro = `
+    <div class="assistant-welcome-card">
+      <div class="welcome-card-header">
+        <span class="assistant-sparkle-pill">${icon('Sparkles')} Vault Intelligence</span>
+        <span class="vault-index-chip">${vaultMemories().length} memories indexed</span>
+      </div>
+      <h2>How can Rhinous assist you today?</h2>
+      <p>Ask for exact credentials, extract warranties from photos, manage to-do items, or dictate reminders naturally.</p>
+      
+      <div class="assistant-quick-prompts">
+        <p class="quick-prompts-label">Instant suggestions</p>
+        <div class="quick-prompts-grid">
+          ${[
+            'What is my SBI card limit & expiry date?',
+            'When is my passport renewal due?',
+            'Show all my Wi-Fi router passwords',
+            'Who has birthdays coming up this month?',
+            'Create a to-do list for weekend groceries'
+          ].map((text, idx) => `
+            <button type="button" class="quick-prompt-btn" data-ask="${escapeHtml(text)}" style="animation-delay: ${idx * 60}ms">
+              <span class="prompt-arrow">&rarr;</span>
+              <span>${escapeHtml(text)}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+  const messages = state.messages.length ? state.messages.map(renderMessage).join('') : emptyChatIntro;
   const attachments = Array.isArray(state.chatAttachments) ? state.chatAttachments : (state.chatAttachment ? [state.chatAttachment] : []);
   const attachmentMarkup = attachments.length ? `
     <div class="chat-attachments-list">
@@ -1860,6 +1914,18 @@ function renderView() { const node = document.querySelector('#view'); if (node) 
 
 function bindView() {
   document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => navigate(button.dataset.view));
+  document.querySelectorAll('[data-action]').forEach(button => {
+    button.onclick = () => {
+      const action = button.dataset.action;
+      if (action === 'snap') {
+        navigate('assistant');
+        setTimeout(() => document.querySelector('#chat-camera-btn')?.click(), 120);
+      } else if (action === 'voice') {
+        navigate('assistant');
+        setTimeout(() => document.querySelector('#chat-voice-btn')?.click(), 120);
+      }
+    };
+  });
   document.querySelectorAll('[data-add]').forEach(button => button.onclick = () => button.dataset.add === 'clipboard' ? pasteClipboard() : button.dataset.add === 'reminder' ? openReminderEditor() : button.dataset.add === 'birthday' ? openBirthdayEditor() : button.dataset.add === 'todo' ? openTodoEditor() : button.dataset.add === 'audio-upload' ? document.querySelector('#audio-upload-input-main')?.click() : openEditor(null, 'Personal'));
   document.querySelectorAll('[data-open]').forEach(button => button.onclick = () => openDetail(button.dataset.open, button.dataset.openView || 'vault'));
   document.querySelector('#back-to-memories')?.addEventListener('click', () => { state.selectedMemoryId = null; renderView(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
