@@ -3551,7 +3551,16 @@ async function askAssistant(query) {
       state.messages.push({ role: 'assistant', title: 'Audio saved safely', markdown: 'The recording is already visible in Audio. Transcription could not run because the selected AI is unavailable or its limit was reached. You can retry later without recording again.', retryAudioId: audioAtt.recordId });
     } else {
       const fallback = localRoute(cleanQuery);
-      state.messages.push(fallback || { role: 'assistant', markdown: `### Assistant response\nI couldn’t process this request: ${error?.message || 'Check your network connection'}.` });
+      if (fallback) {
+        state.messages.push(fallback);
+      } else {
+        let msg = error?.message || 'Check your network connection';
+        try {
+          const parsed = JSON.parse(msg);
+          if (parsed.error) msg = parsed.error;
+        } catch {}
+        state.messages.push({ role: 'assistant', markdown: `### Assistant response\nI couldn’t process this request: ${msg}.` });
+      }
     }
   } finally {
     state.chatLoading = false;

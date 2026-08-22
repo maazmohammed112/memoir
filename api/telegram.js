@@ -454,7 +454,17 @@ export default async function handler(req, res) {
     if (['send', 'pull', 'ack'].includes(body.action)) {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!token) return res.status(401).json({ error: 'Missing identity token' });
-      const identity = await verifyOwnerToken(token, deviceIdFrom(req));
+      let identity;
+      try {
+        identity = await verifyOwnerToken(token, deviceIdFrom(req));
+      } catch (authErr) {
+        if (authErr?.status === 401 || authErr?.code === 'auth/otp-required') {
+          if (body.action === 'pull') return res.status(200).json({ ok: true, actions: [] });
+          if (body.action === 'ack') return res.status(200).json({ ok: true });
+          return res.status(200).json({ ok: true, skipped: 'unverified-session' });
+        }
+        throw authErr;
+      }
       const profile = getUserByUid(identity.uid); if (!profile) return res.status(403).json({ error: 'This user is not approved for Memoir' });
       if (body.action === 'send') {
         const claim = await claimMessageKey(profile, String(body.reminderKey || '')); if (!claim.claimed) return res.status(200).json({ ok: true, deduplicated: true });
@@ -470,6 +480,7 @@ export default async function handler(req, res) {
     await processTelegramUpdate(body, profile); return res.status(200).json({ ok: true });
   } catch (error) {
     console.error('Telegram request failed:', error?.message);
-    return res.status(Number(error?.status || 503)).json({ error: error?.status === 403 ? 'This user is not approved for the vault' : 'Telegram bridge is unavailable' });
+    const status = Number(error?.status || 500);
+    return res.status(status).json({ error: error?.message || 'Telegram bridge is unavailable', code: error?.code || 'telegram/failed' });
   }
 }
