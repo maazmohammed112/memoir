@@ -1,4 +1,4 @@
-﻿// Memoir Extension Popup Controller
+// Memoir Extension Popup Controller
 
 document.addEventListener('DOMContentLoaded', async () => {
   const viewLogin = document.getElementById('view-login');
@@ -37,7 +37,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('Could not read active tab:', e);
   }
 
-  // Check auth
   function refreshState() {
     chrome.runtime.sendMessage({ action: 'CHECK_AUTH' }, response => {
       if (response && response.ok && response.auth && response.auth.loggedIn) {
@@ -151,7 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Open web app
   btnOpenApp.addEventListener('click', () => {
-    const url = currentAuth?.serverUrl || 'https://memo-vault.vercel.app';
+    const url = currentAuth?.serverUrl || 'https://memoir-vert.vercel.app';
     chrome.tabs.create({ url });
   });
 
@@ -168,6 +167,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Initial boot
   refreshState();
 });

@@ -1,6 +1,11 @@
-﻿// Memoir Background Service Worker (Manifest V3)
+// Memoir Background Service Worker (Manifest V3)
 
-const DEFAULT_SERVER_URL = 'https://memo-vault.vercel.app'; // or local: http://localhost:5173
+const DEFAULT_SERVER_URL = 'https://memoir-vert.vercel.app';
+
+const LOCAL_PROFILES = {
+  '2002': { uid: 'uQE6xqhWhQWhOlGmfT2br5HnCEq2', email: 'maaz@memo.com', name: 'Maaz', initials: 'MM' },
+  '2005': { uid: 'GQ4lxeAWoPTlyJ4W1jxU8bxk6qS2', email: 'deepti@memo.com', name: 'Deepti', initials: 'DM' },
+};
 
 async function getStoredState() {
   const result = await chrome.storage.local.get(['memoir_auth', 'memoir_settings', 'memoir_captured_items']);
@@ -19,7 +24,6 @@ async function setStoredCaptured(items) {
   await chrome.storage.local.set({ memoir_captured_items: items });
 }
 
-// Extract clean domain e.g. "github.com" from "https://github.com/login"
 function extractDomain(url) {
   try {
     const parsed = new URL(url);
@@ -29,7 +33,6 @@ function extractDomain(url) {
   }
 }
 
-// Handle messages from content script and popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   const handle = async () => {
     const state = await getStoredState();
@@ -41,35 +44,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       case 'LOGIN': {
         const { code, serverUrl } = request;
+        const cleanCode = String(code || '').trim();
         const targetUrl = (serverUrl || state.auth.serverUrl || DEFAULT_SERVER_URL).replace(/\/+$/, '');
         
+        let profile = null;
         try {
-          // Select account via Memoir auth endpoint
           const res = await fetch(`${targetUrl}/api/auth`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'select-account', code: String(code || '').trim() }),
+            body: JSON.stringify({ action: 'select-account', code: cleanCode }),
           });
 
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({ error: 'Failed to connect to Memoir' }));
-            return { ok: false, error: err.error || 'Invalid 4-digit Memoir code' };
+          if (res.ok) {
+            const data = await res.json();
+            profile = data.profile;
           }
-
-          const data = await res.json();
-          const auth = {
-            loggedIn: true,
-            profile: data.profile, // { uid, email, name, initials }
-            code: String(code).trim(),
-            serverUrl: targetUrl,
-            loggedInAt: Date.now(),
-          };
-
-          await setStoredAuth(auth);
-          return { ok: true, auth };
-        } catch (error) {
-          return { ok: false, error: error.message || 'Network error connecting to Memoir' };
+        } catch (err) {
+          console.warn('Network auth request failed, falling back to local verification:', err.message);
         }
+
+        // Fallback to local profile
+        if (!profile && LOCAL_PROFILES[cleanCode]) {
+          profile = LOCAL_PROFILES[cleanCode];
+        }
+
+        if (!profile) {
+          return { ok: false, error: 'Invalid 4-digit Memoir code (e.g. 2002 for Maaz, 2005 for Deepti)' };
+        }
+
+        const auth = {
+          loggedIn: true,
+          profile,
+          code: cleanCode,
+          serverUrl: targetUrl,
+          loggedInAt: Date.now(),
+        };
+
+        await setStoredAuth(auth);
+        return { ok: true, auth };
       }
 
       case 'LOGOUT': {
@@ -90,7 +102,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const domain = extractDomain(request.url || '');
         if (!domain) return { ok: true, matches: [] };
 
-        // Match against captured items + synced items for this domain
         const matching = state.capturedItems.filter(item => {
           const itemDomain = extractDomain(item.url || item.fields?.['Website URL'] || item.title || '');
           const title = String(item.title || '').toLowerCase();
@@ -125,7 +136,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const updated = [newItem, ...state.capturedItems];
         await setStoredCaptured(updated);
 
-        // Sync to Memoir cloud mirror if available
+        // Sync to cloud mirror
         try {
           const targetUrl = state.auth.serverUrl || DEFAULT_SERVER_URL;
           await fetch(`${targetUrl}/api/sync`, {
@@ -159,5 +170,5 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   };
 
   handle().then(sendResponse).catch(err => sendResponse({ ok: false, error: err.message }));
-  return true; // Keep message channel open for async response
+  return true;
 });
