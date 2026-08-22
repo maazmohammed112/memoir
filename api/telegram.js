@@ -292,8 +292,51 @@ async function processTelegramUpdateOnce(update, profile = getUserByChatId(updat
     });
   }
 
-  if (/^\/start\b/i.test(query)) return sendToOwner(profile, `Memoir is connected to your isolated vault, ${profile.name}! I can find notes, passwords, birthdays and reminders, or give your daily briefing. Try /briefing, /reminders, /test, or send photos of documents and voice memos.`);
-  if (/^\/help\b/i.test(query)) return sendToOwner(profile, 'Try:\n• /briefing — Today’s morning/evening briefing\n• /reminders — Active reminders & tasks\n• /test — Check Telegram connection\n• “What is my Wi-Fi password?”\n• “When is Deepti’s birthday?”\n• Send photos or voice notes to capture them!');
+  if (/^\/(guard|security|audit)\b/i.test(query)) {
+    const allItems = await loadVault(profile);
+    const relevantItems = allItems.filter(item => item.type !== 'Notification' && item.type !== 'Audio');
+    const passwordMap = new Map();
+    const pinMap = new Map();
+    let totalCreds = 0;
+    let weakCount = 0;
+    let personalCount = 0;
+    const ownerName = String(profile.name || '').toLowerCase();
+    const ownerCode = String(profile.code || '');
+
+    relevantItems.forEach(item => {
+      Object.entries(item.fields || {}).forEach(([label, value]) => {
+        const val = String(value || '').trim();
+        if (!val) return;
+        const isPwd = /password|passcode/i.test(label);
+        const isPin = /\bpin\b|atm pin/i.test(label);
+        if (isPwd || isPin) totalCreds += 1;
+        if (isPwd) {
+          if (!passwordMap.has(val)) passwordMap.set(val, []);
+          passwordMap.get(val).push(item.title);
+          if (val.length < 8 || /^\d+$/.test(val) || /^[a-zA-Z]+$/.test(val)) weakCount += 1;
+          if ((ownerName && val.toLowerCase().includes(ownerName)) || (ownerCode && val.includes(ownerCode))) personalCount += 1;
+        }
+        if (isPin) {
+          if (!pinMap.has(val)) pinMap.set(val, []);
+          pinMap.get(val).push(item.title);
+          if (/^(0123|1234|2345|3456|4567|5678|6789|1111|0000|2222)$/.test(val) || val.length < 4) weakCount += 1;
+          if (ownerCode && val === ownerCode) personalCount += 1;
+        }
+      });
+    });
+
+    let reusedCount = 0;
+    passwordMap.forEach(instances => { if (instances.length > 1) reusedCount += 1; });
+    pinMap.forEach(instances => { if (instances.length > 1) reusedCount += 1; });
+
+    let score = Math.max(15, 100 - (reusedCount * 15) - (weakCount * 8) - (personalCount * 10));
+    const grade = score >= 90 ? 'A+ Fortified' : score >= 75 ? 'B+ Good' : score >= 55 ? 'C Needs Attention' : 'D High Risk';
+
+    return sendToOwner(profile, `🛡️ RHINO GUARD SECURITY AUDIT\n\nOwner: ${profile.name}\nSecurity Health: ${score}% (${grade})\n\n• Credentials Audited: ${totalCreds}\n• Reused Secrets: ${reusedCount}\n• Weak / Short Secrets: ${weakCount}\n• Name / Vault Code Leaks: ${personalCount}\n\nOpen Memoir web app to view the complete interactive breakdown and 1-tap password generator.`);
+  }
+
+  if (/^\/start\b/i.test(query)) return sendToOwner(profile, `Memoir is connected to your isolated vault, ${profile.name}! I can find notes, passwords, birthdays and reminders, or give your daily briefing. Try /briefing, /reminders, /guard, /test, or send photos of documents and voice memos.`);
+  if (/^\/help\b/i.test(query)) return sendToOwner(profile, 'Try:\n• /briefing — Today’s morning/evening briefing\n• /reminders — Active reminders & tasks\n• /guard — Rhino Guard password & PIN security audit\n• /test — Check Telegram connection\n• “What is my Wi-Fi password?”\n• “When is Deepti’s birthday?”\n• Send photos or voice notes to capture them!');
   const items = await loadVault(profile);
   if (!items.length && !imagePayload && !audioPayload) return sendToOwner(profile, 'Memoir is connected, but this account’s safe catalog is not loaded yet. Open the signed-in Memoir app once so its encrypted Telegram bridge can sync.');
   const catalog = items.map(item => ({ id: item.id, type: item.type, title: item.title, fieldNames: Object.keys(item.fields || {}) }));

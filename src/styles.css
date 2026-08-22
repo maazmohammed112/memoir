@@ -414,7 +414,7 @@
   .document-viewer-body iframe{height:58vh}
 }
 @media(max-width:420px){
-  .mobile-nav .nav-btn{width:calc((100vw - 36px)/6)}
+  .mobile-nav .nav-btn{width:calc((100vw - 36px)/7)}
   .todo-item{grid-template-columns:27px minmax(0,1fr) 74px 27px 27px}
   .todo-card{padding:13px}
   .todo-item>span{font-size:10px}
@@ -422,5 +422,78 @@
   .todo-amount b{left:7px}
   .provenance-badge{width:29px;height:29px}
   .answer-table td:first-child{min-width:85px}
+}
+
+/* Rhino Guard Security Dashboard */
+.guard-hero{display:flex;flex-direction:column;gap:18px;margin-bottom:24px;padding:24px;border:1px solid var(--line);border-radius:24px;background:radial-gradient(circle at top right, rgba(20,184,166,0.08), transparent 70%), var(--surface)}
+.guard-score-box{display:flex;align-items:center;gap:24px}
+.guard-gauge{position:relative;width:104px;height:104px;flex:none;display:grid;place-items:center}
+.guard-gauge-svg{width:100%;height:100%;transform:rotate(-90deg)}
+.guard-gauge-bg{fill:none;stroke:var(--surface2);stroke-width:8}
+.guard-gauge-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 0.8s cubic-bezier(0.16,1,0.3,1), stroke 0.5s ease}
+.guard-gauge-label{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.guard-gauge-label strong{font-size:22px;font-weight:800;letter-spacing:-0.03em;color:var(--ink);line-height:1}
+.guard-gauge-label small{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:3px;color:var(--muted)}
+
+.guard-hero-text{flex:1}
+.guard-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(20,184,166,0.12);color:var(--emerald);margin-bottom:8px}
+.guard-badge .icon{width:14px;height:14px}
+.guard-hero-text h2{font-size:22px;font-weight:800;letter-spacing:-0.03em;margin:0 0 6px;color:var(--ink)}
+.guard-hero-text p{margin:0;font-size:12px;line-height:1.5;color:var(--muted)}
+
+.guard-stats-row{display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-top:6px}
+.guard-stat-card{padding:12px 14px;border:1px solid var(--line);border-radius:16px;background:var(--surface2);display:flex;flex-direction:column;gap:3px;transition:.2s}
+.guard-stat-card.alert{border-color:rgba(239,68,68,0.35);background:rgba(239,68,68,0.06)}
+.guard-stat-card.alert .stat-num{color:var(--danger)}
+.guard-stat-card.warning{border-color:rgba(245,158,11,0.35);background:rgba(245,158,11,0.06)}
+.guard-stat-card.warning .stat-num{color:var(--amber)}
+.guard-stat-card .stat-num{font-size:20px;font-weight:800;letter-spacing:-0.02em;color:var(--ink)}
+.guard-stat-card .stat-desc{font-size:11px;font-weight:600;color:var(--muted)}
+
+.guard-tab-bar{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:18px}
+.guard-tab-btn{padding:8px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.guard-tab-btn:hover{color:var(--ink);border-color:var(--muted)}
+.guard-tab-btn.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.guard-tab-badge{padding:2px 6px;border-radius:10px;font-size:10px;font-weight:700;background:var(--surface2);color:var(--ink)}
+.guard-tab-btn.active .guard-tab-badge{background:rgba(255,255,255,0.2);color:#fff}
+
+.guard-issues-grid{display:flex;flex-direction:column;gap:12px}
+.guard-issue-card{padding:16px 18px;border:1px solid var(--line);border-radius:18px;background:var(--surface);display:flex;flex-direction:column;gap:10px;transition:.2s;animation:enter .2s ease both}
+.guard-issue-card:hover{border-color:rgba(0,0,0,0.18);box-shadow:0 6px 20px rgba(0,0,0,0.04)}
+.guard-issue-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.guard-issue-title-wrap{display:flex;align-items:center;gap:10px}
+.guard-issue-icon{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;flex:none}
+.guard-issue-icon.critical{background:rgba(239,68,68,0.12);color:var(--danger)}
+.guard-issue-icon.high{background:rgba(245,158,11,0.12);color:var(--amber)}
+.guard-issue-icon.medium{background:rgba(59,130,246,0.12);color:var(--cyan)}
+.guard-issue-info strong{display:block;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px}
+.guard-issue-info p{margin:0;font-size:11px;color:var(--muted);line-height:1.4}
+.guard-severity-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:3px 8px;border-radius:20px;flex:none}
+.guard-severity-tag.critical{background:rgba(239,68,68,0.12);color:var(--danger)}
+.guard-severity-tag.high{background:rgba(245,158,11,0.12);color:var(--amber)}
+.guard-severity-tag.medium{background:rgba(59,130,246,0.12);color:var(--cyan)}
+
+.guard-affected-list{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;background:var(--surface2);border-radius:12px;border:1px solid var(--line)}
+.guard-affected-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;background:var(--surface);border:1px solid var(--line);font-size:11px;font-weight:600;color:var(--ink)}
+.guard-affected-chip .icon{width:13px;height:13px;color:var(--muted)}
+.guard-fix-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:2px}
+
+.guard-generator-card{padding:22px;border:1px solid var(--line);border-radius:20px;background:var(--surface);display:flex;flex-direction:column;gap:18px;margin-bottom:18px}
+.guard-generator-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.guard-generator-head h3{margin:0;font-size:16px;font-weight:800;color:var(--ink)}
+.guard-output-row{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--line);padding:8px 12px;border-radius:14px}
+.guard-output-text{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:15px;font-weight:700;color:var(--ink);letter-spacing:0.04em;flex:1;overflow-x:auto;white-space:nowrap}
+.guard-gen-btn{height:36px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.15s}
+.guard-gen-btn:hover{background:var(--surface2);border-color:var(--muted)}
+
+@media(max-width:560px){
+  .guard-score-box{flex-direction:column;align-items:flex-start;gap:16px}
+  .guard-gauge{width:88px;height:88px}
+  .guard-gauge-label strong{font-size:18px}
+  .guard-stats-row{grid-template-columns:1fr 1fr}
+  .guard-issue-head{flex-direction:column;align-items:flex-start;gap:8px}
+  .guard-severity-tag{align-self:flex-start}
+  .guard-fix-actions{width:100%;justify-content:stretch}
+  .guard-fix-actions button{flex:1}
 }
 

@@ -66,7 +66,7 @@ import Zap from 'lucide/dist/esm/icons/zap.mjs';
 import { vaultStore } from './store.js';
 
 const nav = [
-  ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['assistant', 'Rhino', 'Rhinous'],
+  ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['guard', 'ShieldCheck', 'Guard'], ['assistant', 'Rhino', 'Rhinous'],
   ['planner', 'ListTodo', 'Planner'], ['capture', 'AudioLines', 'Capture'], ['birthdays', 'CakeSlice', 'Birthdays'],
 ];
 const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', 'Government Document': 'FileBadge', Personal: 'NotebookText', Audio: 'AudioLines', Todo: 'ListTodo', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
@@ -95,7 +95,7 @@ const modal = document.querySelector('#modal');
 const toastNode = document.querySelector('#toast');
 const state = {
   view: 'home', items: [], status: 'loading', hidden: true,
-  provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, vaultCategory: 'all', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', todoTab: 'active', telegramSyncing: false,
+  provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, vaultCategory: 'all', guardTab: 'all', generatedPassword: '', generatedPin: '', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', todoTab: 'active', telegramSyncing: false,
   auth: { status: 'checking', email: '', message: '', profile: null }, authError: '',
   chatAttachments: [], chatAttachment: null, isRecordingVoice: false, plannerSection: 'todos', captureSection: 'audio', lastResolvedItemId: '', assistantReveals: new Set(),
 };
@@ -140,7 +140,7 @@ async function withRhinoActivity(label, task) {
   finally { await new Promise(resolve => setTimeout(resolve, Math.max(0, 320 - (Date.now() - started)))); activityDepth = Math.max(0, activityDepth - 1); if (!activityDepth) { node.classList.remove('show'); setTimeout(() => { if (!activityDepth) node.remove(); }, 220); } }
 }
 function activeProfile() { return state.auth.profile || { name: 'Owner', initials: 'ME', email: state.auth.email || '' }; }
-function titleForView() { return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', assistant: 'Ask Rhinous', planner: 'Plan and complete', capture: 'Capture library', birthdays: 'Meaningful moments' }[state.view]; }
+function titleForView() { return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', guard: 'Rhino Guard Security', assistant: 'Ask Rhinous', planner: 'Plan and complete', capture: 'Capture library', birthdays: 'Meaningful moments' }[state.view]; }
 function category(item) { return item.kind === 'clipboard' ? 'Clipboard' : item.type || 'Personal'; }
 function itemIcon(item) { return typeIcons[category(item)] || 'Gem'; }
 function allFields(item) { return item.fields || {}; }
@@ -547,7 +547,7 @@ function bindAuthGate() {
 }
 
 function skeleton() { return `<section class="vault-opening"><div class="vault-opening-head"><span class="vault-opening-mark"><img src="/brand/memoir-rhino-ui.png" alt=""></span><div><p class="eyebrow">Encrypted cloud vault</p><h2>Loading your memories…</h2><p>Downloading and decrypting this owner’s latest records. Cached memories will appear instantly on future visits.</p></div><span class="opening-live"><i></i> Secure sync</span></div><div class="opening-grid"><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article></div><div class="opening-list">${Array.from({ length: 4 }, () => `<div class="opening-row"><div class="skeleton opening-avatar"></div><div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></div><div class="skeleton opening-action"></div></div>`).join('')}</div></section>`; }
-function currentView() { return ({ home: homeView, vault: vaultView, assistant: assistantView, planner: plannerView, capture: captureView, birthdays: birthdaysView }[state.view] || homeView)(); }
+function currentView() { return ({ home: homeView, vault: vaultView, guard: guardView, assistant: assistantView, planner: plannerView, capture: captureView, birthdays: birthdaysView }[state.view] || homeView)(); }
 function memories() { return state.items.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Notification', 'Todo'].includes(item.type)); }
 function vaultMemories() { return memories().filter(item => item.type !== 'Birthday' && item.type !== 'Audio'); }
 function memoryFilterGroup(item) {
@@ -1027,6 +1027,21 @@ function reminderCard(item, compact = false) {
 function homeView() {
   const upcomingReminders = reminders().filter(item => reminderStatus(item) === 'upcoming').sort((a, b) => reminderDue(a) - reminderDue(b));
   const criticalExpiries = criticalExpiringMemories();
+  const guardAudit = auditVaultSecurity(state.items, activeProfile());
+  const guardBannerHtml = guardAudit.allVulnerabilities.length ? `
+    <article class="guard-stat-card ${guardAudit.hasCritical ? 'alert' : 'warning'}" style="margin:16px 0;cursor:pointer" data-view="guard">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="icon-wrap ${guardAudit.hasCritical ? 'rose' : 'coral'}" style="width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none">${icon(guardAudit.hasCritical ? 'ShieldAlert' : 'ShieldCheck')}</span>
+          <div>
+            <strong style="font-size:13px;color:var(--ink)">Rhino Guard: ${guardAudit.score}% Security Health (${guardAudit.grade.split(' ')[0]})</strong>
+            <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">${guardAudit.allVulnerabilities.length} credential vulnerabilit${guardAudit.allVulnerabilities.length === 1 ? 'y' : 'ies'} found (reused passwords, weak PINs, or personal leaks).</p>
+          </div>
+        </div>
+        <button type="button" class="text-btn" data-view="guard" style="flex:none">Audit Vault &rarr;</button>
+      </div>
+    </article>
+  ` : '';
   const expiriesHtml = criticalExpiries.length ? `
     <div class="section-head"><h2 style="color:var(--danger)">Expiring soon (under 5 months)</h2><button class="text-btn" data-view="vault">View all</button></div>
     <div class="dashboard-expiries">${criticalExpiries.map(exp => `
@@ -1047,10 +1062,308 @@ function homeView() {
 
   return `<div class="hero-grid"><section class="hero"><img class="hero-rhino" src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Your private second brain</p><h2>Everything important, remembered beautifully.</h2><p>Save private details, retrieve only what you need, and never miss a meaningful moment.</p><button class="primary" data-add="memory">${icon('Plus')} Add a memory</button></section>
   <div class="stat-grid"><article class="stat large"><span class="stat-symbol rose">${icon('ShieldCheck')}</span><div><strong>${memories().length}</strong><span>memories kept safe</span></div></article><article class="stat"><span class="stat-symbol violet">${icon('AlarmClock')}</span><div><strong>${upcomingReminders.length}</strong><span>upcoming reminders</span></div></article><article class="stat"><span class="stat-symbol green">${icon('Clipboard')}</span><div><strong>${clips().length}</strong><span>clipboard items</span></div></article></div></div>
+  ${guardBannerHtml}
   ${expiriesHtml}
   ${upcomingReminders.length ? `<div class="section-head"><h2>Coming up</h2><button class="text-btn" data-view="reminders">All reminders</button></div><div class="dashboard-reminders">${upcomingReminders.slice(0, 3).map(item => reminderCard(item, true)).join('')}</div>` : ''}
   <div class="section-head"><h2>Recently remembered</h2><button class="text-btn" data-view="vault">View everything</button></div>
   ${memories().length ? `<div class="card-grid">${memories().slice(0, 3).map(memoryCard).join('')}</div>` : emptyState('Gem', 'Your vault is ready', 'Add your first memory. No demo records are included.', 'Add memory', 'memory')}`;
+}
+
+function auditVaultSecurity(items, profile) {
+  const ownerName = String(profile?.name || '').trim().toLowerCase();
+  const ownerEmail = String(profile?.email || '').trim().toLowerCase();
+  const emailUser = ownerEmail.split('@')[0] || '';
+  const ownerCode = String(profile?.code || '').trim();
+  const ownerYears = ownerName.includes('maaz') ? ['2002', '02'] : ownerName.includes('deepti') ? ['1995', '2005', '95', '05'] : ['2002', '2005'];
+
+  const passwordMap = new Map();
+  const pinMap = new Map();
+  const weakItems = [];
+  const personalInfoItems = [];
+  const cardIssues = [];
+  let totalCredentials = 0;
+
+  const relevantItems = (Array.isArray(items) ? items : []).filter(item => item.type !== 'Notification' && item.type !== 'Audio' && item.type !== 'Todo');
+
+  relevantItems.forEach(item => {
+    const fields = item.fields || {};
+    Object.entries(fields).forEach(([label, value]) => {
+      const val = String(value || '').trim();
+      if (!val || /\[\[PRIVATE_\d+\]\]/.test(val)) return;
+
+      const isPassword = /password|passcode|secret/i.test(label);
+      const isPin = /\bpin\b|atm pin|upi pin/i.test(label);
+      const isCvv = /\bcvv\b|security code/i.test(label);
+
+      if (isPassword || isPin || isCvv) totalCredentials += 1;
+
+      // 1. Password checks
+      if (isPassword && val.length > 0) {
+        if (!passwordMap.has(val)) passwordMap.set(val, []);
+        passwordMap.get(val).push({ item, label, value: val });
+
+        const isShort = val.length < 8;
+        const onlyNumbers = /^\d+$/.test(val);
+        const onlyLetters = /^[a-zA-Z]+$/.test(val);
+        const commonDict = /^(password|admin|123456|12345678|qwerty|welcome|iloveyou|letmein|pass123)$/i.test(val);
+
+        if (isShort || onlyNumbers || onlyLetters || commonDict) {
+          let reason = isShort ? 'Password is too short (less than 8 characters)' : onlyNumbers ? 'Contains only numbers' : onlyLetters ? 'Contains only letters with no symbols or digits' : 'Easily guessable dictionary word';
+          weakItems.push({ id: item.id, item, label, value: val, reason, type: 'Password', severity: isShort || commonDict ? 'critical' : 'high' });
+        }
+
+        const lowerVal = val.toLowerCase();
+        let personalReason = '';
+        if (ownerName && ownerName.length >= 3 && lowerVal.includes(ownerName)) {
+          personalReason = `Password contains your name "${profile.name}"`;
+        } else if (emailUser && emailUser.length >= 3 && lowerVal.includes(emailUser)) {
+          personalReason = `Password contains your email username "${emailUser}"`;
+        } else if (ownerCode && lowerVal.includes(ownerCode)) {
+          personalReason = `Password contains your 4-digit Memoir vault code (${ownerCode})`;
+        } else if (ownerYears.some(y => y.length === 4 && lowerVal.includes(y))) {
+          personalReason = `Password contains personal birth year (${ownerYears.find(y => y.length === 4 && lowerVal.includes(y))})`;
+        }
+
+        if (personalReason) {
+          personalInfoItems.push({ id: item.id, item, label, value: val, reason: personalReason, type: 'Password', severity: 'high' });
+        }
+      }
+
+      // 2. PIN checks
+      if (isPin && val.length > 0) {
+        if (!pinMap.has(val)) pinMap.set(val, []);
+        pinMap.get(val).push({ item, label, value: val });
+
+        const sequential = /^(0123|1234|2345|3456|4567|5678|6789|9876|8765|7654|6543|5432|4321|3210)$/.test(val);
+        const repeated = /^(\d)\1+$/.test(val);
+        const patternPin = /^(1212|2580|1379|1990|1995|2000|2002|2005|2024|2025|2026)$/.test(val);
+
+        if (sequential || repeated || patternPin || val.length < 4) {
+          const reason = sequential ? 'Sequential digits (1234/4321)' : repeated ? 'Repeated digits (e.g. 1111/0000)' : val.length < 4 ? 'Too short for standard ATM/UPI PIN' : 'Easily guessable pattern / birth year';
+          weakItems.push({ id: item.id, item, label, value: val, reason, type: 'PIN', severity: sequential || repeated ? 'critical' : 'high' });
+        }
+
+        if (ownerCode && val === ownerCode) {
+          personalInfoItems.push({ id: item.id, item, label, value: val, reason: `ATM PIN matches your Memoir vault passcode (${ownerCode})`, type: 'PIN', severity: 'critical' });
+        } else if (ownerYears.some(y => val.includes(y))) {
+          personalInfoItems.push({ id: item.id, item, label, value: val, reason: `ATM PIN matches your birth year (${ownerYears.find(y => val.includes(y))})`, type: 'PIN', severity: 'high' });
+        }
+      }
+    });
+
+    if (item.type === 'Finance' && (fields['Debit card number'] || fields['Card number'] || /card/i.test(item.title))) {
+      const hasCvv = Boolean(fields.CVV || fields['Security code']);
+      const hasExpiry = Boolean(fields.Expiry || fields['Valid thru'] || fields['Expiry date']);
+      if (!hasCvv) cardIssues.push({ id: item.id, item, reason: 'Missing CVV / Security code on saved card', type: 'Card', severity: 'medium' });
+      if (!hasExpiry) cardIssues.push({ id: item.id, item, reason: 'Missing expiration date on saved card', type: 'Card', severity: 'medium' });
+    }
+  });
+
+  const reusedPasswords = [];
+  passwordMap.forEach((instances) => {
+    if (instances.length > 1) {
+      const isBankOrGov = instances.some(i => i.item.type === 'Finance' || /bank|sbi|hdfc|icici|epfo|gov|tax|mail|gmail/i.test(i.item.title));
+      reusedPasswords.push({
+        type: 'Reused Password',
+        count: instances.length,
+        items: instances.map(i => i.item),
+        labels: instances.map(i => `${i.item.title} (${i.label})`),
+        severity: isBankOrGov ? 'critical' : 'high',
+        reason: isBankOrGov ? `CRITICAL: Password reused across essential accounts (${instances.map(i => i.item.title).join(', ')})` : `Exact same password reused across ${instances.length} accounts`,
+      });
+    }
+  });
+
+  const reusedPins = [];
+  pinMap.forEach((instances) => {
+    if (instances.length > 1) {
+      reusedPins.push({
+        type: 'Reused PIN',
+        count: instances.length,
+        items: instances.map(i => i.item),
+        labels: instances.map(i => `${i.item.title} (${i.label})`),
+        severity: 'critical',
+        reason: `Same ATM / UPI PIN used across multiple cards (${instances.map(i => i.item.title).join(', ')})`,
+      });
+    }
+  });
+
+  let score = 100;
+  reusedPasswords.forEach(r => score -= (r.severity === 'critical' ? 14 : 9));
+  reusedPins.forEach(() => score -= 14);
+  weakItems.forEach(w => score -= (w.severity === 'critical' ? 10 : 6));
+  personalInfoItems.forEach(p => score -= (p.severity === 'critical' ? 12 : 7));
+  cardIssues.forEach(() => score -= 4);
+
+  score = Math.max(12, Math.min(100, Math.round(score)));
+
+  const grade = score >= 90 ? 'A+ Fortified' : score >= 75 ? 'B+ Good' : score >= 55 ? 'C Needs Attention' : 'D High Risk';
+  const gradeColor = score >= 90 ? '#10b981' : score >= 75 ? '#06b6d4' : score >= 55 ? '#f59e0b' : '#ef4444';
+
+  const allVulnerabilities = [
+    ...reusedPasswords.map(r => ({ ...r, category: 'reused' })),
+    ...reusedPins.map(r => ({ ...r, category: 'reused' })),
+    ...weakItems.map(w => ({ ...w, category: 'weak' })),
+    ...personalInfoItems.map(p => ({ ...p, category: 'personal' })),
+    ...cardIssues.map(c => ({ ...c, category: 'card' })),
+  ];
+
+  return {
+    score, grade, gradeColor, totalCredentials,
+    reusedPasswords, reusedPins, weakItems, personalInfoItems, cardIssues,
+    allVulnerabilities,
+    hasCritical: allVulnerabilities.some(v => v.severity === 'critical'),
+  };
+}
+
+function generateStrongSecret(type = 'password', length = 18) {
+  const crypt = typeof crypto !== 'undefined' ? crypto : (typeof globalThis !== 'undefined' ? globalThis.crypto : null);
+  if (type === 'pin') {
+    const digits = '0123456789';
+    let pin = '';
+    const pinLen = length === 6 ? 6 : 4;
+    do {
+      pin = '';
+      const array = new Uint8Array(pinLen);
+      if (crypt?.getRandomValues) crypt.getRandomValues(array);
+      else for (let i = 0; i < pinLen; i++) array[i] = Math.floor(Math.random() * 256);
+      for (let i = 0; i < pinLen; i++) pin += digits[array[i] % 10];
+    } while (/^(0123|1234|2345|3456|4567|5678|6789|9876|8765|7654|6543|5432|4321|3210|1111|0000|2222|3333|4444|5555|6666|7777|8888|9999)$/.test(pin));
+    return pin;
+  }
+  const chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*()_+-=[]{};:,.<>?';
+  let result = '';
+  const bytes = new Uint8Array(length);
+  if (crypt?.getRandomValues) crypt.getRandomValues(bytes);
+  else for (let i = 0; i < length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  for (let i = 0; i < length; i++) result += chars[bytes[i] % chars.length];
+  return result;
+}
+
+function guardView() {
+  const profile = activeProfile();
+  const audit = auditVaultSecurity(state.items, profile);
+  const currentTab = state.guardTab || 'all';
+
+  let filtered = [];
+  if (currentTab === 'all') filtered = audit.allVulnerabilities;
+  else if (currentTab === 'reused') filtered = audit.allVulnerabilities.filter(v => v.category === 'reused');
+  else if (currentTab === 'weak') filtered = audit.allVulnerabilities.filter(v => v.category === 'weak');
+  else if (currentTab === 'personal') filtered = audit.allVulnerabilities.filter(v => v.category === 'personal');
+  else if (currentTab === 'card') filtered = audit.allVulnerabilities.filter(v => v.category === 'card');
+
+  if (!state.generatedPassword) state.generatedPassword = generateStrongSecret('password', 18);
+  if (!state.generatedPin) state.generatedPin = generateStrongSecret('pin', 4);
+
+  const issuesMarkup = filtered.length ? filtered.map(vuln => {
+    const isReused = vuln.category === 'reused';
+    const firstItem = isReused ? vuln.items[0] : vuln.item;
+    return `
+      <article class="guard-issue-card">
+        <div class="guard-issue-head">
+          <div class="guard-issue-title-wrap">
+            <span class="guard-issue-icon ${vuln.severity}">${icon(vuln.severity === 'critical' ? 'ShieldAlert' : vuln.category === 'reused' ? 'KeyRound' : 'TriangleAlert')}</span>
+            <div class="guard-issue-info">
+              <strong>${escapeHtml(vuln.reason)}</strong>
+              <p>${isReused ? `Affects ${vuln.count} accounts in your vault` : `Detected in ${escapeHtml(vuln.item?.title || 'Saved memory')}`}</p>
+            </div>
+          </div>
+          <span class="guard-severity-tag ${vuln.severity}">${escapeHtml(vuln.severity)}</span>
+        </div>
+        ${isReused ? `
+          <div class="guard-affected-list">
+            ${vuln.items.map(it => `<span class="guard-affected-chip">${icon(itemIcon(it))} ${escapeHtml(it.title)}</span>`).join('')}
+          </div>
+        ` : ''}
+        <div class="guard-fix-actions">
+          ${isReused ? vuln.items.map(it => `<button type="button" class="guard-gen-btn" data-edit="${it.id}">${icon('Pencil')} Fix ${escapeHtml(it.title)}</button>`).join('') : (firstItem ? `
+            <button type="button" class="guard-gen-btn" data-edit="${firstItem.id}">${icon('Pencil')} Update in Vault</button>
+          ` : '')}
+        </div>
+      </article>
+    `;
+  }).join('') : `
+    <div class="empty">
+      <span class="icon-wrap" style="color:var(--emerald)">${icon('ShieldCheck')}</span>
+      <h3>No vulnerabilities in this category</h3>
+      <p>Your saved credentials and PINs in this category follow strong security best practices.</p>
+    </div>
+  `;
+
+  return `
+    <div class="guard-layout">
+      <section class="guard-hero">
+        <div class="guard-score-box">
+          <div class="guard-gauge">
+            <svg viewBox="0 0 100 100" class="guard-gauge-svg">
+              <circle cx="50" cy="50" r="42" class="guard-gauge-bg"/>
+              <circle cx="50" cy="50" r="42" class="guard-gauge-fill" stroke-dasharray="264" stroke-dashoffset="${264 - (264 * audit.score) / 100}" style="stroke: ${audit.gradeColor}"/>
+            </svg>
+            <div class="guard-gauge-label">
+              <strong>${audit.score}%</strong>
+              <small>${escapeHtml(audit.grade.split(' ')[0])}</small>
+            </div>
+          </div>
+          <div class="guard-hero-text">
+            <div class="guard-badge"><span class="icon-wrap">${icon('ShieldCheck')}</span><span>Rhino Guard Active</span></div>
+            <h2>Vault Vulnerability & Credential Intelligence</h2>
+            <p>Real-time on-device cryptographic audit of passwords, ATM PINs, CVVs, and personal identity leaks for <strong>${escapeHtml(profile.name)}</strong>.</p>
+          </div>
+        </div>
+        <div class="guard-stats-row">
+          <div class="guard-stat-card"><span class="stat-num">${audit.totalCredentials}</span><span class="stat-desc">Credentials Audited</span></div>
+          <div class="guard-stat-card ${audit.reusedPasswords.length + audit.reusedPins.length > 0 ? 'alert' : ''}"><span class="stat-num">${audit.reusedPasswords.length + audit.reusedPins.length}</span><span class="stat-desc">Reused Secrets</span></div>
+          <div class="guard-stat-card ${audit.weakItems.length > 0 ? 'warning' : ''}"><span class="stat-num">${audit.weakItems.length}</span><span class="stat-desc">Weak Secrets</span></div>
+          <div class="guard-stat-card ${audit.personalInfoItems.length > 0 ? 'warning' : ''}"><span class="stat-num">${audit.personalInfoItems.length}</span><span class="stat-desc">Name/Year Leaks</span></div>
+        </div>
+      </section>
+
+      <section class="guard-generator-card">
+        <div class="guard-generator-head">
+          <div>
+            <p class="eyebrow">Smart Generator</p>
+            <h3>Cryptographic Password & ATM PIN Generator</h3>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="guard-gen-btn" id="guard-refresh-pwd">${icon('WandSparkles')} New Password</button>
+            <button type="button" class="guard-gen-btn" id="guard-refresh-pin">${icon('WandSparkles')} New PIN</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px">
+          <div class="guard-output-row">
+            <span class="guard-output-text">${escapeHtml(state.generatedPassword)}</span>
+            <button type="button" class="icon-btn-mini" data-copy="${escapeHtml(state.generatedPassword)}" title="Copy strong password">${icon('Copy')}</button>
+          </div>
+          <div class="guard-output-row">
+            <span class="guard-output-text">${escapeHtml(state.generatedPin)} (4-Digit ATM PIN)</span>
+            <button type="button" class="icon-btn-mini" data-copy="${escapeHtml(state.generatedPin)}" title="Copy strong PIN">${icon('Copy')}</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="guard-tab-bar">
+        <button class="guard-tab-btn ${currentTab === 'all' ? 'active' : ''}" data-guard-tab="all">
+          <span>All Issues</span><span class="guard-tab-badge">${audit.allVulnerabilities.length}</span>
+        </button>
+        <button class="guard-tab-btn ${currentTab === 'reused' ? 'active' : ''}" data-guard-tab="reused">
+          <span>Reused Secrets</span><span class="guard-tab-badge">${audit.reusedPasswords.length + audit.reusedPins.length}</span>
+        </button>
+        <button class="guard-tab-btn ${currentTab === 'weak' ? 'active' : ''}" data-guard-tab="weak">
+          <span>Weak & Guessable</span><span class="guard-tab-badge">${audit.weakItems.length}</span>
+        </button>
+        <button class="guard-tab-btn ${currentTab === 'personal' ? 'active' : ''}" data-guard-tab="personal">
+          <span>Personal Leaks</span><span class="guard-tab-badge">${audit.personalInfoItems.length}</span>
+        </button>
+        <button class="guard-tab-btn ${currentTab === 'card' ? 'active' : ''}" data-guard-tab="card">
+          <span>Card Audits</span><span class="guard-tab-badge">${audit.cardIssues.length}</span>
+        </button>
+      </div>
+
+      <div class="guard-issues-grid">
+        ${issuesMarkup}
+      </div>
+    </div>
+  `;
 }
 function vaultRow(item) {
   const filterGroup = memoryFilterGroup(item);
@@ -1317,6 +1630,9 @@ function bindView() {
       promptSecureShare(button.dataset.docShare, button.dataset.docName, button.dataset.docMime);
     };
   });
+  document.querySelectorAll('[data-guard-tab]').forEach(button => button.onclick = () => { state.guardTab = button.dataset.guardTab; renderView(); });
+  document.querySelector('#guard-refresh-pwd')?.addEventListener('click', () => { state.generatedPassword = generateStrongSecret('password', 18); renderView(); });
+  document.querySelector('#guard-refresh-pin')?.addEventListener('click', () => { state.generatedPin = generateStrongSecret('pin', 4); renderView(); });
   document.querySelector('#clear-chat')?.addEventListener('click', () => confirmBox('Clear this conversation?', 'This removes the local Rhinous conversation log. Your saved memories and reminders will not be changed.', 'Clear chat', 'Eraser', () => { state.messages = []; state.assistantLog = []; localStorage.removeItem(assistantLogKey()); renderView(); toast('Conversation cleared'); }));
 
   document.querySelector('#vault-filter')?.addEventListener('input', event => document.querySelectorAll('[data-searchable]').forEach(row => row.hidden = !row.dataset.searchable.includes(event.target.value.toLowerCase())));
@@ -2652,6 +2968,30 @@ async function askAssistant(query) {
   state.chatLoading = true;
   renderView();
   scrollChat();
+
+  if (!hasAttachments && /\b(security audit|password health|rhino guard|audit vault|audit my passwords|reused password|weak password|weak pin|atm pin safe)\b/i.test(cleanQuery)) {
+    const audit = auditVaultSecurity(state.items, activeProfile());
+    let auditMsg = `### 🛡️ Rhino Guard Security Audit (${audit.score}% · ${audit.grade})\n\n`;
+    auditMsg += `I analyzed **${audit.totalCredentials} credentials & PINs** on your device:\n\n`;
+    auditMsg += `• **Health Score**: ${audit.score}/100 (${audit.grade})\n`;
+    auditMsg += `• **Reused Secrets**: ${audit.reusedPasswords.length + audit.reusedPins.length} detected\n`;
+    auditMsg += `• **Weak / Guessable**: ${audit.weakItems.length} detected\n`;
+    auditMsg += `• **Personal Info / Name Leaks**: ${audit.personalInfoItems.length} detected\n\n`;
+    if (audit.allVulnerabilities.length) {
+      auditMsg += `**Key Vulnerabilities Detected:**\n`;
+      audit.allVulnerabilities.slice(0, 4).forEach(v => {
+        auditMsg += `• **${v.severity.toUpperCase()}**: ${v.reason}\n`;
+      });
+      auditMsg += `\n*Tap the **Guard** tab in the sidebar/menu for the full interactive breakdown, affected accounts list, and 1-tap fixes.*`;
+    } else {
+      auditMsg += `🎉 **Pristine security!** No reused passwords, weak PINs, or personal identity leaks were found in your vault.`;
+    }
+    state.messages.push({ role: 'assistant', title: 'RHINO GUARD SECURITY AUDIT', markdown: auditMsg });
+    state.chatLoading = false;
+    renderView();
+    scrollChat();
+    return;
+  }
 
   try {
     const catalog = state.items.filter(item => item.type !== 'Notification').map(item => ({ id: item.id, type: category(item), title: item.title, fieldNames: Object.keys(allFields(item)) }));
