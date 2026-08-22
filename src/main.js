@@ -1499,8 +1499,24 @@ function detailMarkup(item) {
 
   const displayFields = Object.entries(fields).filter(([k]) => !audioDataLabels.has(k) && !audioMetadataLabels.has(k) && !documentDataLabels.has(k));
 
+  const provenance = item?.provenance || {};
+  const isExtensionItem = /extension|chrome/i.test(String(provenance.source || item?.fields?.['Created via'] || '')) || Boolean(item.domain || item.url);
+  const browserBox = isExtensionItem ? `
+    <div class="browser-provenance-box">
+      <div class="browser-provenance-head">
+        <span class="icon-wrap green">${icon('Globe')}</span>
+        <div>
+          <strong>Captured via Chrome Extension</strong>
+          <p>${escapeHtml(provenance.capturedDate ? `${provenance.capturedDate} at ${provenance.capturedTime || ''}` : (provenance.createdAt ? new Date(provenance.createdAt).toLocaleString() : 'Recent browser capture'))}${item.domain ? ` · ${escapeHtml(item.domain)}` : ''}</p>
+        </div>
+        ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" class="primary-btn-mini">${icon('ExternalLink')} Visit Page</a>` : ''}
+      </div>
+      ${item.pageTitle || provenance.pageTitle ? `<div class="browser-provenance-page"><small>Page:</small> <span>${escapeHtml(item.pageTitle || provenance.pageTitle)}</span></div>` : ''}
+    </div>
+  ` : '';
+
   const backLabel = state.view === 'audio' ? 'Back to audio' : 'Back to memories';
-  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} ${backLabel}</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div>${provenanceBadge(item)}</div>${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div>${documentsMarkup}<p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button>${attachment ? `<button class="secondary" data-audio-retry="${item.id}">${icon('AudioLines')} Transcribe again</button><button class="secondary" data-audio-transcript-edit="${item.id}">${icon('Pencil')} Edit transcript</button>` : `<button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button>`}<button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
+  return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} ${backLabel}</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div>${provenanceBadge(item)}</div>${browserBox}${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div>${documentsMarkup}<p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button>${attachment ? `<button class="secondary" data-audio-retry="${item.id}">${icon('AudioLines')} Transcribe again</button><button class="secondary" data-audio-transcript-edit="${item.id}">${icon('Pencil')} Edit transcript</button>` : `<button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button>`}<button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
 }
 
 function vaultView() {

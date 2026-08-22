@@ -48,7 +48,7 @@
         <span class="badge active">Active</span>
       </div>
 
-      <!-- Current Site Matches -->
+      <!-- Active Site & Matches -->
       <div class="section-box">
         <div class="section-title">
           <span>Active Site</span>
@@ -57,6 +57,56 @@
         <div id="site-credentials-list" class="credentials-list">
           <p class="empty-text">No matching logins for this tab</p>
         </div>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="quick-tools-grid">
+        <button type="button" id="btn-open-manual-save" class="tool-pill-btn">
+          <span>📝</span> Manual Save
+        </button>
+        <button type="button" id="btn-gen-pwd-popup" class="tool-pill-btn">
+          <span>✨</span> Generate Password
+        </button>
+      </div>
+
+      <!-- Password Generator Result Box (Hidden by default) -->
+      <div id="gen-pwd-box" class="gen-box" style="display:none;">
+        <div class="gen-box-head">
+          <span>Strong Password</span>
+          <button type="button" id="btn-copy-gen-pwd" class="btn-mini">Copy</button>
+        </div>
+        <input type="text" id="gen-pwd-output" class="gen-output" readonly>
+      </div>
+
+      <!-- Manual Save Form Box (Hidden by default) -->
+      <div id="manual-save-box" class="manual-box" style="display:none;">
+        <div class="manual-box-head">
+          <strong>Save Tab Details to Vault</strong>
+          <button type="button" id="btn-close-manual" class="close-btn">&times;</button>
+        </div>
+        <div class="form-group">
+          <label>Title</label>
+          <input type="text" id="manual-title" placeholder="e.g. Karnataka ACK Number">
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="manual-type" class="select-input">
+            <option value="Government Document">Government Document</option>
+            <option value="Login">Login Account</option>
+            <option value="Identity">Identity Document</option>
+            <option value="Finance">Bank / Card</option>
+            <option value="Personal">Personal Record</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Value / Number / ID</label>
+          <input type="text" id="manual-val" placeholder="e.g. RD1218185132439 or Username">
+        </div>
+        <div class="form-group">
+          <label>Note / Memo</label>
+          <input type="text" id="manual-note" placeholder="Context or purpose…">
+        </div>
+        <button type="button" id="btn-save-manual" class="btn primary" style="margin-top:4px;">Save to Memoir</button>
       </div>
 
       <!-- Toggles -->

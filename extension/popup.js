@@ -18,17 +18,44 @@ document.addEventListener('DOMContentLoaded', async () => {
   const userEmailEl = document.getElementById('user-email');
   const userAvatarEl = document.getElementById('user-avatar');
 
+  // Manual save & generator elements
+  const btnOpenManualSave = document.getElementById('btn-open-manual-save');
+  const btnCloseManual = document.getElementById('btn-close-manual');
+  const manualSaveBox = document.getElementById('manual-save-box');
+  const manualTitle = document.getElementById('manual-title');
+  const manualType = document.getElementById('manual-type');
+  const manualVal = document.getElementById('manual-val');
+  const manualNote = document.getElementById('manual-note');
+  const btnSaveManual = document.getElementById('btn-save-manual');
+
+  const btnGenPwdPopup = document.getElementById('btn-gen-pwd-popup');
+  const genPwdBox = document.getElementById('gen-pwd-box');
+  const genPwdOutput = document.getElementById('gen-pwd-output');
+  const btnCopyGenPwd = document.getElementById('btn-copy-gen-pwd');
+
   let currentAuth = null;
   let activeTabUrl = '';
+  let activeTabTitle = '';
+  let activeTabDomain = '';
+
+  // Generator helper
+  function generateStrongPassword(len = 16) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()_+~';
+    const array = new Uint32Array(len);
+    crypto.getRandomValues(array);
+    return Array.from(array, n => chars[n % chars.length]).join('');
+  }
 
   // Get active tab info
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tabs && tabs[0]) {
       activeTabUrl = tabs[0].url || '';
+      activeTabTitle = tabs[0].title || '';
       try {
-        const domain = new URL(activeTabUrl).hostname.replace(/^www\./i, '');
-        activeDomainEl.textContent = domain || 'New Tab';
+        activeTabDomain = new URL(activeTabUrl).hostname.replace(/^www\./i, '');
+        activeDomainEl.textContent = activeTabDomain || 'New Tab';
+        manualTitle.value = `${activeTabDomain.split('.')[0].toUpperCase()} Record`;
       } catch {
         activeDomainEl.textContent = 'Active Page';
       }
@@ -79,7 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="cred-row">
               <div class="cred-row-info">
                 <strong>${escapeHtml(item.title)}</strong>
-                <small>${escapeHtml(item.fields?.['Username / ID'] || item.fields?.['Username'] || 'Account')}</small>
+                <small>${escapeHtml(item.fields?.['Username / ID'] || item.fields?.['Document number'] || item.fields?.['Reference number'] || item.fields?.['Username'] || 'Account')}</small>
               </div>
               <button type="button" class="btn-mini" data-autofill-idx="${idx}">Autofill</button>
             </div>
@@ -161,6 +188,90 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   toggleCapture.addEventListener('change', () => {
     chrome.runtime.sendMessage({ action: 'UPDATE_SETTINGS', settings: { autoCaptureEnabled: toggleCapture.checked } });
+  });
+
+  // Password Generator in popup
+  btnGenPwdPopup.addEventListener('click', () => {
+    const pwd = generateStrongPassword(16);
+    genPwdOutput.value = pwd;
+    genPwdBox.style.display = 'block';
+    manualSaveBox.style.display = 'none';
+  });
+
+  btnCopyGenPwd.addEventListener('click', () => {
+    if (genPwdOutput.value) {
+      navigator.clipboard.writeText(genPwdOutput.value);
+      btnCopyGenPwd.textContent = 'Copied!';
+      setTimeout(() => btnCopyGenPwd.textContent = 'Copy', 1800);
+    }
+  });
+
+  // Manual save handlers
+  btnOpenManualSave.addEventListener('click', () => {
+    manualSaveBox.style.display = manualSaveBox.style.display === 'none' ? 'block' : 'none';
+    genPwdBox.style.display = 'none';
+  });
+
+  btnCloseManual.addEventListener('click', () => {
+    manualSaveBox.style.display = 'none';
+  });
+
+  btnSaveManual.addEventListener('click', () => {
+    const title = manualTitle.value.trim() || `${activeTabDomain} Record`;
+    const type = manualType.value;
+    const val = manualVal.value.trim();
+    const note = manualNote.value.trim();
+
+    if (!val) {
+      manualVal.focus();
+      return;
+    }
+
+    const fields = {};
+    if (type === 'Government Document') {
+      fields['Document number'] = val;
+      fields['Reference number'] = val;
+    } else if (type === 'Login') {
+      fields['Username / ID'] = val;
+    } else if (type === 'Finance') {
+      fields['Debit card number'] = val;
+    } else {
+      fields['Value'] = val;
+    }
+
+    const nowIso = new Date().toISOString();
+    const formattedDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const formattedTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    const item = {
+      type,
+      title,
+      note: note || `Manually saved from ${activeTabTitle || activeTabDomain}`,
+      domain: activeTabDomain,
+      url: activeTabUrl,
+      fields,
+      provenance: {
+        source: 'Chrome Extension',
+        domain: activeTabDomain,
+        url: activeTabUrl,
+        pageTitle: activeTabTitle,
+        capturedDate: formattedDate,
+        capturedTime: formattedTime,
+        createdAt: nowIso,
+      },
+    };
+
+    btnSaveManual.textContent = 'Saving…';
+    chrome.runtime.sendMessage({ action: 'SAVE_CAPTURED_CREDENTIAL', item }, () => {
+      btnSaveManual.textContent = '✓ Saved!';
+      setTimeout(() => {
+        manualSaveBox.style.display = 'none';
+        btnSaveManual.textContent = 'Save to Memoir';
+        manualVal.value = '';
+        manualNote.value = '';
+        refreshState();
+      }, 1200);
+    });
   });
 
   function escapeHtml(s) {

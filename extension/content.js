@@ -1,14 +1,22 @@
-// Memoir In-Page Autofill & Smart Multi-Field Capture Content Script
+// Memoir In-Page Autofill, Smart Multi-Field Capture & Password Generator Engine
 
 (function() {
   'use strict';
 
   const currentDomain = window.location.hostname.replace(/^www\./i, '');
+  const currentPageTitle = document.title || currentDomain;
   let activeDropdown = null;
-  let lastCapturedPayload = null;
   let lastCaptureTime = 0;
 
-  // 1. In-Field Autofill & Smart Badge Attachment
+  // Cryptographic Strong Password Generator
+  function generateStrongPassword(len = 16) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()_+~';
+    const array = new Uint32Array(len);
+    crypto.getRandomValues(array);
+    return Array.from(array, n => chars[n % chars.length]).join('');
+  }
+
+  // 1. In-Field Autofill & Password Suggestion Attachment
   function initAutofillAndBadges() {
     const inputs = document.querySelectorAll('input:not([data-memoir-attached])');
     
@@ -18,7 +26,7 @@
 
       const info = inspectInput(input);
       if (info.isPassword || info.isUsername || info.isCard || info.isAckOrApp || info.isIdentity) {
-        input.addEventListener('focus', () => handleFieldFocus(input));
+        input.addEventListener('focus', () => handleFieldFocus(input, info));
         input.addEventListener('input', () => handleFieldInput(input));
         input.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
@@ -37,7 +45,6 @@
     const type = String(input.type || 'text').toLowerCase();
     const val = String(input.value || '').trim();
 
-    // Find nearby label text
     let labelText = '';
     if (input.id) {
       try {
@@ -70,6 +77,7 @@
     const meta = `${name} ${id} ${placeholder} ${autocomplete} ${labelText}`.toLowerCase();
 
     const isPassword = type === 'password' || /password|passcode|pwd/i.test(meta);
+    const isNewPassword = isPassword && (/new|confirm|create|signup|register/i.test(meta) || /new-password/i.test(autocomplete));
     const isOtp = /otp|one time|verification code|security code/i.test(meta);
     const isAckOrApp = /ack|acknowledgement|appl|application|token|reference|ref\b|tracking|challan|registration|reg\b|case|pnr|pran|uan|epfo|consumer|policy/i.test(meta);
     const isMobile = type === 'tel' || (/mobile|phone|contact|cell/i.test(meta) && /^\+?\d{8,14}$/.test(val.replace(/\s+/g, '')));
@@ -85,6 +93,7 @@
       val,
       labelText: labelText || placeholder || name || id || 'Detail',
       isPassword,
+      isNewPassword,
       isOtp,
       isAckOrApp,
       isMobile,
@@ -98,11 +107,10 @@
     };
   }
 
-  async function handleFieldFocus(input) {
+  async function handleFieldFocus(input, info) {
     chrome.runtime.sendMessage({ action: 'GET_CREDENTIALS_FOR_URL', url: window.location.href }, response => {
-      if (response && response.ok && response.matches && response.matches.length) {
-        showAutofillDropdown(input, response.matches);
-      }
+      const matches = (response && response.ok && response.matches) ? response.matches : [];
+      showAutofillDropdown(input, matches, info);
     });
   }
 
@@ -125,7 +133,7 @@
     const badge = document.createElement('button');
     badge.type = 'button';
     badge.className = 'memoir-inline-save-btn';
-    badge.title = 'Save this to Memoir Vault';
+    badge.title = 'Save to Memoir Vault';
     badge.innerHTML = '🦏';
     badge.style.top = `${rect.top + window.scrollY + (rect.height - 22) / 2}px`;
     badge.style.left = `${rect.right + window.scrollX - 26}px`;
@@ -142,7 +150,7 @@
       setTimeout(() => {
         if (badge) badge.remove();
         delete input.dataset.memoirHasBadge;
-      }, 3500);
+      }, 4000);
     }, { once: true });
   }
 
@@ -151,7 +159,7 @@
     document.querySelectorAll('.memoir-inline-save-btn').forEach(b => b.remove());
   }
 
-  function showAutofillDropdown(targetInput, matches) {
+  function showAutofillDropdown(targetInput, matches, info) {
     removeDropdown();
 
     const rect = targetInput.getBoundingClientRect();
@@ -159,7 +167,7 @@
     dropdown.className = 'memoir-autofill-dropdown';
     dropdown.style.top = `${rect.bottom + window.scrollY + 4}px`;
     dropdown.style.left = `${rect.left + window.scrollX}px`;
-    dropdown.style.minWidth = `${Math.max(240, rect.width)}px`;
+    dropdown.style.minWidth = `${Math.max(260, rect.width)}px`;
 
     let html = `
       <div class="memoir-dropdown-header">
@@ -170,27 +178,74 @@
       <div class="memoir-dropdown-items">
     `;
 
-    matches.forEach((item, idx) => {
-      const user = item.fields?.['Username / ID'] || item.fields?.['Username'] || item.fields?.['Document number'] || item.fields?.['Reference number'] || item.title || 'Saved Account';
-      const isCard = item.type === 'Finance' || item.fields?.['Debit card number'];
-      const isDoc = item.type === 'Government Document' || item.type === 'Identity';
+    // 1. Suggest Password Generator if password field
+    if (info && info.isPassword) {
       html += `
-        <div class="memoir-dropdown-item" data-idx="${idx}">
-          <div class="memoir-item-icon">${isCard ? '💳' : isDoc ? '📄' : '🔑'}</div>
+        <div class="memoir-dropdown-item memoir-gen-pwd-btn" id="memoir-action-gen-pwd">
+          <div class="memoir-item-icon">✨</div>
           <div class="memoir-item-text">
-            <strong>${escapeHtml(item.title)}</strong>
-            <small>${escapeHtml(user)}</small>
+            <strong>Generate Strong Password</strong>
+            <small>16-character secure code · auto-copies</small>
           </div>
         </div>
       `;
-    });
+    }
+
+    // 2. Matching items
+    if (matches && matches.length) {
+      matches.forEach((item, idx) => {
+        const user = item.fields?.['Username / ID'] || item.fields?.['Username'] || item.fields?.['Document number'] || item.fields?.['Reference number'] || item.title || 'Saved Account';
+        const isCard = item.type === 'Finance' || item.fields?.['Debit card number'];
+        const isDoc = item.type === 'Government Document' || item.type === 'Identity';
+        html += `
+          <div class="memoir-dropdown-item" data-idx="${idx}">
+            <div class="memoir-item-icon">${isCard ? '💳' : isDoc ? '📄' : '🔑'}</div>
+            <div class="memoir-item-text">
+              <strong>${escapeHtml(item.title)}</strong>
+              <small>${escapeHtml(user)}</small>
+            </div>
+          </div>
+        `;
+      });
+    } else if (!info.isPassword) {
+      html += `
+        <div class="memoir-dropdown-empty">
+          <span>No saved items for ${currentDomain}</span>
+        </div>
+      `;
+    }
 
     html += `</div>`;
     dropdown.innerHTML = html;
     document.body.appendChild(dropdown);
     activeDropdown = dropdown;
 
-    dropdown.querySelectorAll('.memoir-dropdown-item').forEach(btn => {
+    // Handle Password Generation
+    const genBtn = dropdown.querySelector('#memoir-action-gen-pwd');
+    if (genBtn) {
+      genBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const pwd = generateStrongPassword(16);
+        
+        // Fill active password input
+        fillInput(targetInput, pwd);
+
+        // Also fill confirm password input if exists
+        const form = targetInput.closest('form') || document;
+        const allPwdInputs = Array.from(form.querySelectorAll('input[type="password"]'));
+        allPwdInputs.forEach(p => { if (p !== targetInput) fillInput(p, pwd); });
+
+        // Copy to clipboard
+        navigator.clipboard?.writeText(pwd).catch(() => {});
+
+        showSuccessBadge(targetInput, '✨ Strong password generated & copied!');
+        removeDropdown();
+      });
+    }
+
+    // Handle Match Selection
+    dropdown.querySelectorAll('.memoir-dropdown-item[data-idx]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -236,9 +291,7 @@
     const cvv = item.fields?.['CVV'] || '';
     const expiry = item.fields?.['Expiry'] || '';
 
-    if (docNumber) {
-      fillInput(triggerInput, docNumber);
-    }
+    if (docNumber) fillInput(triggerInput, docNumber);
     if (username) {
       const userInput = form.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="login"], input[id*="user"]');
       if (userInput) fillInput(userInput, username);
@@ -260,28 +313,26 @@
       if (expInput) fillInput(expInput, expiry);
     }
 
-    showSuccessBadge(triggerInput);
+    showSuccessBadge(triggerInput, '✓ Autofilled by Memoir');
   }
 
-  function showSuccessBadge(target) {
+  function showSuccessBadge(target, text = '✓ Autofilled by Memoir') {
     const rect = target.getBoundingClientRect();
     const badge = document.createElement('div');
     badge.className = 'memoir-autofill-badge success';
-    badge.innerHTML = `<span>✓ Autofilled by Memoir</span>`;
-    badge.style.top = `${rect.top + window.scrollY - 28}px`;
+    badge.innerHTML = `<span>${escapeHtml(text)}</span>`;
+    badge.style.top = `${rect.top + window.scrollY - 30}px`;
     badge.style.left = `${rect.left + window.scrollX}px`;
     document.body.appendChild(badge);
-    setTimeout(() => badge.remove(), 2200);
+    setTimeout(() => badge.remove(), 2500);
   }
 
   // 2. Smart Universal Form & Button Capture
   function initSmartCaptureListeners() {
-    // A. Native Form Submit
     document.addEventListener('submit', (e) => {
       triggerSmartCapture(e.target);
     }, true);
 
-    // B. Button / Link Clicks (e.g. "Check Status", "Login", "Search", "Track", "Submit")
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('button, input[type="button"], input[type="submit"], a.btn, a[role="button"], .btn');
       if (!btn) return;
@@ -290,27 +341,37 @@
       const isAction = /check status|search|track|submit|login|sign in|proceed|continue|fetch|get details|verify|pay|save|register|find|view/i.test(btnText);
       
       if (isAction) {
-        setTimeout(() => triggerSmartCapture(btn), 100);
+        setTimeout(() => triggerSmartCapture(btn), 120);
       }
     }, true);
+
+    // Track credential copy actions
+    document.addEventListener('copy', () => {
+      const selection = window.getSelection()?.toString()?.trim();
+      if (selection && selection.length >= 6 && selection.length <= 40) {
+        sessionStorage.setItem('memoir_last_copied', JSON.stringify({
+          val: selection,
+          domain: currentDomain,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }));
+      }
+    });
   }
 
   function triggerSmartCapture(contextElement) {
     const now = Date.now();
-    if (now - lastCaptureTime < 1500) return; // Debounce rapid triggers
+    if (now - lastCaptureTime < 1500) return;
 
-    // Find closest form or search surrounding inputs in container
     const container = contextElement?.closest?.('form, .form, .container, main, article, table, body') || document.body;
     const inputs = Array.from(container.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="image"])'));
     
     const inspected = inputs.map(inspectInput).filter(info => info.hasValue && info.val.length >= 2);
     if (!inspected.length) return;
 
-    // Categorize captured data
     const capturedFields = {};
     let itemType = 'Personal';
     let itemTitle = '';
-    let mainIdentifier = '';
+    let defaultNote = '';
 
     const pwdField = inspected.find(i => i.isPassword);
     const ackField = inspected.find(i => i.isAckOrApp);
@@ -321,11 +382,11 @@
 
     if (pwdField) {
       itemType = 'Login';
-      itemTitle = `${currentDomain.split('.')[0].toUpperCase()} Login`;
+      itemTitle = `${currentDomain.split('.')[0].toUpperCase()} Account`;
       capturedFields['Password'] = pwdField.val;
       if (userField) capturedFields['Username / ID'] = userField.val;
       else if (mobileField) capturedFields['Username / ID'] = mobileField.val;
-      mainIdentifier = capturedFields['Username / ID'] || 'Account';
+      defaultNote = `Saved from ${currentPageTitle}`;
     } else if (ackField) {
       itemType = 'Government Document';
       const label = ackField.labelText || 'ACK Number';
@@ -333,37 +394,35 @@
       capturedFields['Document number'] = ackField.val;
       capturedFields['Reference number'] = ackField.val;
       capturedFields[label] = ackField.val;
-      mainIdentifier = ackField.val;
+      defaultNote = `Track application status on ${currentDomain}`;
     } else if (identityField) {
       itemType = 'Identity';
       itemTitle = `${currentDomain.split('.')[0].toUpperCase()} ${identityField.labelText || 'Document'}`;
       capturedFields['Document number'] = identityField.val;
       capturedFields[identityField.labelText] = identityField.val;
-      mainIdentifier = identityField.val;
+      defaultNote = `Saved from ${currentPageTitle}`;
     } else if (cardField) {
       itemType = 'Finance';
-      itemTitle = `${currentDomain.split('.')[0].toUpperCase()} Card`;
+      itemTitle = `${currentDomain.split('.')[0].toUpperCase()} Payment Card`;
       capturedFields['Debit card number'] = cardField.val;
-      mainIdentifier = `•••• ${cardField.val.slice(-4)}`;
+      defaultNote = `Payment record on ${currentDomain}`;
     } else if (inspected.length >= 1) {
       const first = inspected[0];
       itemType = 'Personal';
       itemTitle = `${currentDomain.split('.')[0].toUpperCase()} ${first.labelText || 'Record'}`;
       capturedFields[first.labelText] = first.val;
-      mainIdentifier = first.val;
+      defaultNote = `Captured from ${currentPageTitle}`;
     }
 
-    // Add all other non-empty inputs
     inspected.forEach(info => {
       if (!info.isPassword && !capturedFields[info.labelText]) {
         capturedFields[info.labelText] = info.val;
       }
     });
 
-    capturedFields['Website URL'] = window.location.href;
-    capturedFields['Captured from'] = currentDomain;
-
-    if (!Object.keys(capturedFields).length) return;
+    const nowIso = new Date().toISOString();
+    const formattedDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const formattedTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
     lastCaptureTime = now;
     showCaptureModal({
@@ -371,8 +430,20 @@
       title: itemTitle,
       domain: currentDomain,
       url: window.location.href,
-      mainIdentifier,
+      pageTitle: currentPageTitle,
+      capturedDate: formattedDate,
+      capturedTime: formattedTime,
+      note: defaultNote,
       fields: capturedFields,
+      provenance: {
+        source: 'Chrome Extension',
+        domain: currentDomain,
+        url: window.location.href,
+        pageTitle: currentPageTitle,
+        capturedDate: formattedDate,
+        capturedTime: formattedTime,
+        createdAt: nowIso,
+      },
     });
   }
 
@@ -403,14 +474,30 @@
             <span class="memoir-brand-rhino">🦏</span>
             <div>
               <strong>Save to Memoir?</strong>
-              <small>${escapeHtml(item.domain)} · ${escapeHtml(item.type)}</small>
+              <small>${escapeHtml(item.domain)} · ${escapeHtml(item.capturedTime)}</small>
             </div>
           </div>
           <button type="button" class="memoir-capture-close" aria-label="Dismiss">&times;</button>
         </div>
+
+        <div class="memoir-capture-edit-box">
+          <label class="memoir-label">Title</label>
+          <input type="text" id="memoir-cap-title" class="memoir-text-input" value="${escapeHtml(item.title)}">
+        </div>
+
         <div class="memoir-capture-body">
           ${rowsHtml}
         </div>
+
+        <div class="memoir-capture-edit-box">
+          <label class="memoir-label">Note / Memo (Optional)</label>
+          <input type="text" id="memoir-cap-note" class="memoir-text-input" value="${escapeHtml(item.note)}" placeholder="Add context or reminder…">
+        </div>
+
+        <div class="memoir-capture-meta-tag">
+          <span>📍 ${escapeHtml(item.pageTitle.slice(0, 38))}</span>
+        </div>
+
         <div class="memoir-capture-actions">
           <button type="button" class="memoir-btn-dismiss">Not now</button>
           <button type="button" class="memoir-btn-save">Save to Vault</button>
@@ -424,6 +511,15 @@
     prompt.querySelector('.memoir-btn-dismiss').addEventListener('click', () => prompt.remove());
     
     prompt.querySelector('.memoir-btn-save').addEventListener('click', () => {
+      const editedTitle = prompt.querySelector('#memoir-cap-title').value.trim() || item.title;
+      const editedNote = prompt.querySelector('#memoir-cap-note').value.trim() || item.note;
+
+      const finalItem = {
+        ...item,
+        title: editedTitle,
+        note: editedNote,
+      };
+
       prompt.querySelector('.memoir-capture-body').innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;color:#10b981;font-weight:700;padding:6px 0;">
           <span style="font-size:16px;">✓</span>
@@ -431,10 +527,11 @@
         </div>
       `;
       prompt.querySelector('.memoir-capture-actions').remove();
+      prompt.querySelectorAll('.memoir-capture-edit-box, .memoir-capture-meta-tag').forEach(el => el.remove());
 
       chrome.runtime.sendMessage({
         action: 'SAVE_CAPTURED_CREDENTIAL',
-        item,
+        item: finalItem,
       });
 
       setTimeout(() => prompt.remove(), 2200);
@@ -449,7 +546,6 @@
   initAutofillAndBadges();
   initSmartCaptureListeners();
 
-  // Dynamic DOM observer for single page apps / AJAX updates
   const observer = new MutationObserver(() => {
     initAutofillAndBadges();
   });
