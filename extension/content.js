@@ -8,7 +8,18 @@
   let activeDropdown = null;
   let lastCaptureTime = 0;
 
-  // Cryptographic Strong Password Generator
+  // Real Brand Logo URL
+  const logoUrl = chrome.runtime.getURL('brand/memoir-rhino-ui.png');
+
+  // SVG Icons
+  const SVGS = {
+    sparkles: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>',
+    key: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg>',
+    card: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>',
+    doc: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
+    check: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>',
+  };
+
   function generateStrongPassword(len = 16) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()_+~';
     const array = new Uint32Array(len);
@@ -16,7 +27,6 @@
     return Array.from(array, n => chars[n % chars.length]).join('');
   }
 
-  // 1. In-Field Autofill & Password Suggestion Attachment
   function initAutofillAndBadges() {
     const inputs = document.querySelectorAll('input:not([data-memoir-attached])');
     
@@ -134,9 +144,9 @@
     badge.type = 'button';
     badge.className = 'memoir-inline-save-btn';
     badge.title = 'Save to Memoir Vault';
-    badge.innerHTML = '🦏';
-    badge.style.top = `${rect.top + window.scrollY + (rect.height - 22) / 2}px`;
-    badge.style.left = `${rect.right + window.scrollX - 26}px`;
+    badge.innerHTML = `<img src="${logoUrl}" alt="Memoir" style="width:16px;height:16px;object-fit:contain;">`;
+    badge.style.top = `${rect.top + window.scrollY + (rect.height - 24) / 2}px`;
+    badge.style.left = `${rect.right + window.scrollX - 28}px`;
 
     document.body.appendChild(badge);
 
@@ -171,18 +181,17 @@
 
     let html = `
       <div class="memoir-dropdown-header">
-        <span class="memoir-logo-icon">🦏</span>
+        <img src="${logoUrl}" alt="Memoir" class="memoir-header-logo-img">
         <strong>Memoir Vault</strong>
         <span class="memoir-domain-tag">${currentDomain}</span>
       </div>
       <div class="memoir-dropdown-items">
     `;
 
-    // 1. Suggest Password Generator if password field
     if (info && info.isPassword) {
       html += `
         <div class="memoir-dropdown-item memoir-gen-pwd-btn" id="memoir-action-gen-pwd">
-          <div class="memoir-item-icon">✨</div>
+          <div class="memoir-item-icon">${SVGS.sparkles}</div>
           <div class="memoir-item-text">
             <strong>Generate Strong Password</strong>
             <small>16-character secure code · auto-copies</small>
@@ -191,7 +200,6 @@
       `;
     }
 
-    // 2. Matching items
     if (matches && matches.length) {
       matches.forEach((item, idx) => {
         const user = item.fields?.['Username / ID'] || item.fields?.['Username'] || item.fields?.['Document number'] || item.fields?.['Reference number'] || item.title || 'Saved Account';
@@ -199,7 +207,7 @@
         const isDoc = item.type === 'Government Document' || item.type === 'Identity';
         html += `
           <div class="memoir-dropdown-item" data-idx="${idx}">
-            <div class="memoir-item-icon">${isCard ? '💳' : isDoc ? '📄' : '🔑'}</div>
+            <div class="memoir-item-icon">${isCard ? SVGS.card : isDoc ? SVGS.doc : SVGS.key}</div>
             <div class="memoir-item-text">
               <strong>${escapeHtml(item.title)}</strong>
               <small>${escapeHtml(user)}</small>
@@ -220,7 +228,6 @@
     document.body.appendChild(dropdown);
     activeDropdown = dropdown;
 
-    // Handle Password Generation
     const genBtn = dropdown.querySelector('#memoir-action-gen-pwd');
     if (genBtn) {
       genBtn.addEventListener('click', (e) => {
@@ -228,23 +235,19 @@
         e.stopPropagation();
         const pwd = generateStrongPassword(16);
         
-        // Fill active password input
         fillInput(targetInput, pwd);
 
-        // Also fill confirm password input if exists
         const form = targetInput.closest('form') || document;
         const allPwdInputs = Array.from(form.querySelectorAll('input[type="password"]'));
         allPwdInputs.forEach(p => { if (p !== targetInput) fillInput(p, pwd); });
 
-        // Copy to clipboard
         navigator.clipboard?.writeText(pwd).catch(() => {});
 
-        showSuccessBadge(targetInput, '✨ Strong password generated & copied!');
+        showSuccessBadge(targetInput, 'Strong password generated & copied!');
         removeDropdown();
       });
     }
 
-    // Handle Match Selection
     dropdown.querySelectorAll('.memoir-dropdown-item[data-idx]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -313,10 +316,10 @@
       if (expInput) fillInput(expInput, expiry);
     }
 
-    showSuccessBadge(triggerInput, '✓ Autofilled by Memoir');
+    showSuccessBadge(triggerInput, 'Autofilled by Memoir');
   }
 
-  function showSuccessBadge(target, text = '✓ Autofilled by Memoir') {
+  function showSuccessBadge(target, text = 'Autofilled by Memoir') {
     const rect = target.getBoundingClientRect();
     const badge = document.createElement('div');
     badge.className = 'memoir-autofill-badge success';
@@ -345,7 +348,6 @@
       }
     }, true);
 
-    // Track credential copy actions
     document.addEventListener('copy', () => {
       const selection = window.getSelection()?.toString()?.trim();
       if (selection && selection.length >= 6 && selection.length <= 40) {
@@ -471,7 +473,7 @@
       <div class="memoir-capture-inner">
         <div class="memoir-capture-head">
           <div class="memoir-capture-brand">
-            <span class="memoir-brand-rhino">🦏</span>
+            <img src="${logoUrl}" alt="Memoir" class="memoir-brand-rhino-img">
             <div>
               <strong>Save to Memoir?</strong>
               <small>${escapeHtml(item.domain)} · ${escapeHtml(item.capturedTime)}</small>
@@ -495,7 +497,7 @@
         </div>
 
         <div class="memoir-capture-meta-tag">
-          <span>📍 ${escapeHtml(item.pageTitle.slice(0, 38))}</span>
+          <span>${escapeHtml(item.pageTitle.slice(0, 38))}</span>
         </div>
 
         <div class="memoir-capture-actions">
@@ -522,7 +524,7 @@
 
       prompt.querySelector('.memoir-capture-body').innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;color:#10b981;font-weight:700;padding:6px 0;">
-          <span style="font-size:16px;">✓</span>
+          <span>✓</span>
           <span>Encrypted and saved to Memoir Vault!</span>
         </div>
       `;
@@ -542,7 +544,6 @@
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Initial load
   initAutofillAndBadges();
   initSmartCaptureListeners();
 

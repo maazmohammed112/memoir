@@ -1,16 +1,26 @@
 import { deviceIdFrom, getAdmin, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 import { serverEncrypt } from '../lib/serverCrypto.js';
 import { putRuntimeItem, removeRuntimeItem, replaceRuntimeItems } from '../lib/runtimeVault.js';
-import { getUserByUid } from '../lib/users.js';
+import { getUserByCode, getUserByUid } from '../lib/users.js';
 
 const hasAdminMirror = () => Boolean((process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_FILE) && process.env.VAULT_SERVER_KEY);
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
+    let uid = null;
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    if (!token) return res.status(401).json({ error: 'Missing identity token' });
-    const identity = await verifyOwnerToken(token, deviceIdFrom(req)); const body = req.body || {};
+    const body = req.body || {};
+    if (token) {
+      const identity = await verifyOwnerToken(token, deviceIdFrom(req));
+      uid = identity.uid;
+    } else if (body.code && body.uid) {
+      const user = getUserByCode(body.code);
+      if (user && user.uid === body.uid) {
+        uid = user.uid;
+      }
+    }
+    if (!uid) return res.status(401).json({ error: 'Missing or invalid authentication token' });
     if (body.op === 'snapshot') {
       const items = (Array.isArray(body.items) ? body.items : []).slice(0, 1000);
       if (JSON.stringify(items).length > 1000000) return res.status(413).json({ error: 'Snapshot too large' });

@@ -1,6 +1,7 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { getUserByCode } from '../lib/users.js';
 
 // Test 1: Extract domain helper logic
 function extractDomain(url) {
@@ -14,7 +15,7 @@ function extractDomain(url) {
 
 assert.equal(extractDomain('https://github.com/login'), 'github.com');
 assert.equal(extractDomain('https://www.amazon.in/gp/buy'), 'amazon.in');
-assert.equal(extractDomain('http://localhost:5173/'), 'localhost');
+assert.equal(extractDomain('https://ajsk.karnataka.gov.in/'), 'ajsk.karnataka.gov.in');
 
 // Test 2: Web App Memory Filter Group logic
 const source = fs.readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
@@ -26,16 +27,24 @@ vm.runInContext(`${filterSource}; this.filterGroup = memoryFilterGroup;`, contex
 
 const regularLogin = { id: '1', type: 'Login', title: 'Regular Login', fields: { Password: '123' } };
 const extensionLogin = { id: '2', type: 'Login', title: 'GitHub Login', fields: { Password: '123' }, provenance: { source: 'Chrome Extension', domain: 'github.com' } };
-const bankCard = { id: '3', type: 'Finance', title: 'SBI Card', fields: { 'ATM PIN': '1234' } };
+const ackDocument = { id: '3', type: 'Government Document', title: 'AJSK ACK Number', fields: { 'Document number': 'RD1218185132439' }, provenance: { source: 'Chrome Extension', domain: 'ajsk.karnataka.gov.in' } };
+const bankCard = { id: '4', type: 'Finance', title: 'SBI Card', fields: { 'ATM PIN': '1234' } };
 
-assert.equal(context.filterGroup(regularLogin), 'logins', 'Regular login should be in logins group');
-assert.equal(context.filterGroup(extensionLogin), 'extension', 'Extension captured item should be in extension group');
-assert.equal(context.filterGroup(bankCard), 'banks', 'Finance item should be in banks group');
+assert.equal(context.filterGroup(regularLogin), 'logins');
+assert.equal(context.filterGroup(extensionLogin), 'extension');
+assert.equal(context.filterGroup(ackDocument), 'extension');
+assert.equal(context.filterGroup(bankCard), 'banks');
 
 // Test 3: Extension Manifest Validation
 const manifest = JSON.parse(fs.readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'));
-assert.equal(manifest.manifest_version, 3, 'Manifest version must be 3');
-assert.ok(manifest.permissions.includes('storage'), 'Storage permission required');
-assert.ok(manifest.content_scripts.length > 0, 'Content script must be registered');
+assert.equal(manifest.manifest_version, 3);
+assert.ok(manifest.permissions.includes('storage'));
+assert.ok(manifest.web_accessible_resources.length > 0);
 
-console.log('Memoir Chrome Extension bridge tests passed successfully.');
+// Test 4: Extension Authentication Code mapping
+const maazUser = getUserByCode('2002');
+assert.ok(maazUser);
+assert.equal(maazUser.name, 'Maaz');
+assert.equal(maazUser.uid, 'uQE6xqhWhQWhOlGmfT2br5HnCEq2');
+
+console.log('Memoir Chrome Extension bridge & sync tests passed successfully.');

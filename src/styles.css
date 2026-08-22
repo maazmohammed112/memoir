@@ -213,8 +213,17 @@
 .primary-btn-mini{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;background:var(--ink);color:#fff;font-size:10.5px;font-weight:700;text-decoration:none;flex:none}
 .primary-btn-mini:hover{background:#000}
 
+.ext-hero-card{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:18px;padding:24px;border-radius:24px;border:1px solid var(--line);background:linear-gradient(135deg,var(--surface),var(--surface2));box-shadow:var(--shadow)}
+.ext-hero-content{display:flex;align-items:center;gap:16px}
+.ext-hero-content h2{margin:2px 0 4px;font-size:22px;color:var(--ink)}
+.ext-hero-content p{margin:0;color:var(--muted);font-size:11.5px}
+.ext-hero-stats{display:flex;gap:8px;flex:none}
+.ext-stat-pill{padding:10px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line);text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.03)}
+.ext-stat-pill strong{display:block;font-size:18px;font-weight:800;color:var(--ink)}
+.ext-stat-pill span{font-size:9.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.04em}
+
 /* Workspace Switch Tabs */
-.workspace-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 18px;padding:7px;border:1px solid var(--line);border-radius:20px;background:color-mix(in srgb,var(--surface) 82%,transparent);box-shadow:0 12px 32px rgba(39,21,29,0.05)}
+.workspace-switch{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:8px;margin:0 0 18px;padding:7px;border:1px solid var(--line);border-radius:20px;background:color-mix(in srgb,var(--surface) 82%,transparent);box-shadow:0 12px 32px rgba(39,21,29,0.05)}
 .workspace-switch button{min-width:0;padding:12px 14px;border:0;border-radius:15px;display:grid;grid-template-columns:36px minmax(0,1fr);grid-template-rows:auto auto;column-gap:10px;background:transparent;color:var(--muted);text-align:left;transition:.2s;cursor:pointer}
 .workspace-switch button>span{grid-row:1/3;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:var(--surface2);color:var(--ink);transition:.2s}
 .workspace-switch button b{align-self:end;color:var(--ink);font-size:12px;font-weight:700;line-height:1.2}

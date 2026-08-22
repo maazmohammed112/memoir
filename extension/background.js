@@ -63,7 +63,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           console.warn('Network auth request failed, falling back to local verification:', err.message);
         }
 
-        // Fallback to local profile
         if (!profile && LOCAL_PROFILES[cleanCode]) {
           profile = LOCAL_PROFILES[cleanCode];
         }
@@ -119,16 +118,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           id: 'ext-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
           kind: 'memory',
           type: item.type || 'Login',
-          title: item.title || 'Saved Login',
+          title: item.title || 'Saved Record',
           fields: item.fields || {},
           note: item.note || `Captured by Memoir Chrome Extension from ${item.domain || 'web'}`,
           url: item.url || '',
           domain: item.domain || '',
+          pageTitle: item.pageTitle || '',
           createdAt: new Date().toISOString(),
           provenance: {
             source: 'Chrome Extension',
             domain: item.domain || '',
             url: item.url || '',
+            pageTitle: item.pageTitle || '',
+            capturedDate: item.capturedDate || new Date().toLocaleDateString(),
+            capturedTime: item.capturedTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             createdAt: new Date().toISOString(),
           },
         };
@@ -136,17 +139,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const updated = [newItem, ...state.capturedItems];
         await setStoredCaptured(updated);
 
-        // Sync to cloud mirror
+        // Mirror directly into Firebase Firestore
         try {
           const targetUrl = state.auth.serverUrl || DEFAULT_SERVER_URL;
-          await fetch(`${targetUrl}/api/sync`, {
+          const syncRes = await fetch(`${targetUrl}/api/sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              uid: state.auth.profile?.uid,
+              code: state.auth.code,
               op: 'put',
               item: newItem,
             }),
           });
+          if (syncRes.ok) {
+            console.log('Successfully synced extension item to Firestore:', newItem.id);
+          }
         } catch (e) {
           console.warn('Memoir cloud sync queued locally:', e.message);
         }

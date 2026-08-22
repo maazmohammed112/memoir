@@ -1519,17 +1519,86 @@ function detailMarkup(item) {
   return `<section class="detail"><button class="secondary" id="back-to-memories">${icon('ArrowLeft')} ${backLabel}</button><div class="detail-head"><span class="icon-wrap">${icon(itemIcon(item))}</span><div><p class="eyebrow">${escapeHtml(category(item))}</p><h2>${escapeHtml(item.title)}</h2></div>${provenanceBadge(item)}</div>${browserBox}${isCardRecord(item) ? paymentCard(item.title, fields) : ''}${audioPlayer}<div class="detail-fields ${isCardRecord(item) ? 'with-card' : ''}">${displayFields.map(([label, value]) => `<div class="detail-field"><div><small>${escapeHtml(label)}</small><strong class="${state.hidden ? 'blur' : ''}">${escapeHtml(value)}</strong></div><span class="field-actions">${externalLinkButton(value, `Open ${label}`)}<button class="icon-btn" data-copy="${escapeHtml(value)}" title="Copy">${icon('Copy')}</button></span></div>`).join('')}</div>${documentsMarkup}<p style="color:var(--muted);font-size:11px">${escapeHtml(item.note || '')}</p><div class="modal-actions" style="justify-content:flex-start"><button class="secondary" data-share="${item.id}">${icon('Share2')} Share</button>${attachment ? `<button class="secondary" data-audio-retry="${item.id}">${icon('AudioLines')} Transcribe again</button><button class="secondary" data-audio-transcript-edit="${item.id}">${icon('Pencil')} Edit transcript</button>` : `<button class="secondary" data-edit="${item.id}">${icon('Pencil')} Edit</button>`}<button class="ghost" data-delete="${item.id}">${icon('Trash2')} Delete</button></div></section>`;
 }
 
+function browserCapturesView() {
+  const allCaptures = state.items.filter(item => /extension|chrome/i.test(String(item?.provenance?.source || item?.fields?.['Created via'] || '')) || Boolean(item.domain));
+  const domains = Array.from(new Set(allCaptures.map(i => i.domain || (i.url ? new URL(i.url).hostname : '')).filter(Boolean)));
+  
+  const extCategory = state.extCategory || 'all';
+  const filterList = [
+    ['all', 'All Captures'],
+    ['gov', 'Government & ACK'],
+    ['logins', 'Logins & Passwords'],
+    ['finance', 'Cards & Banks'],
+    ['identity', 'Identity'],
+    ['personal', 'Notes & Records'],
+  ];
+
+  let filtered = allCaptures;
+  if (extCategory === 'gov') filtered = allCaptures.filter(i => i.type === 'Government Document' || /ack|application|challan|reg/i.test(i.title + JSON.stringify(i.fields || {})));
+  else if (extCategory === 'logins') filtered = allCaptures.filter(i => i.type === 'Login');
+  else if (extCategory === 'finance') filtered = allCaptures.filter(i => i.type === 'Finance');
+  else if (extCategory === 'identity') filtered = allCaptures.filter(i => i.type === 'Identity');
+  else if (extCategory === 'personal') filtered = allCaptures.filter(i => i.type === 'Personal');
+
+  const filterBar = `<div class="memory-filters" role="tablist" aria-label="Filter browser captures">${filterList.map(([id, label]) => {
+    const count = id === 'all' ? allCaptures.length : (
+      id === 'gov' ? allCaptures.filter(i => i.type === 'Government Document' || /ack|application|challan|reg/i.test(i.title + JSON.stringify(i.fields || {}))).length :
+      id === 'logins' ? allCaptures.filter(i => i.type === 'Login').length :
+      id === 'finance' ? allCaptures.filter(i => i.type === 'Finance').length :
+      id === 'identity' ? allCaptures.filter(i => i.type === 'Identity').length :
+      allCaptures.filter(i => i.type === 'Personal').length
+    );
+    return `<button type="button" role="tab" aria-selected="${extCategory === id}" class="${extCategory === id ? 'active' : ''}" data-ext-category="${id}"><span>${escapeHtml(label)}</span><b>${count}</b></button>`;
+  }).join('')}</div>`;
+
+  const heroHtml = `
+    <div class="ext-hero-card">
+      <div class="ext-hero-content">
+        <span class="icon-wrap green">${icon('Globe')}</span>
+        <div>
+          <p class="eyebrow">Chrome Extension Sync</p>
+          <h2>Browser Captures & Autofill</h2>
+          <p>Encrypted records, application numbers, passwords, and references captured across the web.</p>
+        </div>
+      </div>
+      <div class="ext-hero-stats">
+        <div class="ext-stat-pill"><strong>${allCaptures.length}</strong><span>Captured</span></div>
+        <div class="ext-stat-pill"><strong>${domains.length}</strong><span>Portals</span></div>
+      </div>
+    </div>
+  `;
+
+  const toolbar = `
+    <div class="toolbar">
+      <input class="search-input" id="ext-filter" placeholder="Search application numbers, ACK tokens, passwords, or domains…">
+      <button class="primary" data-add="memory">${icon('Plus')} Add memory</button>
+    </div>
+  `;
+
+  return `
+    ${heroHtml}
+    ${toolbar}
+    ${filterBar}
+    ${filtered.length ? `<div class="vault-list" id="ext-vault-list">${filtered.map(vaultRow).join('')}</div>` : emptyState('Globe', 'No browser captures found', 'Capture logins, ACK tokens, or applications on any site using the Memoir Chrome Extension.', 'Add memory', 'memory')}
+  `;
+}
+
 function vaultView() {
   const selected = state.items.find(item => item.id === state.selectedMemoryId);
   if (selected && selected.type !== 'Birthday') return detailMarkup(selected);
   state.selectedMemoryId = null;
   const guardAudit = auditVaultSecurity(state.items, activeProfile());
+  const allCaptures = state.items.filter(item => /extension|chrome/i.test(String(item?.provenance?.source || item?.fields?.['Created via'] || '')) || Boolean(item.domain));
   const switcher = workspaceSwitch('vault', state.vaultSection || 'memories', [
     ['memories', 'Gem', 'All Memories', 'Vault items, documents & logins'],
+    ['extension', 'Globe', 'Browser Captures', `${allCaptures.length} synced web items`],
     ['security', 'ShieldCheck', 'Rhino Guard', `${guardAudit.score}% Health · ${guardAudit.allVulnerabilities.length ? `${guardAudit.allVulnerabilities.length} alerts` : 'Secure'}`],
   ]);
   if (state.vaultSection === 'security') {
     return `${switcher}<div class="workspace-body">${guardView()}</div>`;
+  }
+  if (state.vaultSection === 'extension') {
+    return `${switcher}<div class="workspace-body">${browserCapturesView()}</div>`;
   }
   const all = vaultMemories();
   const filters = [['all', 'All'], ['extension', 'Browser Captures'], ['banks', 'Banks'], ['documents', 'Documents'], ['logins', 'Logins'], ['wifi', 'Wi-Fi'], ['personal', 'Personal']];
@@ -1722,6 +1791,17 @@ function bindView() {
   document.querySelectorAll('[data-birthday-message]').forEach(button => button.onclick = () => generateBirthdayMessage(button.dataset.birthdayMessage));
   document.querySelectorAll('[data-reminder-tab]').forEach(button => button.onclick = () => { state.reminderTab = button.dataset.reminderTab; renderView(); });
   document.querySelectorAll('[data-vault-category]').forEach(button => button.onclick = () => { state.vaultCategory = button.dataset.vaultCategory; renderView(); });
+  document.querySelectorAll('[data-ext-category]').forEach(button => button.onclick = () => { state.extCategory = button.dataset.extCategory; renderView(); });
+  const extFilter = document.querySelector('#ext-filter');
+  if (extFilter) {
+    extFilter.addEventListener('input', () => {
+      const q = extFilter.value.toLowerCase().trim();
+      document.querySelectorAll('#ext-vault-list .vault-row').forEach(row => {
+        const text = (row.dataset.searchable || '').toLowerCase();
+        row.style.display = !q || text.includes(q) ? '' : 'none';
+      });
+    });
+  }
   document.querySelectorAll('[data-reminder-complete]').forEach(button => button.onclick = () => completeReminder(button.dataset.reminderComplete));
   document.querySelectorAll('[data-reminder-snooze]').forEach(button => button.onclick = () => toggleReminderSnooze(button.dataset.reminderSnooze));
   document.querySelectorAll('[data-reminder-edit]').forEach(button => button.onclick = () => openReminderEditor(state.items.find(item => item.id === button.dataset.reminderEdit)));
@@ -3120,7 +3200,16 @@ async function askAssistant(query) {
   }
 
   try {
-    const catalog = state.items.filter(item => item.type !== 'Notification').map(item => ({ id: item.id, type: category(item), title: item.title, fieldNames: Object.keys(allFields(item)) }));
+    const catalog = state.items.filter(item => item.type !== 'Notification').map(item => {
+      const prov = item?.provenance || {};
+      const extraDetails = [item.domain, prov.domain, prov.pageTitle, item.note].filter(Boolean).join(' · ');
+      return {
+        id: item.id,
+        type: category(item),
+        title: extraDetails ? `${item.title} (${extraDetails})` : item.title,
+        fieldNames: Object.keys(allFields(item)),
+      };
+    });
     const identityToken = await vaultStore.idToken();
     const payload = {
       provider: hasAttachments ? 'gemini' : state.provider,

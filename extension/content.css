@@ -29,8 +29,11 @@
   margin-bottom: 4px;
 }
 
-.memoir-logo-icon {
-  font-size: 15px;
+.memoir-header-logo-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 4px;
 }
 
 .memoir-dropdown-header strong {
@@ -164,8 +167,11 @@
   gap: 8px;
 }
 
-.memoir-brand-rhino {
-  font-size: 22px;
+.memoir-brand-rhino-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  border-radius: 6px;
 }
 
 .memoir-capture-brand strong {
