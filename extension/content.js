@@ -6,12 +6,11 @@
   const currentDomain = window.location.hostname.replace(/^www\./i, '');
   const currentPageTitle = document.title || currentDomain;
   let activeDropdown = null;
+  let activeTargetInput = null;
   let lastCaptureTime = 0;
 
-  // Real Brand Logo URL
   const logoUrl = chrome.runtime.getURL('brand/memoir-rhino-ui.png');
 
-  // SVG Icons
   const SVGS = {
     sparkles: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>',
     key: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg>',
@@ -36,8 +35,10 @@
 
       const info = inspectInput(input);
       if (info.isPassword || info.isUsername || info.isCard || info.isAckOrApp || info.isIdentity) {
+        // Attach persistent inline Rhino button inside the input
+        attachInlineRhinoBadge(input, info);
+
         input.addEventListener('focus', () => handleFieldFocus(input, info));
-        input.addEventListener('input', () => handleFieldInput(input));
         input.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
             setTimeout(() => triggerSmartCapture(input), 150);
@@ -117,56 +118,45 @@
     };
   }
 
-  async function handleFieldFocus(input, info) {
-    chrome.runtime.sendMessage({ action: 'GET_CREDENTIALS_FOR_URL', url: window.location.href }, response => {
-      const matches = (response && response.ok && response.matches) ? response.matches : [];
-      showAutofillDropdown(input, matches, info);
-    });
-  }
+  // Persistent In-Field Rhino Badge
+  function attachInlineRhinoBadge(input, info) {
+    if (input.dataset.memoirBadgeAttached) return;
+    input.dataset.memoirBadgeAttached = 'true';
 
-  function handleFieldInput(input) {
-    const val = input.value.trim();
-    if (val.length >= 4) {
-      showInlineSaveBadge(input);
-    } else {
-      removeInlineBadge(input);
-    }
-  }
-
-  function showInlineSaveBadge(input) {
-    if (input.dataset.memoirHasBadge) return;
-    input.dataset.memoirHasBadge = 'true';
-
-    const rect = input.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
+    const updateBadgePosition = (badge) => {
+      const rect = input.getBoundingClientRect();
+      if (!rect.width || !rect.height || rect.width < 50) return;
+      badge.style.top = `${rect.top + window.scrollY + Math.max(2, (rect.height - 24) / 2)}px`;
+      badge.style.left = `${rect.right + window.scrollX - 28}px`;
+    };
 
     const badge = document.createElement('button');
     badge.type = 'button';
     badge.className = 'memoir-inline-save-btn';
-    badge.title = 'Save to Memoir Vault';
-    badge.innerHTML = `<img src="${logoUrl}" alt="Memoir" style="width:16px;height:16px;object-fit:contain;">`;
-    badge.style.top = `${rect.top + window.scrollY + (rect.height - 24) / 2}px`;
-    badge.style.left = `${rect.right + window.scrollX - 28}px`;
+    badge.title = 'Memoir Autofill & Save';
+    badge.innerHTML = `<img src="${logoUrl}" alt="Memoir" class="memoir-inline-rhino-img">`;
 
     document.body.appendChild(badge);
+    updateBadgePosition(badge);
+
+    // Reposition on scroll/resize
+    window.addEventListener('scroll', () => updateBadgePosition(badge), { passive: true });
+    window.addEventListener('resize', () => updateBadgePosition(badge), { passive: true });
 
     badge.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      triggerSmartCapture(input);
+      input.focus();
+      handleFieldFocus(input, info);
     });
-
-    input.addEventListener('blur', () => {
-      setTimeout(() => {
-        if (badge) badge.remove();
-        delete input.dataset.memoirHasBadge;
-      }, 4000);
-    }, { once: true });
   }
 
-  function removeInlineBadge(input) {
-    delete input.dataset.memoirHasBadge;
-    document.querySelectorAll('.memoir-inline-save-btn').forEach(b => b.remove());
+  async function handleFieldFocus(input, info) {
+    activeTargetInput = input;
+    chrome.runtime.sendMessage({ action: 'GET_CREDENTIALS_FOR_URL', url: window.location.href }, response => {
+      const matches = (response && response.ok && response.matches) ? response.matches : [];
+      showAutofillDropdown(input, matches, info);
+    });
   }
 
   function showAutofillDropdown(targetInput, matches, info) {
@@ -175,19 +165,23 @@
     const rect = targetInput.getBoundingClientRect();
     const dropdown = document.createElement('div');
     dropdown.className = 'memoir-autofill-dropdown';
-    dropdown.style.top = `${rect.bottom + window.scrollY + 4}px`;
+    dropdown.style.top = `${rect.bottom + window.scrollY + 6}px`;
     dropdown.style.left = `${rect.left + window.scrollX}px`;
-    dropdown.style.minWidth = `${Math.max(260, rect.width)}px`;
+    dropdown.style.minWidth = `${Math.max(270, rect.width)}px`;
 
     let html = `
       <div class="memoir-dropdown-header">
         <img src="${logoUrl}" alt="Memoir" class="memoir-header-logo-img">
-        <strong>Memoir Vault</strong>
-        <span class="memoir-domain-tag">${currentDomain}</span>
+        <div class="memoir-header-text">
+          <strong>Memoir Vault</strong>
+          <span class="memoir-domain-tag">${currentDomain}</span>
+        </div>
+        <button type="button" class="memoir-dropdown-close-btn" id="memoir-dropdown-close" title="Close dropdown">&times;</button>
       </div>
       <div class="memoir-dropdown-items">
     `;
 
+    // 1. Password Generator Option
     if (info && info.isPassword) {
       html += `
         <div class="memoir-dropdown-item memoir-gen-pwd-btn" id="memoir-action-gen-pwd">
@@ -200,6 +194,7 @@
       `;
     }
 
+    // 2. Matching items
     if (matches && matches.length) {
       matches.forEach((item, idx) => {
         const user = item.fields?.['Username / ID'] || item.fields?.['Username'] || item.fields?.['Document number'] || item.fields?.['Reference number'] || item.title || 'Saved Account';
@@ -218,16 +213,38 @@
     } else if (!info.isPassword) {
       html += `
         <div class="memoir-dropdown-empty">
-          <span>No saved items for ${currentDomain}</span>
+          <span>No saved credentials for ${currentDomain}</span>
         </div>
       `;
     }
+
+    // 3. Quick Save Trigger
+    html += `
+      <div class="memoir-dropdown-item memoir-quick-save-btn" id="memoir-action-quick-save">
+        <div class="memoir-item-icon">${SVGS.doc}</div>
+        <div class="memoir-item-text">
+          <strong>Save Field to Memoir</strong>
+          <small>Store ${escapeHtml(info?.labelText || 'this value')} securely</small>
+        </div>
+      </div>
+    `;
 
     html += `</div>`;
     dropdown.innerHTML = html;
     document.body.appendChild(dropdown);
     activeDropdown = dropdown;
 
+    // Explicit Close 'x' Button
+    const closeBtn = dropdown.querySelector('#memoir-dropdown-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        removeDropdown();
+      });
+    }
+
+    // Password Generator Action
     const genBtn = dropdown.querySelector('#memoir-action-gen-pwd');
     if (genBtn) {
       genBtn.addEventListener('click', (e) => {
@@ -248,6 +265,18 @@
       });
     }
 
+    // Quick Save Action
+    const quickSaveBtn = dropdown.querySelector('#memoir-action-quick-save');
+    if (quickSaveBtn) {
+      quickSaveBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        removeDropdown();
+        triggerSmartCapture(targetInput);
+      });
+    }
+
+    // Matches Selection
     dropdown.querySelectorAll('.memoir-dropdown-item[data-idx]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -259,15 +288,16 @@
       });
     });
 
+    // Close only when clicking outside dropdown & target input
+    const handleOutside = (e) => {
+      if (activeDropdown && !activeDropdown.contains(e.target) && e.target !== targetInput && !e.target.closest('.memoir-inline-save-btn')) {
+        removeDropdown();
+        document.removeEventListener('click', handleOutside);
+      }
+    };
     setTimeout(() => {
-      document.addEventListener('click', handleOutsideClick, { once: true });
-    }, 100);
-  }
-
-  function handleOutsideClick(e) {
-    if (activeDropdown && !activeDropdown.contains(e.target)) {
-      removeDropdown();
-    }
+      document.addEventListener('click', handleOutside);
+    }, 150);
   }
 
   function removeDropdown() {
@@ -324,7 +354,7 @@
     const badge = document.createElement('div');
     badge.className = 'memoir-autofill-badge success';
     badge.innerHTML = `<span>${escapeHtml(text)}</span>`;
-    badge.style.top = `${rect.top + window.scrollY - 30}px`;
+    badge.style.top = `${rect.top + window.scrollY - 32}px`;
     badge.style.left = `${rect.left + window.scrollX}px`;
     document.body.appendChild(badge);
     setTimeout(() => badge.remove(), 2500);

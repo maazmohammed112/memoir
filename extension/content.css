@@ -23,33 +23,63 @@
 .memoir-dropdown-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px 6px;
-  border-bottom: 1px solid #f3f4f6;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
   margin-bottom: 4px;
 }
 
 .memoir-header-logo-img {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: 5px;
+  flex: none;
 }
 
-.memoir-dropdown-header strong {
+.memoir-header-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.memoir-header-text strong {
   font-size: 12px;
   font-weight: 700;
-  color: #111827;
+  color: #0f172a;
+  white-space: nowrap;
 }
 
 .memoir-domain-tag {
   font-size: 10px;
   font-weight: 600;
-  color: #6b7280;
-  margin-left: auto;
-  background: #f3f4f6;
+  color: #64748b;
+  background: #f1f5f9;
   padding: 2px 6px;
-  border-radius: 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.memoir-dropdown-close-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.12s;
+  flex: none;
+}
+
+.memoir-dropdown-close-btn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
 }
 
 .memoir-dropdown-items {
@@ -327,4 +357,11 @@
   transform: scale(1.1);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
   border-color: #111827;
+}
+
+.memoir-inline-rhino-img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  display: block;
 }
