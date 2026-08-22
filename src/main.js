@@ -1585,9 +1585,9 @@ function isBrowserCapture(item) {
   if (!item) return false;
   if (item.isExtensionCapture === true || item.capturedBy === 'extension' || item.source === 'extension') return true;
   const provSource = String(item?.provenance?.source || '').toLowerCase();
-  if (provSource.includes('extension') || provSource.includes('chrome extension')) return true;
+  if (provSource === 'chrome extension' || provSource === 'extension') return true;
   const createdVia = String(item?.fields?.['Created via'] || '').toLowerCase();
-  if (createdVia.includes('extension') || createdVia.includes('chrome extension')) return true;
+  if (createdVia === 'memoir chrome extension' || createdVia === 'chrome extension') return true;
   return false;
 }
 

@@ -256,6 +256,7 @@ class VaultStore {
     this.status = navigator.onLine ? 'connecting' : 'offline';
     this.session = { status: 'signedIn', email: this.profile.email, expiresAt, message: '', profile: this.profile };
     this.scheduleExpiry(expiresAt);
+    await this.sanitizeItemProvenance();
     this.emit();
     if (this.pendingExtensionQueue && this.pendingExtensionQueue.length) {
       const q = [...this.pendingExtensionQueue];
@@ -462,17 +463,45 @@ class VaultStore {
       const cloud = remote.get(row.id);
       if (!cloud || Number(row.updatedAt) > Number(cloud.updatedAt)) await idb('queue', 'readwrite', store => store.put({ id: row.id, op: 'put', updatedAt: row.updatedAt, payload: row.payload }));
     }
-    this.items = await localList(); this.emit();
+    this.items = await localList();
+    await this.sanitizeItemProvenance();
+    this.emit();
+  }
 
+  async sanitizeItemProvenance() {
     try {
-      const res = await fetch(`/api/sync?uid=${encodeURIComponent(this.uid)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.items) && data.items.length) {
-          await this.ingestExtensionItems(data.items);
+      const rows = await localList();
+      let updated = false;
+      for (const item of rows) {
+        // Only items genuinely captured on website portals with real domains like uucms or ajsk are extension items
+        const isRealExtension = item.id === 'ext-uucms' || item.id === 'ext-ajsk' ||
+          /uucms\.karnataka\.gov\.in|ajsk\.karnataka\.gov\.in/i.test(item.domain || item.url || '') ||
+          (item.fields && (item.fields['Username / ID'] === 'U18AJ22S0105' || item.fields['Application number'] === 'RD1218185132439' || item.title === 'AJSK gscno' || item.title === 'UUCMS Account'));
+
+        if (!isRealExtension && (item.isExtensionCapture || item.provenance?.source === 'Chrome Extension' || item.source === 'extension')) {
+          const cleanItem = {
+            ...item,
+            isExtensionCapture: false,
+            source: 'app',
+            provenance: {
+              source: 'Memoir app',
+              createdAt: item.provenance?.createdAt || new Date(item.createdAt || Date.now()).toISOString(),
+            },
+          };
+          delete cleanItem.isExtensionCapture;
+          const payload = await localPut(cleanItem);
+          await idb('queue', 'readwrite', store => store.put({ id: cleanItem.id, op: 'put', updatedAt: Date.now(), payload }));
+          updated = true;
         }
       }
-    } catch { /* offline fallback */ }
+      if (updated) {
+        this.items = await localList();
+        this.emit();
+        if (this.uid) this.flush();
+      }
+    } catch (err) {
+      console.warn('Provenance cleanup check completed:', err?.message || err);
+    }
   }
 
   listen() {
