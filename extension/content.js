@@ -5,6 +5,9 @@
 
   const currentDomain = window.location.hostname.replace(/^www\./i, '');
   const currentPageTitle = document.title || currentDomain;
+  const isMemoirApp = /(^|\.)memoir(?:-vert)?\.vercel\.app$/i.test(window.location.hostname)
+    || /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
+    || document.title.toLowerCase().includes('memoir');
   let activeDropdown = null;
   let activeTargetInput = null;
   let lastCaptureTime = 0;
@@ -610,17 +613,19 @@
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  initAutofillAndBadges();
-  initSmartCaptureListeners();
-
-  const observer = new MutationObserver(() => {
+  if (!isMemoirApp) {
     initAutofillAndBadges();
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
+    initSmartCaptureListeners();
+
+    const observer = new MutationObserver(() => {
+      initAutofillAndBadges();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  } else {
+    document.querySelectorAll('.memoir-inline-save-btn, .memoir-autofill-dropdown, .memoir-capture-prompt').forEach(element => element.remove());
+  }
 
   // Memoir Web App Direct Real-Time Sync Bridge
-  const isMemoirApp = window.location.hostname.includes('memoir') || window.location.hostname.includes('localhost') || document.title.toLowerCase().includes('memoir');
-  
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     try {
       if (request?.action === 'MEMOIR_SYNC_UPDATE' || request?.action === 'MEMOIR_SYNC_DELETE') {

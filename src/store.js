@@ -1,3 +1,5 @@
+import { ACCOUNT_PROFILES as SHARED_ACCOUNT_PROFILES, accountProfileByCode, accountProfileByUid, profileMatchesUser } from '../lib/accountProfiles.js';
+
 const firebaseConfig = {
   apiKey: 'AIzaSyAVkrZbrhbumrbBz8cAgM1PSW8wxqKM_Zs',
   authDomain: 'personalvault-20c1f.firebaseapp.com',
@@ -9,14 +11,13 @@ const firebaseConfig = {
 };
 
 const DB_VERSION = 2;
-export const ACCOUNT_PROFILES = [
-  { uid: 'uQE6xqhWhQWhOlGmfT2br5HnCEq2', email: 'maaz@memo.com', name: 'Maaz', initials: 'MM' },
-  { uid: 'GQ4lxeAWoPTlyJ4W1jxU8bxk6qS2', email: 'deepti@memo.com', name: 'Deepti', initials: 'DM' },
-];
+export const ACCOUNT_PROFILES = SHARED_ACCOUNT_PROFILES;
 const MAAZ_UID = ACCOUNT_PROFILES[0].uid;
 const SESSION_LENGTH = 12 * 60 * 60 * 1000;
 const LEGACY_KEY_ID = 'device-vault-key';
 const KEY_DERIVATION_ITERATIONS = 600000;
+const AUTH_REQUEST_TIMEOUT_MS = 18000;
+const FIREBASE_AUTH_TIMEOUT_MS = 20000;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 let firebaseSdk;
@@ -24,7 +25,7 @@ let activeProfileUid = null;
 const selectedProfileKey = 'memoir-selected-profile';
 const introSeenKey = 'memoir-intro-seen';
 const deviceIdKey = 'memoir-device-id-v1';
-const profileByUid = uid => ACCOUNT_PROFILES.find(profile => profile.uid === String(uid || '')) || null;
+const profileByUid = accountProfileByUid;
 const dbName = () => activeProfileUid === MAAZ_UID ? 'memoir-encrypted-vault' : `memoir-encrypted-vault-${activeProfileUid}`;
 const ownerKeyId = () => activeProfileUid === MAAZ_UID ? 'owner-vault-key-v2' : `owner-vault-key-v2-${activeProfileUid}`;
 const passwordGateKey = () => `memoir-password-gate-${activeProfileUid}`;
@@ -43,6 +44,40 @@ async function loadFirebase() {
   const [app, auth, firestore] = await Promise.all([import('firebase/app'), import('firebase/auth'), import('firebase/firestore')]);
   firebaseSdk = { ...app, ...auth, ...firestore };
   return firebaseSdk;
+}
+
+function timeoutError(message, code = 'auth/timeout') {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+async function withDeadline(promise, timeoutMs, message, code = 'auth/timeout') {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => { timer = setTimeout(() => reject(timeoutError(message, code)), timeoutMs); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchWithDeadline(url, options, timeoutMs = AUTH_REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') throw timeoutError('Secure sign-in took too long. Please try again.', 'auth/timeout');
+    const networkError = new Error('Memoir could not reach the secure sign-in service. Please try again.');
+    networkError.code = 'auth/network-error';
+    networkError.cause = error;
+    throw networkError;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function openLocalDb() {
@@ -90,12 +125,14 @@ async function deriveWrappingKey(password, salt, iterations = KEY_DERIVATION_ITE
 
 async function getVaultKey() {
   const currentUid = activeProfileUid || localStorage.getItem('memoir-selected-profile') || MAAZ_UID;
+  const currentProfile = profileByUid(currentUid);
+  if (!currentProfile) throw new Error('The selected vault owner is not approved on this device.');
   const keyId = currentUid === MAAZ_UID ? 'owner-vault-key-v2' : `owner-vault-key-v2-${currentUid}`;
   let key = await idb('keys', 'readonly', store => store.get(keyId));
   if (key) return key;
   key = currentUid === MAAZ_UID ? await idb('keys', 'readonly', store => store.get(LEGACY_KEY_ID)) : null;
   if (!key) {
-    const code = currentUid === MAAZ_UID ? '2002' : '2005';
+    const code = currentProfile.code;
     const salt = new TextEncoder().encode(`memoir-key-salt:${currentUid}`);
     const wrappingKey = await deriveWrappingKey(code, salt, KEY_DERIVATION_ITERATIONS);
     const rawDerived = await crypto.subtle.exportKey('raw', wrappingKey);
@@ -164,6 +201,7 @@ class VaultStore {
   auth = null;
   listener = null;
   connectionPromise = null;
+  firebaseReadyPromise = null;
   expiryTimer = null;
   pendingPassword = '';
   pendingOtpCode = '';
@@ -186,9 +224,9 @@ class VaultStore {
       window.addEventListener('offline', () => { this.status = 'offline'; this.emit(); });
     }
     try {
-      await this.prepareFirebase();
-      if (this.auth.authStateReady) await this.auth.authStateReady();
-      else await new Promise(resolve => { const stop = this.firebase.onAuthStateChanged(this.auth, () => { stop(); resolve(); }); });
+      await withDeadline(this.prepareFirebase(), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase authentication did not initialize in time.');
+      if (this.auth.authStateReady) await withDeadline(this.auth.authStateReady(), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase authentication did not become ready in time.');
+      else await withDeadline(new Promise(resolve => { const stop = this.firebase.onAuthStateChanged(this.auth, () => { stop(); resolve(); }); }), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase authentication did not become ready in time.');
       const selected = profileByUid(localStorage.getItem(selectedProfileKey));
       if (!selected) {
         if (this.auth.currentUser) await this.firebase.signOut(this.auth);
@@ -202,15 +240,15 @@ class VaultStore {
       const user = this.auth.currentUser;
       const passwordGateEstablished = localStorage.getItem(passwordGateKey()) === 'v1';
       const localOwnerKey = await idb('keys', 'readonly', store => store.get(ownerKeyId()));
-      if (user && passwordGateEstablished && localOwnerKey) {
-        await this.activateOwner(user);
-        this.validSession(user).then(verified => {
-          if (!verified && this.session.status === 'signedIn') {
-            this.signOut('replaced');
-          }
-        }).catch(() => {});
+      if (user && passwordGateEstablished && localOwnerKey && profileMatchesUser(selected, user)) {
+        const verified = await this.validSession(user);
+        if (verified) await this.activateOwner(user, verified.expiresAt);
+        else {
+          await withDeadline(this.firebase.signOut(this.auth), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase sign-out did not finish in time.').catch(() => {});
+          this.lock('Your secure session could not be verified. Sign in and request a new Telegram code.');
+        }
       } else {
-        if (user) await this.firebase.signOut(this.auth);
+        if (user) await withDeadline(this.firebase.signOut(this.auth), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase sign-out did not finish in time.').catch(() => {});
         this.lock(user ? 'Your secure 12-hour session ended. Sign in and verify a new Telegram code to continue.' : 'Sign in with your approved email and password to continue.');
       }
     } catch (error) {
@@ -227,20 +265,23 @@ class VaultStore {
 
   async selectAccount(code) {
     const raw = String(code || '').trim();
-    let localProfile = null;
-    if (raw === '2002') localProfile = profileByUid(MAAZ_UID);
-    else if (raw === '2005') localProfile = profileByUid(DEEPTI_UID);
+    const localProfile = accountProfileByCode(raw);
 
     if (localProfile) {
+      this.listener?.(); this.listener = null; clearTimeout(this.expiryTimer);
+      this.items = []; this.uid = null; this.pendingPassword = ''; this.pendingOtpCode = '';
       this.setProfile(localProfile);
       localStorage.setItem(selectedProfileKey, localProfile.uid);
       this.lock(`Welcome, ${localProfile.name}. Enter your Firebase password to continue.`);
-      this.prepareFirebase().catch(() => {});
-      fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'select-account', code: raw }) }).catch(() => {});
+      this.prepareFirebase().then(async () => {
+        if (this.auth?.currentUser && !profileMatchesUser(localProfile, this.auth.currentUser)) {
+          await withDeadline(this.firebase.signOut(this.auth), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase sign-out did not finish in time.');
+        }
+      }).catch(error => console.warn('Selected profile initialization failed:', error?.message || error));
       return localProfile;
     }
 
-    const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'select-account', code: raw }) });
+    const response = await fetchWithDeadline('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'select-account', code: raw }) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(result.error || 'The private account could not be selected.'); error.code = result.code || 'auth/account-code-failed';
@@ -250,8 +291,8 @@ class VaultStore {
     }
     const profile = profileByUid(result.profile?.uid);
     if (!profile || profile.email !== result.profile?.email) throw new Error('The selected private account is not approved on this device.');
-    await this.prepareFirebase();
-    if (this.auth?.currentUser) await this.firebase.signOut(this.auth);
+    await withDeadline(this.prepareFirebase(), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase authentication did not initialize in time.');
+    if (this.auth?.currentUser) await withDeadline(this.firebase.signOut(this.auth), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase sign-out did not finish in time.').catch(() => {});
     this.listener?.(); this.listener = null; clearTimeout(this.expiryTimer);
     this.items = []; this.uid = null; this.pendingPassword = ''; this.pendingOtpCode = ''; this.setProfile(profile);
     localStorage.setItem(selectedProfileKey, profile.uid);
@@ -271,44 +312,52 @@ class VaultStore {
 
   async prepareFirebase() {
     if (this.auth && this.db) return;
-    const sdk = await loadFirebase(); this.firebase = sdk;
-    const app = sdk.getApps().length ? sdk.getApp() : sdk.initializeApp(firebaseConfig);
-    this.auth = sdk.getAuth(app);
-    try { await sdk.setPersistence(this.auth, sdk.browserLocalPersistence); } catch { /* an existing tab may already own persistence */ }
-    try { this.db = sdk.initializeFirestore(app, { localCache: sdk.persistentLocalCache({ tabManager: sdk.persistentMultipleTabManager() }) }); }
-    catch { this.db = sdk.getFirestore(app); }
+    if (!this.firebaseReadyPromise) {
+      this.firebaseReadyPromise = (async () => {
+        const sdk = await loadFirebase(); this.firebase = sdk;
+        const app = sdk.getApps().length ? sdk.getApp() : sdk.initializeApp(firebaseConfig);
+        this.auth = sdk.getAuth(app);
+        try { await sdk.setPersistence(this.auth, sdk.browserLocalPersistence); } catch { /* an existing tab may already own persistence */ }
+        try { this.db = sdk.initializeFirestore(app, { localCache: sdk.persistentLocalCache({ tabManager: sdk.persistentMultipleTabManager() }) }); }
+        catch { this.db = sdk.getFirestore(app); }
+      })();
+    }
+    try { await this.firebaseReadyPromise; }
+    catch (error) { this.firebaseReadyPromise = null; throw error; }
   }
 
   async validSession(user) {
-    if (!this.profile || !user || user.uid !== this.profile.uid || String(user.email || '').toLowerCase() !== this.profile.email) return null;
-    let authenticatedAt = Date.now();
-    try {
-      const token = await this.firebase.getIdTokenResult(user);
-      authenticatedAt = new Date(token.authTime).getTime() || Date.now();
-      if (token.signInProvider && token.signInProvider !== 'password') return null;
-      if (Number.isFinite(authenticatedAt) && Date.now() - authenticatedAt >= SESSION_LENGTH) return null;
-    } catch { /* token inspection fallback */ }
+    if (!profileMatchesUser(this.profile, user)) return null;
+    const tokenResult = await withDeadline(this.firebase.getIdTokenResult(user), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase token verification timed out.');
+    const authenticatedAt = new Date(tokenResult.authTime).getTime();
+    if (tokenResult.signInProvider && tokenResult.signInProvider !== 'password') return null;
+    if (!Number.isFinite(authenticatedAt) || Date.now() - authenticatedAt >= SESSION_LENGTH) return null;
 
-    try {
-      const token = await user.getIdToken();
-      const response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: this.apiHeaders(token),
-        body: JSON.stringify({ action: 'status' }),
-      });
-      if (response.status === 401 || response.status === 403) return null;
-      if (!response.ok) return { expiresAt: authenticatedAt + SESSION_LENGTH };
-      const result = await response.json().catch(() => ({}));
-      if (result.verified === false) return null;
-      const serverExpiresAt = Number(result.expiresAt || 0);
-      const expiresAt = serverExpiresAt > Date.now() ? serverExpiresAt : authenticatedAt + SESSION_LENGTH;
-      return { expiresAt };
-    } catch {
-      return { expiresAt: authenticatedAt + SESSION_LENGTH };
+    const token = await withDeadline(user.getIdToken(), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase token retrieval timed out.');
+    const response = await fetchWithDeadline('/api/auth', {
+      method: 'POST',
+      headers: this.apiHeaders(token),
+      body: JSON.stringify({ action: 'status' }),
+    });
+    if (response.status === 401 || response.status === 403) return null;
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(result.error || 'The secure session service could not verify this device.');
+      error.code = result.code || 'auth/session-check-failed';
+      throw error;
     }
+    if (result.verified !== true) return null;
+    const serverExpiresAt = Number(result.expiresAt || 0);
+    if (serverExpiresAt <= Date.now()) return null;
+    return { expiresAt: serverExpiresAt };
   }
 
   async activateOwner(user, verifiedExpiresAt = 0) {
+    if (!profileMatchesUser(this.profile, user)) {
+      const error = new Error('The signed-in Firebase user does not match the selected Memoir vault.');
+      error.code = 'auth/unauthorized-owner';
+      throw error;
+    }
     let authenticatedAt = Date.now();
     try {
       const token = await this.firebase.getIdTokenResult(user);
@@ -350,11 +399,15 @@ class VaultStore {
 
   async signIn(email, password) {
     if (!this.profile) { const error = new Error('Choose an account first.'); error.code = 'auth/account-required'; throw error; }
-    await this.prepareFirebase();
+    await withDeadline(this.prepareFirebase(), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase authentication did not initialize in time.');
     this.session = { status: 'signingIn', email: this.profile.email, message: '', profile: this.profile }; this.emit();
     try {
-      const credential = await this.firebase.signInWithEmailAndPassword(this.auth, String(email || '').trim(), String(password || ''));
-      if (credential.user.uid !== this.profile.uid || String(credential.user.email || '').toLowerCase() !== this.profile.email) {
+      const credential = await withDeadline(
+        this.firebase.signInWithEmailAndPassword(this.auth, String(email || '').trim(), String(password || '')),
+        FIREBASE_AUTH_TIMEOUT_MS,
+        'Firebase sign-in took too long. Please try again.',
+      );
+      if (!profileMatchesUser(this.profile, credential.user)) {
         await this.firebase.signOut(this.auth); this.lock('This account is not approved for this private vault.');
         const error = new Error('This account is not approved for this private vault.'); error.code = 'auth/unauthorized-owner'; throw error;
       }
@@ -390,29 +443,12 @@ class VaultStore {
 
   async authRequest(action, extra = {}) {
     if (!this.auth?.currentUser) throw new Error('Sign in again to continue.');
-    const token = await this.auth.currentUser.getIdToken();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 35000);
-    let response;
-    try {
-      response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: this.apiHeaders(token),
-        body: JSON.stringify({ action, ...extra }),
-        signal: controller.signal,
-      });
-    } catch (networkErr) {
-      if (networkErr.name === 'AbortError') {
-        const timeoutError = new Error('Sign-in request timed out. Please check your connection and tap Continue again.');
-        timeoutError.code = 'auth/timeout';
-        throw timeoutError;
-      }
-      const netError = new Error('Network connection was interrupted. Please tap Continue securely to retry.');
-      netError.code = 'auth/network-error';
-      throw netError;
-    } finally {
-      clearTimeout(timer);
-    }
+    const token = await withDeadline(this.auth.currentUser.getIdToken(), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase token retrieval timed out.');
+    const response = await fetchWithDeadline('/api/auth', {
+      method: 'POST',
+      headers: this.apiHeaders(token),
+      body: JSON.stringify({ action, ...extra }),
+    });
     let result = {};
     try { result = await response.json(); } catch { /* handled below */ }
     if (!response.ok) {
@@ -433,11 +469,7 @@ class VaultStore {
       const result = await this.authRequest('verify', { code: normalizedCode, replaceDevices });
       this.session = { ...this.session, status: 'otpSuccess', message: 'OTP verified. Unlocking your encrypted vault…', verificationState: 'success' }; this.emit();
       await new Promise(resolve => setTimeout(resolve, 100));
-      try {
-        await this.prepareOwnerKey(this.pendingPassword);
-      } catch (err) {
-        console.warn('prepareOwnerKey fallback:', err?.message || err);
-      }
+      await withDeadline(this.prepareOwnerKey(this.pendingPassword), FIREBASE_AUTH_TIMEOUT_MS, 'Your encrypted vault key could not be prepared in time.', 'vault/key-unlock-failed');
       this.pendingPassword = ''; this.pendingOtpCode = ''; localStorage.setItem(passwordGateKey(), 'v1');
       await this.activateOwner(this.auth.currentUser, Number(result.expiresAt));
     } catch (error) {
@@ -577,7 +609,7 @@ class VaultStore {
       await this.prepareFirebase(); const user = this.auth?.currentUser;
       if (!user) { await this.signOut('expired'); return; }
       const session = await this.validSession(user);
-      if (!session && this.session.status !== 'signedIn') { await this.signOut('expired'); return; }
+      if (!session) { await this.signOut('expired'); return; }
       this.uid = user.uid;
       
       // Reconcile and background flush

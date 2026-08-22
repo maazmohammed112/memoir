@@ -551,18 +551,25 @@ function bindAuthGate() {
     });
   }
   accountCodeForm?.addEventListener('submit', async event => {
-    event.preventDefault(); state.authError = '';
-    const submitBtn = event.currentTarget.querySelector('.auth-submit');
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (form.dataset.submitting === 'true') return;
+    form.dataset.submitting = 'true'; state.authError = '';
+    const submitBtn = form.querySelector('.auth-submit');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<span class="button-spinner"></span> Unlocking…'; }
     try { await vaultStore.selectAccount(document.querySelector('#account-code').value); }
-    catch (error) { state.authError = `${error.message || 'That account number is not recognized.'}${Number.isFinite(error.remainingAttempts) && error.remainingAttempts > 0 ? ` ${error.remainingAttempts} attempt${error.remainingAttempts === 1 ? '' : 's'} remaining.` : ''}`; shell(); }
+    catch (error) { form.dataset.submitting = 'false'; state.authError = `${error.message || 'That account number is not recognized.'}${Number.isFinite(error.remainingAttempts) && error.remainingAttempts > 0 ? ` ${error.remainingAttempts} attempt${error.remainingAttempts === 1 ? '' : 's'} remaining.` : ''}`; shell(); }
   });
   document.querySelector('#toggle-auth-password')?.addEventListener('click', event => { const input = document.querySelector('#auth-password'); const reveal = input.type === 'password'; input.type = reveal ? 'text' : 'password'; event.currentTarget.innerHTML = icon(reveal ? 'EyeOff' : 'Eye'); event.currentTarget.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password'); });
   document.querySelector('#auth-form')?.addEventListener('submit', async event => {
-    event.preventDefault(); state.authError = '';
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (form.dataset.submitting === 'true') return;
+    form.dataset.submitting = 'true'; state.authError = '';
     const email = document.querySelector('#auth-email').value.trim(); const password = document.querySelector('#auth-password').value;
     try { await vaultStore.signIn(email, password); }
     catch (error) {
+      form.dataset.submitting = 'false';
       state.authError = error?.code === 'auth/unauthorized-owner' ? 'This Firebase login does not belong to the selected private account.' : /invalid-credential|wrong-password|user-not-found|invalid-email/i.test(error?.code || '') ? 'The password is incorrect. Please enter the approved Firebase password.' : error?.code === 'auth/otp-rate-limit' ? `Please wait ${error.retryAfter || 30} seconds before requesting another code.` : /network-request-failed|network-error|timeout|suspended/i.test(error?.message || error?.code || '') ? 'Network connection was interrupted. Please tap Continue securely to retry.' : error.message || 'Secure sign-in could not be completed.';
       shell();
     }
@@ -591,10 +598,13 @@ function bindAuthGate() {
   }
 
   document.querySelector('#otp-form')?.addEventListener('submit', async event => {
-    event.preventDefault(); state.authError = '';
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (form.dataset.submitting === 'true') return;
     const input = document.querySelector('#auth-otp');
     const code = (input?.value || '').replace(/\D/g, '');
     if (code.length !== 6) return;
+    form.dataset.submitting = 'true'; state.authError = '';
 
     input?.classList.add('verifying');
     document.querySelector('#otp-form')?.classList.add('is-verifying');
@@ -607,6 +617,7 @@ function bindAuthGate() {
       toast('OTP verified — Memoir unlocked', 'success');
     }
     catch (error) {
+      form.dataset.submitting = 'false';
       input?.classList.remove('verifying');
       input?.classList.add('denied');
       document.querySelector('#otp-form')?.classList.remove('is-verifying');

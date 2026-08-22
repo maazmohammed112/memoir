@@ -433,13 +433,19 @@ export async function startTelegramPolling() {
   const profiles = listUserProfiles().filter(profile => profile.telegramToken && profile.telegramChatId && !pollers.has(profile.uid));
   await Promise.all(profiles.map(async profile => {
     const webhook = await telegram(profile, 'getWebhookInfo', {}); if (webhook.result?.url) return;
-    const state = { active: true, offset: 0 }; pollers.set(profile.uid, state);
+    const state = { active: true, offset: 0, retryDelayMs: 5000 }; pollers.set(profile.uid, state);
     void (async () => {
       while (state.active) {
         try {
           const updates = await telegram(profile, 'getUpdates', { offset: state.offset, timeout: 25, allowed_updates: ['message', 'callback_query'] });
           for (const update of updates.result || []) { state.offset = Math.max(state.offset, Number(update.update_id) + 1); await processTelegramUpdate(update, profile); }
-        } catch (error) { console.warn(`${profile.name} Telegram polling paused:`, error?.message); await new Promise(resolve => setTimeout(resolve, 5000)); }
+          state.retryDelayMs = 5000;
+        } catch (error) {
+          const quotaExhausted = Number(error?.code) === 8 || /RESOURCE_EXHAUSTED|quota exceeded/i.test(error?.message || '');
+          state.retryDelayMs = quotaExhausted ? Math.min(Math.max(state.retryDelayMs * 2, 60000), 5 * 60 * 1000) : 5000;
+          console.warn(`${profile.name} Telegram polling paused for ${Math.round(state.retryDelayMs / 1000)}s:`, error?.message);
+          await new Promise(resolve => setTimeout(resolve, state.retryDelayMs));
+        }
       }
     })();
   }));
