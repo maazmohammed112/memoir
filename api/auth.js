@@ -112,23 +112,31 @@ async function requestOtp(identity) {
   if (!profile?.telegramToken || !profile.telegramChatId) { const error = new Error('Telegram OTP is not configured for this account'); error.status = 503; throw error; }
   const firestore = (await getAdmin()).firestore(); const reservation = await reserveOtpRequest(firestore, identity);
   const ref = firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(String(identity.auth_time));
+  const rootRef = firestore.collection('otpChallenges').doc(identity.uid);
   const previous = await ref.get(); const previousData = previous.data() || {};
   let code; let stableHash;
   do { code = String(crypto.randomInt(100000, 1000000)); stableHash = codeHash(identity.uid, code); }
   while (stableHash === previousData.lastCodeHash);
   const now = Date.now(); const expiresAt = now + OTP_LIFETIME_MS;
-  await ref.set({
+  const challengePayload = {
     hash: challengeHash(identity.uid, identity.auth_time, code),
     lastCodeHash: stableHash,
     code,
     authTime: Number(identity.auth_time),
     createdAt: new Date(now),
+    createdAtMs: now,
     expiresAt: new Date(expiresAt),
     expiresAtMs: expiresAt,
     attempts: 0,
     status: 'sent',
     sentAt: new Date(now),
-  });
+  };
+  
+  const batch = firestore.batch();
+  batch.set(ref, challengePayload);
+  batch.set(rootRef, { latestSessionId: String(identity.auth_time), ...challengePayload });
+  await batch.commit();
+
   try {
     await telegramRequest(profile, 'sendMessage', {
       chat_id: profile.telegramChatId,
@@ -136,6 +144,7 @@ async function requestOtp(identity) {
     });
   } catch (error) {
     await ref.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true });
+    await rootRef.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true });
     await releaseOtpReservation(firestore, reservation);
     const deliveryError = new Error('Open your assigned Telegram bot, tap Start, then request a new sign-in code.');
     deliveryError.status = 424; deliveryError.cause = error; throw deliveryError;
@@ -148,27 +157,24 @@ async function verifyOtp(identity, input, { deviceId, deviceName, replaceDevices
   if (!/^\d{6}$/.test(code)) { const error = new Error('Enter the complete 6-digit code.'); error.status = 400; error.code = 'auth/otp-invalid-format'; throw error; }
   const firestore = (await getAdmin()).firestore(); const sessionId = String(identity.auth_time); const now = Date.now();
   const challengeRef = firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(sessionId);
+  const rootRef = firestore.collection('otpChallenges').doc(identity.uid);
   const sessionsRef = firestore.collection('verifiedSessions').doc(identity.uid).collection('sessions');
   const sessionRef = sessionsRef.doc(sessionId); const currentDeviceHash = deviceHash(deviceId);
   const rateRef = firestore.collection('authRateLimits').doc(identity.uid);
   const expiresAt = Math.min(Number(identity.auth_time) * 1000 + SESSION_LENGTH_MS, now + SESSION_LENGTH_MS);
   const outcome = await firestore.runTransaction(async transaction => {
-    const [challengeSnapshot, rateSnapshot, sessionsSnapshot] = await Promise.all([transaction.get(challengeRef), transaction.get(rateRef), transaction.get(sessionsRef)]);
-    let data = challengeSnapshot.data() || {};
+    const [challengeSnapshot, rootSnapshot, rateSnapshot, sessionsSnapshot] = await Promise.all([
+      transaction.get(challengeRef),
+      transaction.get(rootRef),
+      transaction.get(rateRef),
+      transaction.get(sessionsRef),
+    ]);
+    let data = challengeSnapshot.data() || rootSnapshot.data() || {};
     const rate = rateSnapshot.data() || {};
     const verifyLockedUntil = Number(rate.verifyLockedUntil || 0);
     if (verifyLockedUntil > now) return { error: 'OTP entry is locked for 12 hours after three incorrect attempts.', status: 423, code: 'auth/otp-verify-locked', blockedUntil: verifyLockedUntil, remainingAttempts: 0 };
     
-    // Fallback: If sessionId mismatch due to token refresh, check latest active challenge
-    let targetDocRef = challengeRef;
-    if (!challengeSnapshot.exists) {
-      const allChallenges = await firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').orderBy('createdAt', 'desc').limit(1).get();
-      if (!allChallenges.empty) {
-        data = allChallenges.docs[0].data() || {};
-        targetDocRef = allChallenges.docs[0].ref;
-      }
-    }
-
+    const targetDocRef = challengeSnapshot.exists ? challengeRef : rootRef;
     const challengeExpires = Number(data.expiresAtMs || (typeof data.expiresAt?.toMillis === 'function' ? data.expiresAt.toMillis() : 0));
     if (!data.status || data.status === 'used' || challengeExpires <= now) {
       return { error: 'This code expired (5-minute limit). Request a new one when the resend timer finishes.', status: 400, code: 'auth/otp-expired' };
@@ -210,7 +216,8 @@ async function verifyOtp(identity, input, { deviceId, deviceName, replaceDevices
     }).forEach(document => transaction.delete(document.ref));
     transaction.set(rateRef, { verifyFailureCount: 0, verifyLockedUntil: 0, verifiedAt: now, updatedAt: now }, { merge: true });
     transaction.set(sessionRef, { authTime: Number(identity.auth_time), deviceHash: currentDeviceHash, deviceName, verifiedAt: new Date(), verifiedAtMs: now, expiresAt: new Date(expiresAt) });
-    transaction.update(targetDocRef, { status: 'used', usedAt: new Date(), hash: null });
+    transaction.update(challengeRef, { status: 'used', usedAt: new Date(), hash: null });
+    transaction.set(rootRef, { status: 'used', usedAt: new Date(), hash: null }, { merge: true });
     return { verified: true };
   });
   if (outcome.error) throw rateError(outcome.error, outcome);

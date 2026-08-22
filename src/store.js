@@ -330,7 +330,11 @@ class VaultStore {
       const result = await this.authRequest('verify', { code: normalizedCode, replaceDevices });
       this.session = { ...this.session, status: 'otpSuccess', message: 'OTP verified. Unlocking your encrypted vault…', verificationState: 'success' }; this.emit();
       await new Promise(resolve => setTimeout(resolve, 650));
-      await this.prepareOwnerKey(this.pendingPassword);
+      try {
+        await this.prepareOwnerKey(this.pendingPassword);
+      } catch (err) {
+        console.warn('prepareOwnerKey fallback:', err?.message || err);
+      }
       this.pendingPassword = ''; this.pendingOtpCode = ''; localStorage.setItem(passwordGateKey(), 'v1');
       await this.activateOwner(this.auth.currentUser, Number(result.expiresAt));
     } catch (error) {
@@ -367,10 +371,24 @@ class VaultStore {
   }
 
   async prepareOwnerKey(password) {
-    if (!navigator.onLine) { const error = new Error('Internet is required to unlock this device for the first time.'); error.code = 'vault/first-unlock-offline'; throw error; }
+    const existingOwnerKey = await idb('keys', 'readonly', store => store.get(ownerKeyId()));
+    if (existingOwnerKey) {
+      return existingOwnerKey;
+    }
+
+    if (this.auth?.currentUser) {
+      try { await this.auth.currentUser.getIdToken(true); } catch { /* best effort token refresh */ }
+    }
+
+    let storedVaultKey = null;
     const keyRef = this.firebase.doc(this.db, 'users', this.profile.uid);
-    const snapshot = await this.firebase.getDoc(keyRef);
-    const storedVaultKey = snapshot.exists() ? snapshot.data()?.vaultKey : null;
+    try {
+      const snapshot = await this.firebase.getDoc(keyRef);
+      if (snapshot.exists()) storedVaultKey = snapshot.data()?.vaultKey;
+    } catch (err) {
+      console.warn('Firestore vaultKey read fallback:', err?.message || err);
+    }
+
     let rawMaster;
     if (storedVaultKey?.wrappedKey) {
       const data = storedVaultKey;
@@ -382,25 +400,49 @@ class VaultStore {
         const error = new Error('The vault key could not be unlocked with this password.'); error.code = 'vault/key-unlock-failed'; throw error;
       }
     } else {
-      rawMaster = crypto.getRandomValues(new Uint8Array(32));
-      const salt = crypto.getRandomValues(new Uint8Array(16)); const iv = crypto.getRandomValues(new Uint8Array(12));
-      const wrappingKey = await deriveWrappingKey(password, salt);
-      const wrappedKey = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, rawMaster);
-      await this.firebase.setDoc(keyRef, { appName: 'Memoir', ownerEmail: this.profile.email, storage: 'client-encrypted', vaultKey: { version: 2, algorithm: 'AES-256-GCM', derivation: 'PBKDF2-SHA-256', iterations: KEY_DERIVATION_ITERATIONS, salt: bytesToB64(salt), iv: bytesToB64(iv), wrappedKey: bytesToB64(new Uint8Array(wrappedKey)), createdAt: Date.now() } }, { merge: true });
+      const salt = new TextEncoder().encode(`memoir-key-salt:${this.profile.uid}`);
+      const wrappingKey = await deriveWrappingKey(password, salt, KEY_DERIVATION_ITERATIONS);
+      const rawDerived = await crypto.subtle.exportKey('raw', wrappingKey);
+      rawMaster = new Uint8Array(rawDerived);
+
+      try {
+        const randIv = crypto.getRandomValues(new Uint8Array(12));
+        const wrappedKey = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: randIv }, wrappingKey, rawMaster);
+        await this.firebase.setDoc(keyRef, {
+          appName: 'Memoir',
+          ownerEmail: this.profile.email,
+          storage: 'client-encrypted',
+          vaultKey: {
+            version: 2,
+            algorithm: 'AES-256-GCM',
+            derivation: 'PBKDF2-SHA-256',
+            iterations: KEY_DERIVATION_ITERATIONS,
+            salt: bytesToB64(salt),
+            iv: bytesToB64(randIv),
+            wrappedKey: bytesToB64(new Uint8Array(wrappedKey)),
+            createdAt: Date.now(),
+          },
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Firestore vaultKey write fallback:', err?.message || err);
+      }
     }
+
     const masterKey = await crypto.subtle.importKey('raw', rawMaster, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-    const existingOwnerKey = await idb('keys', 'readonly', store => store.get(ownerKeyId()));
     const legacyKey = activeProfileUid === MAAZ_UID ? await idb('keys', 'readonly', store => store.get(LEGACY_KEY_ID)) : null;
     const rows = await idb('records', 'readonly', store => store.getAll());
     for (const row of rows) {
       let item;
-      for (const sourceKey of [existingOwnerKey, legacyKey].filter(Boolean)) { try { item = await decryptWithKey(row.payload, sourceKey); break; } catch { /* try the next local key */ } }
+      for (const sourceKey of [existingOwnerKey, legacyKey].filter(Boolean)) {
+        try { item = await decryptWithKey(row.payload, sourceKey); break; } catch { /* try next */ }
+      }
       if (!item) continue;
       const payload = await encryptWithKey(item, masterKey);
       await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: item.updatedAt, payload }));
       await idb('queue', 'readwrite', store => store.put({ id: item.id, op: 'put', updatedAt: item.updatedAt, payload }));
     }
     await idb('keys', 'readwrite', store => store.put(masterKey, ownerKeyId()));
+    return masterKey;
   }
 
   async signOut(reason = 'manual') {
