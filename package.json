@@ -28,7 +28,8 @@
     "firebase": "latest",
     "firebase-admin": "13.10.0",
     "lucide": "latest",
-    "marked": "latest"
+    "marked": "latest",
+    "motion": "latest"
   },
   "devDependencies": {
     "concurrently": "latest",
