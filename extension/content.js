@@ -625,6 +625,8 @@
     if (request.action === 'MEMOIR_SYNC_UPDATE' || request.action === 'MEMOIR_SYNC_DELETE') {
       window.postMessage({ type: 'MEMOIR_EXTENSION_SYNC_EVENT', action: request.action, item: request.item, items: request.items, id: request.id }, '*');
     }
+    sendResponse({ ok: true });
+    return false;
   });
 
   if (isMemoirApp) {
