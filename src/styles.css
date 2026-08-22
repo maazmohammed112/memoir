@@ -298,16 +298,18 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin: 10px 0 16px;
-  padding: 2px 0;
+  padding: 0;
+  width: 100%;
 }
 .memory-filters button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 7px 12px;
-  border-radius: 10px;
+  padding: 6px 12px;
+  border-radius: 20px;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
@@ -316,6 +318,10 @@
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  position: relative;
+  line-height: 1;
 }
 .memory-filters button:hover {
   background: var(--surface2);
@@ -326,23 +332,30 @@
   background: #171417;
   color: #ffffff;
   border-color: #171417;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.memory-filters button span {
+  display: inline-block;
+  white-space: nowrap;
 }
 .memory-filters button b {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
-  border-radius: 8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
   font-size: 9.5px;
   font-weight: 800;
   background: var(--surface2);
   color: var(--ink);
+  margin-left: 2px;
+  flex-shrink: 0;
+  line-height: 1;
 }
 .memory-filters button.active b {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.22);
   color: #ffffff;
 }
 

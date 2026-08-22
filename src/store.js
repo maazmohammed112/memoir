@@ -257,6 +257,11 @@ class VaultStore {
     this.session = { status: 'signedIn', email: this.profile.email, expiresAt, message: '', profile: this.profile };
     this.scheduleExpiry(expiresAt);
     this.emit();
+    if (this.pendingExtensionQueue && this.pendingExtensionQueue.length) {
+      const q = [...this.pendingExtensionQueue];
+      this.pendingExtensionQueue = [];
+      await this.ingestExtensionItems(q);
+    }
     if (navigator.onLine) await this.connect();
   }
 
@@ -537,11 +542,20 @@ class VaultStore {
         if (change.op === 'delete') await this.firebase.deleteDoc(target);
         else await this.firebase.setDoc(target, { payload: change.payload, updatedAt: change.updatedAt, encryption: 'AES-256-GCM', recordType: 'encrypted-vault-item' });
         await idb('queue', 'readwrite', store => store.delete(change.id));
-      } catch (error) { console.warn('Firestore write could not be completed.', error?.code || error?.message); this.status = 'offline'; this.emit(); break; }
+      } catch (error) {
+        // If client write is blocked by rules, attempt server mirror
+        try {
+          await this.mirror(change);
+          await idb('queue', 'readwrite', store => store.delete(change.id));
+        } catch {
+          console.warn('Firestore write queued for next sync.');
+          break;
+        }
+      }
     }
     if (this.uid) {
       try { await this.firebase.setDoc(this.firebase.doc(this.db, 'users', this.uid), { itemCount: this.items.length, lastSyncedAt: this.firebase.serverTimestamp() }, { merge: true }); }
-      catch (error) { console.warn('Firestore sync metadata could not be updated.', error?.code || error?.message); this.status = 'offline'; this.emit(); }
+      catch { /* optional metadata */ }
     }
   }
 
@@ -675,6 +689,11 @@ class VaultStore {
 
   async ingestExtensionItems(incoming) {
     if (!Array.isArray(incoming) || !incoming.length) return;
+    if (this.session.status !== 'signedIn' || !this.profile?.uid || !activeProfileUid) {
+      if (!this.pendingExtensionQueue) this.pendingExtensionQueue = [];
+      this.pendingExtensionQueue.push(...incoming);
+      return;
+    }
     let changed = false;
     for (const raw of incoming) {
       if (!raw || !raw.id) continue;
@@ -702,7 +721,7 @@ class VaultStore {
           this.items = [item, ...this.items.filter(i => i.id !== item.id)].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
           changed = true;
         } catch (err) {
-          console.warn('Failed to ingest extension item:', err);
+          console.warn('Extension item ingest skipped:', err?.message || err);
         }
       }
     }

@@ -473,7 +473,7 @@ function shell() {
       <header class="topbar">
         <div class="topbar-copy"><span class="mobile-brand-icon"><img src="/brand/pwa-192.png" alt="Memoir"></span><div><p class="eyebrow">${new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>${titleForView()}</h1></div></div>
         <div class="top-actions">
-          <div class="global-search"><span>${icon('Search')}</span><input id="global-search" placeholder="Search everything…" autocomplete="off"><span class="key-hint">⌘ K</span></div>
+          <div class="global-search"><span>${icon('Search')}</span><input id="global-search" name="search" aria-label="Search everything" placeholder="Search everything…" autocomplete="off"><span class="key-hint">⌘ K</span></div>
           <span class="sync-pill"><i class="sync-dot ${state.status === 'synced' ? '' : 'offline'}"></i>${syncLabel()}</span>
           <button class="header-rhino-runner" id="header-rhino-assistant" title="Open Rhinous" aria-label="Open Rhinous assistant"><span class="rhino-track" aria-hidden="true"></span><span class="header-rhino-launch" aria-hidden="true"><img src="/brand/memoir-rhino-ui.png" alt=""></span><i></i><i></i><i></i></button>
           <button class="round-btn mobile-search" id="mobile-search-button" title="Search everything">${icon('Search')}</button>
@@ -1550,12 +1550,12 @@ function browserCapturesView() {
   
   const extCategory = state.extCategory || 'all';
   const filterList = [
-    ['all', 'All Captures'],
-    ['gov', 'Government & ACK'],
-    ['logins', 'Logins & Passwords'],
-    ['finance', 'Cards & Banks'],
+    ['all', 'All'],
+    ['gov', 'Government'],
+    ['logins', 'Logins'],
+    ['finance', 'Cards'],
     ['identity', 'Identity'],
-    ['personal', 'Notes & Records'],
+    ['personal', 'Notes'],
   ];
 
   let filtered = allCaptures;
@@ -1595,7 +1595,7 @@ function browserCapturesView() {
 
   const toolbar = `
     <div class="toolbar">
-      <input class="search-input" id="ext-filter" placeholder="Search application numbers, ACK tokens, passwords, or domains…">
+      <input class="search-input" id="ext-filter" name="ext-filter" aria-label="Search browser captures" placeholder="Search application numbers, ACK tokens, passwords, or domains…">
       <button class="primary" data-add="memory">${icon('Plus')} Add memory</button>
     </div>
   `;
@@ -1633,7 +1633,7 @@ function vaultView() {
   const list = state.vaultCategory === 'all' ? all : all.filter(item => memoryFilterGroup(item) === state.vaultCategory);
   const filterBar = `<div class="memory-filters" role="tablist" aria-label="Filter memories by category">${availableFilters.map(([id, label]) => `<button type="button" role="tab" aria-selected="${state.vaultCategory === id}" class="${state.vaultCategory === id ? 'active' : ''}" data-vault-category="${id}"><span>${escapeHtml(label)}</span><b>${counts[id]}</b></button>`).join('')}</div>`;
   const empty = all.length ? emptyState('Search', `No ${filters.find(([id]) => id === state.vaultCategory)?.[1] || ''} memories`, 'Choose another category or add a new memory.', 'Add memory', 'memory') : emptyState('Gem', 'Nothing saved yet', 'Start with a login, bank record, document, Wi-Fi detail, or anything personal.', 'Add first memory', 'memory');
-  return `${switcher}<div class="workspace-body"><div class="toolbar"><input class="search-input" id="vault-filter" placeholder="Filter titles, notes, fields or values…"><button class="secondary" id="bulk-import">${icon('NotebookText')} Secure import</button><button class="primary" data-add="memory">${icon('Plus')} Add memory</button></div>${filterBar}${list.length ? `<div class="vault-list" id="vault-list">${list.map(vaultRow).join('')}</div>` : empty}</div>`;
+  return `${switcher}<div class="workspace-body"><div class="toolbar"><input class="search-input" id="vault-filter" name="vault-filter" aria-label="Filter memories" placeholder="Filter titles, notes, fields or values…"><button class="secondary" id="bulk-import">${icon('NotebookText')} Secure import</button><button class="primary" data-add="memory">${icon('Plus')} Add memory</button></div>${filterBar}${list.length ? `<div class="vault-list" id="vault-list">${list.map(vaultRow).join('')}</div>` : empty}</div>`;
 }
 function audioView() {
   const selected = state.items.find(item => item.id === state.selectedMemoryId);
@@ -1731,7 +1731,7 @@ function assistantView() {
 
   const placeholderText = attachments.length ? `Notes for ${attachments.length} attachment${attachments.length > 1 ? 's' : ''} or tap Send to extract…` : 'Ask Rhinous or dictate memory/reminder…';
 
-  return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div>${attachmentMarkup}${voiceIndicator}<form class="chat-form" id="chat-form"><input type="file" id="chat-camera-input" accept="image/*" capture="environment" multiple hidden><input type="file" id="chat-upload-input" accept="image/*,application/pdf" multiple hidden><input type="file" id="chat-audio-input" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac" hidden><div class="chat-input-row"><button type="button" class="chat-media-btn" id="chat-camera-btn" title="Snap photo of document/warranty (up to 5)">${icon('Camera')}</button><button type="button" class="chat-media-btn" id="chat-upload-btn" title="Upload images or invoices (up to 5)">${icon('Paperclip')}</button><button type="button" class="chat-media-btn" id="chat-audio-upload-btn" title="Upload an audio recording">${icon('AudioLines')}</button><button type="button" class="chat-media-btn ${state.isRecordingVoice ? 'recording' : ''}" id="chat-voice-btn" title="Record a voice memo">${icon('Mic')}</button><input id="chat-query" autocomplete="off" placeholder="${escapeHtml(placeholderText)}"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></div></form></section>
+  return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div>${attachmentMarkup}${voiceIndicator}<form class="chat-form" id="chat-form"><input type="file" id="chat-camera-input" accept="image/*" capture="environment" multiple hidden><input type="file" id="chat-upload-input" accept="image/*,application/pdf" multiple hidden><input type="file" id="chat-audio-input" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac" hidden><div class="chat-input-row"><button type="button" class="chat-media-btn" id="chat-camera-btn" title="Snap photo of document/warranty (up to 5)">${icon('Camera')}</button><button type="button" class="chat-media-btn" id="chat-upload-btn" title="Upload images or invoices (up to 5)">${icon('Paperclip')}</button><button type="button" class="chat-media-btn" id="chat-audio-upload-btn" title="Upload an audio recording">${icon('AudioLines')}</button><button type="button" class="chat-media-btn ${state.isRecordingVoice ? 'recording' : ''}" id="chat-voice-btn" title="Record a voice memo">${icon('Mic')}</button><input id="chat-query" name="chat-query" aria-label="Ask Rhinous assistant" autocomplete="off" placeholder="${escapeHtml(placeholderText)}"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></div></form></section>
   <aside class="panel"><p class="eyebrow">Smart Multi-Modal</p><h3>Capture, snap & transcribe</h3><div class="suggestions">${['Snap up to 5 warranty cards/invoices to auto-extract', 'Dictate: “Remember my appliance warranty with 2 years validity”', 'Remind me to renew my passport tomorrow at 6 PM', 'Give me only my EPFO password'].map(text => `<button class="suggestion" data-ask="${escapeHtml(text)}">${escapeHtml(text)}</button>`).join('')}</div><div class="privacy-line">${icon('ShieldCheck')}<span>Smart Capture extracts structured records on device. Credentials stay encrypted in your isolated vault.</span></div></aside></div>`;
 }
 

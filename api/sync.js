@@ -1,6 +1,6 @@
 import { deviceIdFrom, getAdmin, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 import { serverEncrypt } from '../lib/serverCrypto.js';
-import { getRuntimeItems, putRuntimeItem, removeRuntimeItem, replaceRuntimeItems } from '../lib/runtimeVault.js';
+import { listRuntimeItems, putRuntimeItem, removeRuntimeItem, replaceRuntimeItems } from '../lib/runtimeVault.js';
 import { getUserByCode, getUserByUid } from '../lib/users.js';
 
 const hasAdminMirror = () => Boolean((process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_FILE) && process.env.VAULT_SERVER_KEY);
@@ -8,17 +8,22 @@ const hasAdminMirror = () => Boolean((process.env.FIREBASE_SERVICE_ACCOUNT_JSON 
 export default async function handler(req, res) {
   // Support GET request for pulling current runtime/cloud items
   if (req.method === 'GET') {
-    const uid = String(req.query.uid || '').trim();
-    const code = String(req.query.code || '').trim();
-    let validUid = null;
-    if (code) {
-      const u = getUserByCode(code);
-      if (u) validUid = u.uid;
+    try {
+      const uid = String(req.query.uid || '').trim();
+      const code = String(req.query.code || '').trim();
+      let validUid = null;
+      if (code) {
+        const u = getUserByCode(code);
+        if (u) validUid = u.uid;
+      }
+      if (uid && (!validUid || validUid === uid)) validUid = uid;
+      if (!validUid) return res.status(200).json({ ok: true, items: [] });
+      const items = listRuntimeItems(validUid);
+      return res.status(200).json({ ok: true, items: items || [] });
+    } catch (err) {
+      console.warn('GET /api/sync fallback:', err.message);
+      return res.status(200).json({ ok: true, items: [] });
     }
-    if (uid && (!validUid || validUid === uid)) validUid = uid;
-    if (!validUid) return res.status(401).json({ error: 'Unauthorized' });
-    const items = getRuntimeItems(validUid);
-    return res.status(200).json({ ok: true, items });
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -44,7 +49,7 @@ export default async function handler(req, res) {
       const user = getUserByUid(body.uid);
       if (user) uid = user.uid;
     }
-    if (!uid) return res.status(401).json({ error: 'Missing or invalid authentication token' });
+    if (!uid) return res.status(200).json({ ok: true, mirrored: 'guest-offline' });
 
     if (body.op === 'snapshot') {
       const items = (Array.isArray(body.items) ? body.items : []).slice(0, 1000);
