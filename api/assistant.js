@@ -385,7 +385,8 @@ ${JSON.stringify(cleanCatalog)}`;
   }
   } catch (error) {
     if (audio?.data) return voiceMemoFallback(audioTranscript, userTz, now, activeProvider);
-    throw error;
+    console.warn('AI models failed, using deterministic local assistant engine:', error?.message || error);
+    return localAssistantFallback(query, cleanCatalog, error?.message);
   }
 
   let normalized = normalize(parseJson(response.result), cleanCatalog);
@@ -400,6 +401,65 @@ ${JSON.stringify(cleanCatalog)}`;
   return { ...normalized, provider: activeProvider, model: response.model, ...(audio?.data ? { audioTranscript: usableTranscript(audioTranscript) ? audioTranscript : '', transcriptionStatus: usableTranscript(audioTranscript) ? 'completed' : 'unavailable' } : {}) };
 }
 
+function localAssistantFallback(query = '', catalog = [], errorMsg = '') {
+  const q = String(query || '').toLowerCase().trim();
+  
+  if (!q || /^(hi|hello|hey|greetings|hola|namaste|good morning|good evening|who are you|what can you do)\b/i.test(q)) {
+    return {
+      kind: 'general',
+      title: 'Rhinous Assistant',
+      markdown: 'Hello! I am Rhinous, your private vault assistant. I can help you search, retrieve, and organize your saved credentials, Wi-Fi networks, cards, to-do lists, reminders, and documents.',
+      matches: [],
+      actions: [],
+      provider: 'local-vault-engine',
+      model: 'deterministic-vault-agent',
+    };
+  }
+
+  const words = q.split(/\s+/).filter(w => w.length > 2);
+  let bestMatch = null;
+  let highestScore = 0;
+
+  for (const item of catalog) {
+    let score = 0;
+    const titleLower = String(item.title || '').toLowerCase();
+    const typeLower = String(item.type || '').toLowerCase();
+    if (titleLower.includes(q)) score += 10;
+    for (const w of words) {
+      if (titleLower.includes(w)) score += 3;
+      if (typeLower.includes(w)) score += 2;
+      for (const fn of item.fieldNames || []) {
+        if (String(fn).toLowerCase().includes(w)) score += 1;
+      }
+    }
+    if (score > highestScore) {
+      highestScore = score;
+      bestMatch = item;
+    }
+  }
+
+  if (bestMatch && highestScore >= 3) {
+    return {
+      kind: 'lookup',
+      title: bestMatch.title,
+      markdown: `Here is the record matching your request from your private vault.`,
+      matches: [{ id: bestMatch.id, fields: bestMatch.fieldNames || [] }],
+      actions: [],
+      provider: 'local-vault-engine',
+      model: 'deterministic-vault-agent',
+    };
+  }
+
+  return {
+    kind: 'general',
+    title: 'Rhinous Assistant',
+    markdown: `I searched your vault memories for "${query}". You can ask to view any saved card, password, Wi-Fi key, or create a reminder or to-do list.`,
+    matches: [],
+    actions: [],
+    provider: 'local-vault-engine',
+    model: 'deterministic-vault-agent',
+  };
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
