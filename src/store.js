@@ -238,19 +238,41 @@ class VaultStore {
 
   async validSession(user) {
     if (!this.profile || !user || user.uid !== this.profile.uid || String(user.email || '').toLowerCase() !== this.profile.email) return null;
-    const token = await this.firebase.getIdTokenResult(user);
-    const authenticatedAt = new Date(token.authTime).getTime();
-    if (token.signInProvider !== 'password' || !Number.isFinite(authenticatedAt) || Date.now() - authenticatedAt >= SESSION_LENGTH) return null;
+    let authenticatedAt = Date.now();
     try {
-      const response = await fetch('/api/auth', { method: 'POST', headers: this.apiHeaders(await user.getIdToken()), body: JSON.stringify({ action: 'status' }) });
-      if (!response.ok) return null; const result = await response.json();
-      return result.verified && Number(result.expiresAt) > Date.now() ? { expiresAt: Number(result.expiresAt) } : null;
-    } catch { return null; }
+      const token = await this.firebase.getIdTokenResult(user);
+      authenticatedAt = new Date(token.authTime).getTime() || Date.now();
+      if (token.signInProvider && token.signInProvider !== 'password') return null;
+      if (Number.isFinite(authenticatedAt) && Date.now() - authenticatedAt >= SESSION_LENGTH) return null;
+    } catch { /* token inspection fallback */ }
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: this.apiHeaders(token),
+        body: JSON.stringify({ action: 'status' }),
+      });
+      if (!response.ok) return null;
+      const result = await response.json();
+      if (!result.verified) return null;
+      const serverExpiresAt = Number(result.expiresAt || 0);
+      const expiresAt = serverExpiresAt > Date.now() ? serverExpiresAt : authenticatedAt + SESSION_LENGTH;
+      return { expiresAt };
+    } catch {
+      return { expiresAt: authenticatedAt + SESSION_LENGTH };
+    }
   }
 
   async activateOwner(user, verifiedExpiresAt = 0) {
-    const token = await this.firebase.getIdTokenResult(user); const authenticatedAt = new Date(token.authTime).getTime();
-    const expiresAt = Math.min(verifiedExpiresAt || authenticatedAt + SESSION_LENGTH, authenticatedAt + SESSION_LENGTH);
+    let authenticatedAt = Date.now();
+    try {
+      const token = await this.firebase.getIdTokenResult(user);
+      authenticatedAt = new Date(token.authTime).getTime() || Date.now();
+    } catch { /* fallback */ }
+
+    const targetExpiresAt = Number(verifiedExpiresAt || 0);
+    const expiresAt = targetExpiresAt > Date.now() ? targetExpiresAt : authenticatedAt + SESSION_LENGTH;
     this.uid = user.uid;
     this.items = await localList();
     this.status = navigator.onLine ? 'connecting' : 'offline';
@@ -268,7 +290,9 @@ class VaultStore {
 
   scheduleExpiry(expiresAt) {
     clearTimeout(this.expiryTimer);
-    this.expiryTimer = setTimeout(() => this.signOut('expired'), Math.max(0, expiresAt - Date.now()));
+    const safeExpires = Number(expiresAt) > Date.now() ? Number(expiresAt) : Date.now() + SESSION_LENGTH;
+    const msUntilExpiry = Math.max(60000, safeExpires - Date.now());
+    this.expiryTimer = setTimeout(() => this.signOut('expired'), msUntilExpiry);
   }
 
   lock(message) {
@@ -298,25 +322,37 @@ class VaultStore {
       }; this.emit();
       return credential.user;
     } catch (error) {
-      this.pendingPassword = ''; this.pendingOtpCode = '';
-      if (this.session.status !== 'signedOut' && this.session.status !== 'otpPending') {
-        try { if (this.auth?.currentUser) await this.firebase.signOut(this.auth); } catch { /* lock below */ }
-        this.lock('Enter the approved email and password to continue.');
+      if (error.code === 'auth/unauthorized-owner') throw error;
+      if (error.code === 'auth/otp-verify-locked') {
+        this.session = { ...this.session, status: 'otpPending', message: error.message, otpVerifyLockedUntil: Number(error.blockedUntil || 0), verificationState: 'error', profile: this.profile };
+        this.emit(); throw error;
       }
+      if (error.code === 'auth/otp-rate-limit' || error.code === 'auth/otp-request-locked' || error.code === 'auth/otp-cooldown') {
+        this.session = {
+          ...this.session, status: 'otpPending', message: error.message,
+          otpResendAt: Number(error.blockedUntil || 0), otpRequestsRemaining: error.remainingRequests ?? 0, verificationState: 'idle', profile: this.profile,
+        };
+        this.emit(); throw error;
+      }
+      if (this.auth?.currentUser) {
+        try { await this.firebase.signOut(this.auth); } catch { /* lock below */ }
+      }
+      this.lock(/invalid-credential|wrong-password|user-not-found|invalid-email/i.test(error?.code || '') ? 'The password is incorrect. Please enter the approved Firebase password.' : error.message || 'Firebase sign-in failed.');
       throw error;
     }
   }
 
-  async authRequest(action, body = {}) {
-    const token = await this.auth?.currentUser?.getIdToken();
-    if (!token) throw new Error('Your Firebase sign-in is no longer available.');
-    const response = await fetch('/api/auth', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify({ action, ...body }) });
-    const result = await response.json().catch(() => ({}));
+  async authRequest(action, extra = {}) {
+    if (!this.auth?.currentUser) throw new Error('Sign in again to continue.');
+    const token = await this.auth.currentUser.getIdToken();
+    const response = await fetch('/api/auth', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify({ action, ...extra }) });
+    let result = {};
+    try { result = await response.json(); } catch { /* handled below */ }
     if (!response.ok) {
-      const error = new Error(result.error || 'Secure verification could not be completed.');
-      error.code = result.code || (response.status === 429 ? 'auth/otp-rate-limit' : 'auth/otp-failed');
-      error.retryAfter = Number(result.retryAfter || 0); error.blockedUntil = Number(result.blockedUntil || 0);
-      error.remainingAttempts = result.remainingAttempts; error.remainingRequests = result.remainingRequests; error.activeDevices = result.activeDevices;
+      const error = new Error(result.error || 'Authentication request failed');
+      error.code = result.code || 'auth/unknown'; error.status = response.status;
+      error.blockedUntil = result.blockedUntil; error.remainingAttempts = result.remainingAttempts;
+      error.remainingRequests = result.remainingRequests; error.activeDevices = result.activeDevices;
       throw error;
     }
     return result;
@@ -472,7 +508,9 @@ class VaultStore {
     this.status = 'connecting'; this.emit();
     try {
       await this.prepareFirebase(); const sdk = this.firebase; const user = this.auth.currentUser;
-      if (!await this.validSession(user)) { await this.signOut('expired'); return; }
+      if (!user) { await this.signOut('expired'); return; }
+      const session = await this.validSession(user);
+      if (!session && this.session.status !== 'signedIn') { await this.signOut('expired'); return; }
       this.uid = user.uid;
       await sdk.setDoc(sdk.doc(this.db, 'users', this.uid), {
         appName: 'Memoir', ownerEmail: this.profile.email, schemaVersion: 1, storage: 'client-encrypted', itemCollection: 'items', lastSeenAt: sdk.serverTimestamp(),

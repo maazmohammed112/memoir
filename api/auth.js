@@ -234,7 +234,8 @@ export default async function handler(req, res) {
     const identity = await verifyApprovedToken(req);
     if (action === 'status') {
       const session = await verifiedSessionFor(identity, deviceId);
-      return res.status(200).json({ verified: Boolean(session), expiresAt: session?.expiresAtMs || 0 });
+      const expiresAt = Number(session?.expiresAt || session?.expiresAtMs || 0);
+      return res.status(200).json({ verified: Boolean(session), expiresAt });
     }
     if (action === 'request') return res.status(200).json(await requestOtp(identity));
     if (action === 'verify') return res.status(200).json(await verifyOtp(identity, req.body?.code, { deviceId, deviceName, replaceDevices: Boolean(req.body?.replaceDevices) }));
