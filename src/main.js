@@ -539,8 +539,21 @@ function renderAuthGate() {
 }
 
 function bindAuthGate() {
-  document.querySelector('#account-code-form')?.addEventListener('submit', async event => {
+  const accountCodeInput = document.querySelector('#account-code');
+  const accountCodeForm = document.querySelector('#account-code-form');
+  if (accountCodeInput) {
+    accountCodeInput.addEventListener('input', () => {
+      const val = accountCodeInput.value.replace(/\D/g, '').slice(0, 4);
+      accountCodeInput.value = val;
+      if (val.length === 4) {
+        accountCodeForm?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    });
+  }
+  accountCodeForm?.addEventListener('submit', async event => {
     event.preventDefault(); state.authError = '';
+    const submitBtn = event.currentTarget.querySelector('.auth-submit');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<span class="button-spinner"></span> Unlocking…'; }
     try { await vaultStore.selectAccount(document.querySelector('#account-code').value); }
     catch (error) { state.authError = `${error.message || 'That account number is not recognized.'}${Number.isFinite(error.remainingAttempts) && error.remainingAttempts > 0 ? ` ${error.remainingAttempts} attempt${error.remainingAttempts === 1 ? '' : 's'} remaining.` : ''}`; shell(); }
   });

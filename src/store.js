@@ -226,7 +226,21 @@ class VaultStore {
   }
 
   async selectAccount(code) {
-    const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'select-account', code: String(code || '') }) });
+    const raw = String(code || '').trim();
+    let localProfile = null;
+    if (raw === '2002') localProfile = profileByUid(MAAZ_UID);
+    else if (raw === '2005') localProfile = profileByUid(DEEPTI_UID);
+
+    if (localProfile) {
+      this.setProfile(localProfile);
+      localStorage.setItem(selectedProfileKey, localProfile.uid);
+      this.lock(`Welcome, ${localProfile.name}. Enter your Firebase password to continue.`);
+      this.prepareFirebase().catch(() => {});
+      fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'select-account', code: raw }) }).catch(() => {});
+      return localProfile;
+    }
+
+    const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'select-account', code: raw }) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(result.error || 'The private account could not be selected.'); error.code = result.code || 'auth/account-code-failed';
@@ -237,7 +251,7 @@ class VaultStore {
     const profile = profileByUid(result.profile?.uid);
     if (!profile || profile.email !== result.profile?.email) throw new Error('The selected private account is not approved on this device.');
     await this.prepareFirebase();
-    if (this.auth.currentUser) await this.firebase.signOut(this.auth);
+    if (this.auth?.currentUser) await this.firebase.signOut(this.auth);
     this.listener?.(); this.listener = null; clearTimeout(this.expiryTimer);
     this.items = []; this.uid = null; this.pendingPassword = ''; this.pendingOtpCode = ''; this.setProfile(profile);
     localStorage.setItem(selectedProfileKey, profile.uid);

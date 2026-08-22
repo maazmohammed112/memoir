@@ -74,9 +74,15 @@ async function reserveOtpRequest(firestore, identity) {
     const existingRequestBlock = Number(data.requestBlockedUntil || 0);
     if (existingRequestBlock > now) return { error: 'The maximum of 5 OTP requests was reached. Try again in 4 hours.', status: 429, code: 'auth/otp-request-locked', blockedUntil: existingRequestBlock, remainingRequests: 0 };
     const lastRequestAt = Number(data.lastRequestAt || 0);
-    if (lastRequestAt && now - lastRequestAt < OTP_RESEND_MS) {
+    if (lastRequestAt && now - lastRequestAt < 5000) {
       const nextRequestAt = lastRequestAt + OTP_RESEND_MS;
-      return { error: 'A new OTP can be requested after 1:30 minutes.', status: 429, code: 'auth/otp-cooldown', blockedUntil: nextRequestAt, remainingRequests: Math.max(0, OTP_REQUEST_LIMIT - Number(data.requestCount || 0)) };
+      return {
+        reused: true,
+        reservedAt: lastRequestAt,
+        remainingRequests: Math.max(0, OTP_REQUEST_LIMIT - Number(data.requestCount || 0)),
+        nextRequestAt,
+        ref,
+      };
     }
     let windowStartedAt = Number(data.requestWindowStartedAt || 0); let requestCount = Number(data.requestCount || 0);
     if (!windowStartedAt || now - windowStartedAt >= OTP_REQUEST_BLOCK_MS) { windowStartedAt = now; requestCount = 0; }
