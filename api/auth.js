@@ -65,7 +65,7 @@ async function reserveOtpRequest(firestore, identity) {
       return { error: 'The maximum of 5 OTP requests was reached. Try again in 4 hours.', status: 429, code: 'auth/otp-request-locked', blockedUntil, remainingRequests: 0 };
     }
     const lastRequestAt = Number(data.lastRequestAt || 0);
-    if (lastRequestAt && now - lastRequestAt < 10000) {
+    if (lastRequestAt && now - lastRequestAt < 4000) {
       const nextRequestAt = lastRequestAt + OTP_RESEND_MS;
       return {
         reused: true,
@@ -73,16 +73,7 @@ async function reserveOtpRequest(firestore, identity) {
         remainingRequests: Math.max(0, OTP_REQUEST_LIMIT - Number(data.requestCount || 0)),
         nextRequestAt,
         ref,
-      };
-    }
-    if (lastRequestAt && now - lastRequestAt < OTP_RESEND_MS) {
-      const blockedUntil = lastRequestAt + OTP_RESEND_MS;
-      return {
-        error: 'Please wait for the resend timer before requesting another Telegram code.',
-        status: 429,
         code: 'auth/otp-cooldown',
-        blockedUntil,
-        remainingRequests: Math.max(0, OTP_REQUEST_LIMIT - Number(data.requestCount || 0)),
       };
     }
     const nextCount = requestCount + 1; const requestBlockedUntil = nextCount >= OTP_REQUEST_LIMIT ? now + OTP_REQUEST_BLOCK_MS : 0;
