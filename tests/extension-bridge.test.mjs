@@ -20,10 +20,11 @@ assert.equal(extractDomain('https://ajsk.karnataka.gov.in/'), 'ajsk.karnataka.go
 // Test 2: Web App Memory Filter Group logic
 const source = fs.readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const filterSource = source.slice(source.indexOf('function memoryFilterGroup'), source.indexOf('function reminders()'));
+const isBrowserCaptureSource = source.slice(source.indexOf('function isBrowserCapture'), source.indexOf('function browserCapturesView()'));
 
 const context = {};
 vm.createContext(context);
-vm.runInContext(`${filterSource}; this.filterGroup = memoryFilterGroup;`, context);
+vm.runInContext(`${isBrowserCaptureSource}; ${filterSource}; this.filterGroup = memoryFilterGroup; this.isBrowserCapture = isBrowserCapture;`, context);
 
 const regularLogin = { id: '1', type: 'Login', title: 'Regular Login', fields: { Password: '123' } };
 const extensionLogin = { id: '2', type: 'Login', title: 'GitHub Login', fields: { Password: '123' }, provenance: { source: 'Chrome Extension', domain: 'github.com' } };
@@ -31,8 +32,9 @@ const ackDocument = { id: '3', type: 'Government Document', title: 'AJSK ACK Num
 const bankCard = { id: '4', type: 'Finance', title: 'SBI Card', fields: { 'ATM PIN': '1234' } };
 
 assert.equal(context.filterGroup(regularLogin), 'logins');
-assert.equal(context.filterGroup(extensionLogin), 'extension');
-assert.equal(context.filterGroup(ackDocument), 'extension');
+assert.equal(context.isBrowserCapture(extensionLogin), true);
+assert.equal(context.isBrowserCapture(ackDocument), true);
+assert.equal(context.isBrowserCapture(regularLogin), false);
 assert.equal(context.filterGroup(bankCard), 'banks');
 
 // Test 3: Extension Manifest Validation

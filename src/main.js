@@ -565,15 +565,13 @@ function bindAuthGate() {
 function skeleton() { return `<section class="vault-opening"><div class="vault-opening-head"><span class="vault-opening-mark"><img src="/brand/memoir-rhino-ui.png" alt=""></span><div><p class="eyebrow">Encrypted cloud vault</p><h2>Loading your memories…</h2><p>Downloading and decrypting this owner’s latest records. Cached memories will appear instantly on future visits.</p></div><span class="opening-live"><i></i> Secure sync</span></div><div class="opening-grid"><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article></div><div class="opening-list">${Array.from({ length: 4 }, () => `<div class="opening-row"><div class="skeleton opening-avatar"></div><div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></div><div class="skeleton opening-action"></div></div>`).join('')}</div></section>`; }
 function currentView() { return ({ home: homeView, vault: vaultView, guard: guardView, assistant: assistantView, planner: plannerView, capture: captureView, birthdays: birthdaysView }[state.view] || homeView)(); }
 function memories() { return state.items.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Notification', 'Todo'].includes(item.type)); }
-function vaultMemories() { return memories().filter(item => item.type !== 'Birthday' && item.type !== 'Audio'); }
+function vaultMemories() { return memories().filter(item => item.type !== 'Birthday' && item.type !== 'Audio' && !isBrowserCapture(item)); }
 function memoryFilterGroup(item) {
-  const isExtension = /extension|chrome/i.test(String(item?.provenance?.source || item?.fields?.['Created via'] || ''));
-  if (isExtension) return 'extension';
   if (item.type === 'Finance') return 'banks';
   if (['Identity', 'Government Document'].includes(item.type)) return 'documents';
   if (item.type === 'Login') return 'logins';
   if (item.type === 'Wi-Fi') return 'wifi';
-  return 'personal';
+  return 'notes';
 }
 function reminders() { return state.items.filter(item => item.type === 'Reminder'); }
 function todoLists() { return state.items.filter(item => item.type === 'Todo'); }
@@ -1094,14 +1092,15 @@ function homeView() {
     </article>
   `;
 
+  const normalMemories = vaultMemories();
   return `<div class="hero-grid"><section class="hero"><img class="hero-rhino" src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Your private second brain</p><h2>Everything important, remembered beautifully.</h2><p>Save private details, retrieve only what you need, and never miss a meaningful moment.</p><button class="primary" data-add="memory">${icon('Plus')} Add a memory</button></section>
-  <div class="stat-grid"><article class="stat large" data-view="vault" style="cursor:pointer"><span class="stat-symbol rose">${icon('ShieldCheck')}</span><div><strong>${memories().length}</strong><span>memories kept safe</span></div></article><article class="stat" data-view="extension" style="cursor:pointer"><span class="stat-symbol green">${icon('Globe')}</span><div><strong>${extensionItems.length}</strong><span>browser captures</span></div></article><article class="stat" data-view="reminders" style="cursor:pointer"><span class="stat-symbol violet">${icon('AlarmClock')}</span><div><strong>${upcomingReminders.length}</strong><span>upcoming reminders</span></div></article></div></div>
+  <div class="stat-grid"><article class="stat large" data-view="vault" style="cursor:pointer"><span class="stat-symbol rose">${icon('ShieldCheck')}</span><div><strong>${normalMemories.length}</strong><span>memories kept safe</span></div></article><article class="stat" data-view="extension" style="cursor:pointer"><span class="stat-symbol green">${icon('Globe')}</span><div><strong>${extensionItems.length}</strong><span>browser captures</span></div></article><article class="stat" data-view="reminders" style="cursor:pointer"><span class="stat-symbol violet">${icon('AlarmClock')}</span><div><strong>${upcomingReminders.length}</strong><span>upcoming reminders</span></div></article></div></div>
   ${extensionBannerHtml}
   ${guardBannerHtml}
   ${expiriesHtml}
   ${upcomingReminders.length ? `<div class="section-head"><h2>Coming up</h2><button class="text-btn" data-view="reminders">All reminders</button></div><div class="dashboard-reminders">${upcomingReminders.slice(0, 3).map(item => reminderCard(item, true)).join('')}</div>` : ''}
   <div class="section-head"><h2>Recently remembered</h2><button class="text-btn" data-view="vault">View everything</button></div>
-  ${memories().length ? `<div class="card-grid">${memories().slice(0, 3).map(memoryCard).join('')}</div>` : emptyState('Gem', 'Your vault is ready', 'Add your first memory. No demo records are included.', 'Add memory', 'memory')}`;
+  ${normalMemories.length ? `<div class="card-grid">${normalMemories.slice(0, 3).map(memoryCard).join('')}</div>` : emptyState('Gem', 'Your vault is ready', 'Add your first memory. No demo records are included.', 'Add memory', 'memory')}`;
 }
 
 function auditVaultSecurity(items, profile) {
@@ -1626,7 +1625,7 @@ function vaultView() {
     return `${switcher}<div class="workspace-body">${browserCapturesView()}</div>`;
   }
   const all = vaultMemories();
-  const filters = [['all', 'All'], ['extension', 'Browser Captures'], ['banks', 'Banks'], ['documents', 'Documents'], ['logins', 'Logins'], ['wifi', 'Wi-Fi'], ['personal', 'Personal']];
+  const filters = [['all', 'All'], ['banks', 'Banks'], ['documents', 'Documents'], ['logins', 'Logins'], ['wifi', 'Wi-Fi'], ['notes', 'Notes']];
   const counts = Object.fromEntries(filters.map(([id]) => [id, id === 'all' ? all.length : all.filter(item => memoryFilterGroup(item) === id).length]));
   const availableFilters = filters.filter(([id]) => id === 'all' || counts[id]);
   if (!availableFilters.some(([id]) => id === state.vaultCategory)) state.vaultCategory = 'all';
