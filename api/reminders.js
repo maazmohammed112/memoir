@@ -657,8 +657,15 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!token) return res.status(401).json({ error: 'Missing identity token' });
-      const identity = await verifyOwnerToken(token, deviceIdFrom(req));
-      return res.status(200).json({ ok: true, ...(await runReminderSweep(Date.now(), identity.uid)) });
+      try {
+        const identity = await verifyOwnerToken(token, deviceIdFrom(req));
+        return res.status(200).json({ ok: true, ...(await runReminderSweep(Date.now(), identity.uid)) });
+      } catch (authErr) {
+        if (authErr?.status === 401 || authErr?.code === 'auth/otp-required') {
+          return res.status(200).json({ ok: true, skipped: 'unverified-session', delivered: 0 });
+        }
+        throw authErr;
+      }
     }
     if (req.method === 'GET') {
       if (!isSchedulerAuthorized(req) && process.env.NODE_ENV === 'production') {

@@ -3882,8 +3882,17 @@ vaultStore.subscribe((items, status, session) => {
   if (state.auth.status === 'signedIn') state.authError = '';
   if (wasSignedIn && state.auth.status === 'signedIn' && document.querySelector('.shell')) {
     updateSyncUi();
-    const isEditingTodo = document.activeElement && (document.activeElement.matches('[data-todo-amount], input, textarea') || document.activeElement.closest('.todo-card'));
-    if (!document.querySelector('.detail') && !isEditingTodo) renderView();
+    const isEditingInput = document.activeElement && document.activeElement.matches('[data-todo-amount], input, textarea');
+    if (!document.querySelector('.detail')) {
+      if (!isEditingInput) renderView();
+      else {
+        document.querySelectorAll('.todo-card').forEach(card => {
+          const editBtn = card.querySelector('[data-todo-edit]');
+          const itemId = editBtn?.dataset?.todoEdit;
+          if (itemId) refreshTodoCardDom(itemId);
+        });
+      }
+    }
   }
   else shell();
   if (state.auth.status === 'signedIn') { updateNotificationBadge(); }

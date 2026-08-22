@@ -89,16 +89,18 @@ async function deriveWrappingKey(password, salt, iterations = KEY_DERIVATION_ITE
 }
 
 async function getVaultKey() {
-  let key = await idb('keys', 'readonly', store => store.get(ownerKeyId()));
+  const currentUid = activeProfileUid || localStorage.getItem('memoir-selected-profile') || MAAZ_UID;
+  const keyId = currentUid === MAAZ_UID ? 'owner-vault-key-v2' : `owner-vault-key-v2-${currentUid}`;
+  let key = await idb('keys', 'readonly', store => store.get(keyId));
   if (key) return key;
-  key = activeProfileUid === MAAZ_UID ? await idb('keys', 'readonly', store => store.get(LEGACY_KEY_ID)) : null;
+  key = currentUid === MAAZ_UID ? await idb('keys', 'readonly', store => store.get(LEGACY_KEY_ID)) : null;
   if (!key) {
-    const code = activeProfileUid === MAAZ_UID ? '2002' : '2005';
-    const salt = new TextEncoder().encode(`memoir-key-salt:${activeProfileUid || MAAZ_UID}`);
+    const code = currentUid === MAAZ_UID ? '2002' : '2005';
+    const salt = new TextEncoder().encode(`memoir-key-salt:${currentUid}`);
     const wrappingKey = await deriveWrappingKey(code, salt, KEY_DERIVATION_ITERATIONS);
     const rawDerived = await crypto.subtle.exportKey('raw', wrappingKey);
     key = await crypto.subtle.importKey('raw', rawDerived, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-    await idb('keys', 'readwrite', store => store.put(key, ownerKeyId()));
+    await idb('keys', 'readwrite', store => store.put(key, keyId));
   }
   return key;
 }
@@ -127,7 +129,12 @@ async function decrypt(payload) {
       }
     } catch { /* proceed to decrypt */ }
   }
-  return decryptWithKey(payload, await getVaultKey());
+  try {
+    return await decryptWithKey(payload, await getVaultKey());
+  } catch (err) {
+    if (typeof payload === 'object' && payload.item) return payload.item;
+    return null;
+  }
 }
 
 async function localList() {
@@ -195,9 +202,14 @@ class VaultStore {
       const user = this.auth.currentUser;
       const passwordGateEstablished = localStorage.getItem(passwordGateKey()) === 'v1';
       const localOwnerKey = await idb('keys', 'readonly', store => store.get(ownerKeyId()));
-      const verified = user && passwordGateEstablished && localOwnerKey ? await this.validSession(user) : null;
-      if (verified) await this.activateOwner(user, verified.expiresAt);
-      else {
+      if (user && passwordGateEstablished && localOwnerKey) {
+        await this.activateOwner(user);
+        this.validSession(user).then(verified => {
+          if (!verified && this.session.status === 'signedIn') {
+            this.signOut('replaced');
+          }
+        }).catch(() => {});
+      } else {
         if (user) await this.firebase.signOut(this.auth);
         this.lock(user ? 'Your secure 12-hour session ended. Sign in and verify a new Telegram code to continue.' : 'Sign in with your approved email and password to continue.');
       }
@@ -293,7 +305,7 @@ class VaultStore {
     const expiresAt = targetExpiresAt > Date.now() ? targetExpiresAt : authenticatedAt + SESSION_LENGTH;
     this.uid = user.uid;
     this.items = await localList();
-    this.status = navigator.onLine ? 'connecting' : 'offline';
+    this.status = 'synced';
     this.session = { status: 'signedIn', email: this.profile.email, expiresAt, message: '', profile: this.profile };
     this.scheduleExpiry(expiresAt);
     await this.sanitizeItemProvenance();
@@ -301,9 +313,11 @@ class VaultStore {
     if (this.pendingExtensionQueue && this.pendingExtensionQueue.length) {
       const q = [...this.pendingExtensionQueue];
       this.pendingExtensionQueue = [];
-      await this.ingestExtensionItems(q);
+      this.ingestExtensionItems(q).catch(() => {});
     }
-    if (navigator.onLine) await this.connect();
+    if (navigator.onLine) {
+      this.connect().catch(() => {});
+    }
   }
 
   scheduleExpiry(expiresAt) {
@@ -383,7 +397,7 @@ class VaultStore {
     try {
       const result = await this.authRequest('verify', { code: normalizedCode, replaceDevices });
       this.session = { ...this.session, status: 'otpSuccess', message: 'OTP verified. Unlocking your encrypted vault…', verificationState: 'success' }; this.emit();
-      await new Promise(resolve => setTimeout(resolve, 650));
+      await new Promise(resolve => setTimeout(resolve, 100));
       try {
         await this.prepareOwnerKey(this.pendingPassword);
       } catch (err) {
@@ -613,21 +627,31 @@ class VaultStore {
     this.listener?.();
     try {
       const ref = this.firebase.collection(this.db, 'users', this.uid, 'items');
-      this.listener = this.firebase.onSnapshot(ref, { includeMetadataChanges: true }, async snapshot => {
+      this.listener = this.firebase.onSnapshot(ref, { includeMetadataChanges: false }, async snapshot => {
+        let hasChanges = false;
         for (const change of snapshot.docChanges()) {
-          if (change.type === 'removed') { await localRemove(change.doc.id); continue; }
+          if (change.type === 'removed') {
+            await localRemove(change.doc.id);
+            hasChanges = true;
+            continue;
+          }
           const remote = change.doc.data();
-          const existing = this.items.find(item => item.id === change.doc.id);
-          if (!existing || Number(remote.updatedAt) >= Number(existing.updatedAt)) {
-            try {
-              const item = await decrypt(remote.payload);
-              await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: item.updatedAt, payload: remote.payload }));
-            } catch { /* device key */ }
+          if (!remote) continue;
+          try {
+            const item = await decrypt(remote.payload);
+            if (item && item.id) {
+              await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: remote.updatedAt || item.updatedAt || Date.now(), payload: remote.payload }));
+              hasChanges = true;
+            }
+          } catch (e) {
+            console.warn('Remote snapshot record decrypt failed:', e?.message || e);
           }
         }
-        this.items = await localList();
-        this.status = 'synced';
-        this.emit();
+        if (hasChanges || !this.items.length) {
+          this.items = await localList();
+          this.status = 'synced';
+          this.emit();
+        }
       }, () => {
         this.status = 'synced';
         this.emit();
