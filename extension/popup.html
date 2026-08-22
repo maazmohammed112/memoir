@@ -78,44 +78,6 @@
         <input type="text" id="gen-pwd-output" class="gen-output" readonly>
       </div>
 
-      <!-- Manual Save Box -->
-      <div id="manual-save-box" class="manual-box" style="display:none;">
-        <div class="manual-box-head">
-          <strong>Save Tab Details</strong>
-          <button type="button" id="btn-close-manual" class="close-btn">&times;</button>
-        </div>
-        <div class="form-group">
-          <label>Title</label>
-          <input type="text" id="manual-title" placeholder="e.g. Karnataka ACK Number">
-        </div>
-        <div class="form-group">
-          <label>Category</label>
-          <select id="manual-type" class="select-input">
-            <option value="Login">Login Account</option>
-            <option value="Government Document">Government Document</option>
-            <option value="Identity">Identity Document</option>
-            <option value="Finance">Bank / Card</option>
-            <option value="Personal">Personal Record</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Username / ID / ACK</label>
-          <input type="text" id="manual-user" placeholder="e.g. U18AJ22S0105 or RD1218185132439">
-        </div>
-        <div class="form-group">
-          <label>Password / Secret (Optional)</label>
-          <input type="password" id="manual-pwd" placeholder="••••••••">
-        </div>
-        <div class="form-group">
-          <label>Note / Memo</label>
-          <input type="text" id="manual-note" placeholder="Purpose or context…">
-        </div>
-        <button type="button" id="btn-save-manual" class="btn primary" style="margin-top:4px;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          <span>Save to Memoir</span>
-        </button>
-      </div>
-
       <!-- Main Navigation Tabs: Active Site vs All Saved -->
       <div class="popup-tabs">
         <button type="button" class="tab-btn active" id="tab-site">
@@ -134,12 +96,12 @@
       <!-- Duplicate Alert Banner -->
       <div id="duplicate-cleaner-banner" class="duplicate-banner" style="display:none;">
         <div class="dup-text">
-          <span>⚠️ Similar / duplicate records found.</span>
+          <span>⚠️ Duplicate records found.</span>
         </div>
         <button type="button" id="btn-clean-duplicates" class="btn-clean-dup">Clean Duplicates</button>
       </div>
 
-      <!-- Credentials List Section with Internal Scroll -->
+      <!-- Credentials List Section -->
       <div class="section-box">
         <div class="section-title">
           <span id="section-title-label">Active Site</span>
@@ -147,40 +109,6 @@
         </div>
         <div id="credentials-list" class="credentials-list">
           <p class="empty-text">Loading credentials…</p>
-        </div>
-      </div>
-
-      <!-- Edit Modal Container (Inline in Popup) -->
-      <div id="edit-item-modal" class="edit-modal-box" style="display:none;">
-        <div class="edit-modal-head">
-          <strong>Edit Record</strong>
-          <button type="button" id="btn-close-edit" class="close-btn">&times;</button>
-        </div>
-        <input type="hidden" id="edit-id">
-        <div class="form-group">
-          <label>Title</label>
-          <input type="text" id="edit-title">
-        </div>
-        <div class="form-group">
-          <label>Username / Document / ID</label>
-          <input type="text" id="edit-user">
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <div class="input-with-eye">
-            <input type="password" id="edit-pwd">
-            <button type="button" id="btn-toggle-edit-pwd" class="eye-btn" title="Toggle password">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Note / Context</label>
-          <input type="text" id="edit-note">
-        </div>
-        <div class="edit-actions">
-          <button type="button" id="btn-cancel-edit" class="btn secondary">Cancel</button>
-          <button type="button" id="btn-save-edit" class="btn primary">Save Changes</button>
         </div>
       </div>
 
@@ -205,6 +133,105 @@
         <button type="button" id="btn-logout" class="btn text">Sign Out</button>
       </div>
     </div>
+
+    <!-- FULL OVERLAY PANEL: Edit Record -->
+    <div id="edit-overlay-panel" class="overlay-panel" style="display:none;">
+      <div class="panel-header">
+        <button type="button" id="btn-close-edit-panel" class="panel-back-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+          <span>Back to Vault</span>
+        </button>
+        <strong>Edit Record</strong>
+      </div>
+      <div class="panel-body">
+        <input type="hidden" id="edit-id">
+        <div class="form-group">
+          <label>Title</label>
+          <input type="text" id="edit-title" placeholder="Record title">
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="edit-type" class="select-input">
+            <option value="Login">Login Account</option>
+            <option value="Government Document">Government Document</option>
+            <option value="Identity">Identity Document</option>
+            <option value="Finance">Bank / Card</option>
+            <option value="Personal">Personal Record</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Username / Document / ID</label>
+          <input type="text" id="edit-user" placeholder="Username, email, or ACK number">
+        </div>
+        <div class="form-group">
+          <label>Password / Secret</label>
+          <div class="input-with-eye">
+            <input type="password" id="edit-pwd" placeholder="••••••••">
+            <button type="button" id="btn-toggle-edit-pwd" class="eye-btn" title="Toggle password">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Note / Context</label>
+          <textarea id="edit-note" rows="2" class="textarea-input" placeholder="Context or reminders…"></textarea>
+        </div>
+      </div>
+      <div class="panel-footer">
+        <button type="button" id="btn-cancel-edit" class="btn secondary">Cancel</button>
+        <button type="button" id="btn-save-edit" class="btn primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Save Changes</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- FULL OVERLAY PANEL: Quick Save Record -->
+    <div id="save-overlay-panel" class="overlay-panel" style="display:none;">
+      <div class="panel-header">
+        <button type="button" id="btn-close-save-panel" class="panel-back-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+          <span>Back</span>
+        </button>
+        <strong>Quick Save to Vault</strong>
+      </div>
+      <div class="panel-body">
+        <div class="form-group">
+          <label>Title</label>
+          <input type="text" id="manual-title" placeholder="e.g. UUCMS Account">
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="manual-type" class="select-input">
+            <option value="Login">Login Account</option>
+            <option value="Government Document">Government Document</option>
+            <option value="Identity">Identity Document</option>
+            <option value="Finance">Bank / Card</option>
+            <option value="Personal">Personal Record</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Username / ID / ACK</label>
+          <input type="text" id="manual-user" placeholder="e.g. U18AJ22S0105 or RD1218185132439">
+        </div>
+        <div class="form-group">
+          <label>Password / Secret (Optional)</label>
+          <input type="password" id="manual-pwd" placeholder="••••••••">
+        </div>
+        <div class="form-group">
+          <label>Note / Context</label>
+          <textarea id="manual-note" rows="2" class="textarea-input" placeholder="Purpose or context…"></textarea>
+        </div>
+      </div>
+      <div class="panel-footer">
+        <button type="button" id="btn-cancel-manual" class="btn secondary">Cancel</button>
+        <button type="button" id="btn-save-manual" class="btn primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Save to Memoir</span>
+        </button>
+      </div>
+    </div>
+
   </div>
 
   <script src="popup.js"></script>

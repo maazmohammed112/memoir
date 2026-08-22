@@ -1,4 +1,4 @@
-// Memoir Extension Luxury Popup Controller with Pure Vector SVGs, Internal Scrolling & Deep Noise Filtering
+// Memoir Extension Luxury Popup Controller with Full Overlay Panels & Vector SVGs
 
 document.addEventListener('DOMContentLoaded', async () => {
   const viewLogin = document.getElementById('view-login');
@@ -28,10 +28,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   const dupBanner = document.getElementById('duplicate-cleaner-banner');
   const btnCleanDuplicates = document.getElementById('btn-clean-duplicates');
 
-  // Quick Tools
+  // Generator
+  const btnGenPwdPopup = document.getElementById('btn-gen-pwd-popup');
+  const genPwdBox = document.getElementById('gen-pwd-box');
+  const genPwdOutput = document.getElementById('gen-pwd-output');
+  const btnCopyGenPwd = document.getElementById('btn-copy-gen-pwd');
+
+  // Quick Save Overlay Panel
   const btnOpenManualSave = document.getElementById('btn-open-manual-save');
-  const btnCloseManual = document.getElementById('btn-close-manual');
-  const manualSaveBox = document.getElementById('manual-save-box');
+  const saveOverlayPanel = document.getElementById('save-overlay-panel');
+  const btnCloseSavePanel = document.getElementById('btn-close-save-panel');
+  const btnCancelManual = document.getElementById('btn-cancel-manual');
   const manualTitle = document.getElementById('manual-title');
   const manualType = document.getElementById('manual-type');
   const manualUser = document.getElementById('manual-user');
@@ -39,28 +46,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   const manualNote = document.getElementById('manual-note');
   const btnSaveManual = document.getElementById('btn-save-manual');
 
-  const btnGenPwdPopup = document.getElementById('btn-gen-pwd-popup');
-  const genPwdBox = document.getElementById('gen-pwd-box');
-  const genPwdOutput = document.getElementById('gen-pwd-output');
-  const btnCopyGenPwd = document.getElementById('btn-copy-gen-pwd');
-
-  // Edit Modal
-  const editModal = document.getElementById('edit-item-modal');
+  // Edit Overlay Panel
+  const editOverlayPanel = document.getElementById('edit-overlay-panel');
+  const btnCloseEditPanel = document.getElementById('btn-close-edit-panel');
+  const btnCancelEdit = document.getElementById('btn-cancel-edit');
   const editId = document.getElementById('edit-id');
   const editTitle = document.getElementById('edit-title');
+  const editType = document.getElementById('edit-type');
   const editUser = document.getElementById('edit-user');
   const editPwd = document.getElementById('edit-pwd');
   const editNote = document.getElementById('edit-note');
   const btnToggleEditPwd = document.getElementById('btn-toggle-edit-pwd');
-  const btnCloseEdit = document.getElementById('btn-close-edit');
-  const btnCancelEdit = document.getElementById('btn-cancel-edit');
   const btnSaveEdit = document.getElementById('btn-save-edit');
 
   let currentAuth = null;
   let activeTabUrl = '';
   let activeTabTitle = '';
   let activeTabDomain = '';
-  let currentTabMode = 'site'; // 'site' or 'all'
+  let currentTabMode = 'site';
   let allCapturedItems = [];
   let siteMatchedItems = [];
   let expandedCardId = null;
@@ -117,6 +120,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function showLoginView() {
     viewLogin.style.display = 'block';
     viewActive.style.display = 'none';
+    editOverlayPanel.style.display = 'none';
+    saveOverlayPanel.style.display = 'none';
     statusDot.className = 'status-dot offline';
     vaultCodeInput.value = '';
     loginError.style.display = 'none';
@@ -124,7 +129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function showActiveView(auth, settings) {
     viewLogin.style.display = 'none';
-    viewActive.style.display = 'block';
+    viewActive.style.display = 'flex';
     statusDot.className = 'status-dot online';
 
     const profile = auth.profile || {};
@@ -175,7 +180,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (key === 'Website URL' || key === 'Captured from') return false;
       const str = String(val || '').trim().toLowerCase();
       if (!str) return false;
-      // Filter out radio / checkbox states like "on", "true", "yes", "1"
       if (/^(on|off|true|false|yes|no|undefined|null)$/i.test(str) && !/password|pin|cvv/i.test(key)) return false;
       return true;
     });
@@ -339,7 +343,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
 
-    // Edit action
+    // Edit action -> Opens full overlay panel
     credsList.querySelectorAll('.btn-edit-action').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -348,12 +352,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (item) {
           editId.value = item.id;
           editTitle.value = item.title || '';
-          editUser.value = item.fields?.['Username / ID'] || item.fields?.['Username'] || item.fields?.['Document number'] || item.fields?.['Reference number'] || '';
-          editPwd.value = item.fields?.['Password'] || item.fields?.['Passcode'] || '';
+          editType.value = item.type || 'Login';
+          editUser.value = item.fields?.['Username / ID'] || item.fields?.['Username'] || item.fields?.['Document number'] || item.fields?.['Reference number'] || item.fields?.['Debit card number'] || '';
+          editPwd.value = item.fields?.['Password'] || item.fields?.['Passcode'] || item.fields?.['CVV'] || '';
           editNote.value = item.note || '';
-          editModal.style.display = 'block';
-          genPwdBox.style.display = 'none';
-          manualSaveBox.style.display = 'none';
+          editOverlayPanel.style.display = 'flex';
         }
       });
     });
@@ -404,15 +407,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // Edit Modal Handlers
+  // Edit Overlay Panel Handlers
   btnToggleEditPwd.addEventListener('click', () => {
     const isPass = editPwd.type === 'password';
     editPwd.type = isPass ? 'text' : 'password';
     btnToggleEditPwd.innerHTML = isPass ? SVGS.eyeOff : SVGS.eye;
   });
 
-  btnCloseEdit.addEventListener('click', () => { editModal.style.display = 'none'; });
-  btnCancelEdit.addEventListener('click', () => { editModal.style.display = 'none'; });
+  const closeEditPanel = () => { editOverlayPanel.style.display = 'none'; };
+  btnCloseEditPanel.addEventListener('click', closeEditPanel);
+  btnCancelEdit.addEventListener('click', closeEditPanel);
 
   btnSaveEdit.addEventListener('click', () => {
     const id = editId.value;
@@ -420,36 +424,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!existing) return;
 
     const updatedFields = { ...existing.fields };
-    if (editUser.value.trim()) {
-      if (updatedFields['Username / ID']) updatedFields['Username / ID'] = editUser.value.trim();
-      else if (updatedFields['Document number']) updatedFields['Document number'] = editUser.value.trim();
-      else updatedFields['Username / ID'] = editUser.value.trim();
+    const userVal = editUser.value.trim();
+    const pwdVal = editPwd.value;
+
+    if (userVal) {
+      if (updatedFields['Username / ID']) updatedFields['Username / ID'] = userVal;
+      else if (updatedFields['Document number']) updatedFields['Document number'] = userVal;
+      else if (updatedFields['Debit card number']) updatedFields['Debit card number'] = userVal;
+      else updatedFields['Username / ID'] = userVal;
     }
-    if (editPwd.value) {
-      updatedFields['Password'] = editPwd.value;
+    if (pwdVal) {
+      if (updatedFields['Password']) updatedFields['Password'] = pwdVal;
+      else if (updatedFields['Passcode']) updatedFields['Passcode'] = pwdVal;
+      else updatedFields['Password'] = pwdVal;
     }
 
     const updatedItem = {
       ...existing,
+      type: editType.value,
       title: editTitle.value.trim() || existing.title,
       note: editNote.value.trim(),
       fields: updatedFields,
     };
 
     chrome.runtime.sendMessage({ action: 'UPDATE_CAPTURED_ITEM', item: updatedItem }, () => {
-      editModal.style.display = 'none';
+      closeEditPanel();
       loadAllCapturedItems();
     });
   });
 
-  // Manual save handlers
+  // Quick Save Overlay Panel Handlers
   btnOpenManualSave.addEventListener('click', () => {
-    manualSaveBox.style.display = manualSaveBox.style.display === 'none' ? 'block' : 'none';
-    genPwdBox.style.display = 'none';
-    editModal.style.display = 'none';
+    saveOverlayPanel.style.display = 'flex';
   });
 
-  btnCloseManual.addEventListener('click', () => { manualSaveBox.style.display = 'none'; });
+  const closeSavePanel = () => { saveOverlayPanel.style.display = 'none'; };
+  btnCloseSavePanel.addEventListener('click', closeSavePanel);
+  btnCancelManual.addEventListener('click', closeSavePanel);
 
   btnSaveManual.addEventListener('click', () => {
     const title = manualTitle.value.trim() || `${activeTabDomain || 'Web'} Record`;
@@ -480,7 +491,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     chrome.runtime.sendMessage({ action: 'SAVE_CAPTURED_CREDENTIAL', item }, () => {
-      manualSaveBox.style.display = 'none';
+      closeSavePanel();
       manualUser.value = '';
       manualPwd.value = '';
       manualNote.value = '';
@@ -492,9 +503,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnGenPwdPopup.addEventListener('click', () => {
     const pwd = generateStrongPassword(16);
     genPwdOutput.value = pwd;
-    genPwdBox.style.display = 'block';
-    manualSaveBox.style.display = 'none';
-    editModal.style.display = 'none';
+    genPwdBox.style.display = genPwdBox.style.display === 'none' ? 'block' : 'none';
   });
 
   btnCopyGenPwd.addEventListener('click', () => {
