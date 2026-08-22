@@ -266,6 +266,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
   };
 
-  handle().then(sendResponse).catch(err => sendResponse({ ok: false, error: err.message }));
+  handle().then(res => {
+    try { sendResponse(res); } catch { /* port closed */ }
+  }).catch(err => {
+    try { sendResponse({ ok: false, error: err.message }); } catch { /* port closed */ }
+  });
   return true;
 });

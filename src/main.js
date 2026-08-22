@@ -177,12 +177,12 @@ function provenanceOf(item) {
 function provenanceBadge(item) {
   const info = provenanceOf(item);
   const badgeClass = info.source === 'Telegram' ? 'telegram' : info.source === 'Chrome Extension' ? 'extension' : 'memoir';
-  const iconMarkup = info.source === 'Telegram' ? icon('Telegram') : info.source === 'Chrome Extension' ? icon('Globe') : '<img src="/brand/memoir-rhino-ui.png" alt="">';
+  const iconMarkup = info.source === 'Telegram' ? icon('Telegram') : info.source === 'Chrome Extension' ? icon('Globe') : '<img src="/brand/memoir-rhino-ui.png" alt="Memoir" width="20" height="20" loading="eager" decoding="async">';
   return `<button type="button" class="provenance-badge ${badgeClass}" data-provenance="${item.id}" title="Added via ${escapeHtml(info.source)}${info.domain ? ` (${escapeHtml(info.domain)})` : ''}">${iconMarkup}</button>`;
 }
 function showProvenance(id) {
   const item = state.items.find(row => row.id === id); if (!item) return; const info = provenanceOf(item); const created = new Date(info.createdAt); const time = Number.isNaN(created.getTime()) ? 'time unavailable' : created.toLocaleString();
-  const iconMarkup = info.source === 'Telegram' ? icon('Telegram') : info.source === 'Chrome Extension' ? icon('Globe') : '<img src="/brand/memoir-rhino-ui.png" alt="">';
+  const iconMarkup = info.source === 'Telegram' ? icon('Telegram') : info.source === 'Chrome Extension' ? icon('Globe') : '<img src="/brand/memoir-rhino-ui.png" alt="Memoir" width="36" height="36" loading="eager">';
   modal.className = 'modal confirm'; modal.innerHTML = `<div class="modal-inner"><span class="confirm-icon provenance-confirm">${iconMarkup}</span><div class="modal-head"><div><p class="eyebrow">Creation history</p><h2>Added from ${escapeHtml(info.source)}</h2></div></div><p>“${escapeHtml(item.title)}” was captured on ${escapeHtml(time)} using ${escapeHtml(info.source)}${info.domain ? ` on ${escapeHtml(info.domain)}` : ''}.</p><div class="modal-actions"><button class="primary modal-cancel">Done</button></div></div>`; showModal();
 }
 function safeExternalLink(value) { try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.href : ''; } catch { return ''; } }
@@ -1715,18 +1715,18 @@ function vaultView() {
   }
   const all = vaultMemories();
   const filters = [
-    ['all', 'Gem', 'All Memories'],
-    ['banks', 'CreditCard', 'Cards & Banks'],
-    ['documents', 'FileText', 'Documents'],
-    ['logins', 'KeyRound', 'Logins & Keys'],
-    ['wifi', 'Wifi', 'Wi-Fi'],
-    ['notes', 'FileText', 'Notes']
+    ['all', 'All'],
+    ['banks', 'Cards'],
+    ['documents', 'Docs'],
+    ['logins', 'Keys'],
+    ['wifi', 'Wi-Fi'],
+    ['notes', 'Notes']
   ];
   const counts = Object.fromEntries(filters.map(([id]) => [id, id === 'all' ? all.length : all.filter(item => memoryFilterGroup(item) === id).length]));
   const availableFilters = filters.filter(([id]) => id === 'all' || counts[id]);
   if (!availableFilters.some(([id]) => id === state.vaultCategory)) state.vaultCategory = 'all';
   const list = state.vaultCategory === 'all' ? all : all.filter(item => memoryFilterGroup(item) === state.vaultCategory);
-  const filterBar = `<div class="memory-filters" role="tablist" aria-label="Filter memories by category">${availableFilters.map(([id, glyph, label]) => `<button type="button" role="tab" aria-selected="${state.vaultCategory === id}" class="${state.vaultCategory === id ? 'active' : ''}" data-vault-category="${id}"><span class="filter-glyph">${icon(glyph)}</span><span>${escapeHtml(label)}</span><b>${counts[id]}</b></button>`).join('')}</div>`;
+  const filterBar = `<div class="memory-filters" role="tablist" aria-label="Filter memories by category">${availableFilters.map(([id, label]) => `<button type="button" role="tab" aria-selected="${state.vaultCategory === id}" class="${state.vaultCategory === id ? 'active' : ''}" data-vault-category="${id}"><span>${escapeHtml(label)}</span><b>${counts[id]}</b></button>`).join('')}</div>`;
   const empty = all.length ? emptyState('Search', `No ${filters.find(([id]) => id === state.vaultCategory)?.[1] || ''} memories`, 'Choose another category or add a new memory.', 'Add memory', 'memory') : emptyState('Gem', 'Nothing saved yet', 'Start with a login, bank record, document, Wi-Fi detail, or anything personal.', 'Add first memory', 'memory');
   return `${switcher}<div class="workspace-body"><div class="toolbar"><input class="search-input" id="vault-filter" name="vault-filter" aria-label="Filter memories" placeholder="Filter titles, notes, fields or values…"><button class="secondary" id="bulk-import">${icon('NotebookText')} Secure import</button><button class="primary" data-add="memory">${icon('Plus')} Add memory</button></div>${filterBar}${list.length ? `<div class="vault-list" id="vault-list">${list.map(vaultRow).join('')}</div>` : empty}</div>`;
 }

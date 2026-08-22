@@ -622,20 +622,28 @@
   const isMemoirApp = window.location.hostname.includes('memoir') || window.location.hostname.includes('localhost') || document.title.toLowerCase().includes('memoir');
   
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'MEMOIR_SYNC_UPDATE' || request.action === 'MEMOIR_SYNC_DELETE') {
-      window.postMessage({ type: 'MEMOIR_EXTENSION_SYNC_EVENT', action: request.action, item: request.item, items: request.items, id: request.id }, '*');
+    try {
+      if (request?.action === 'MEMOIR_SYNC_UPDATE' || request?.action === 'MEMOIR_SYNC_DELETE') {
+        window.postMessage({ type: 'MEMOIR_EXTENSION_SYNC_EVENT', action: request.action, item: request.item, items: request.items, id: request.id }, '*');
+      }
+      sendResponse({ ok: true });
+    } catch (err) {
+      sendResponse({ ok: false, error: err?.message });
     }
-    sendResponse({ ok: true });
     return false;
   });
 
   if (isMemoirApp) {
     const pushAllToApp = () => {
-      chrome.runtime.sendMessage({ action: 'GET_ALL_CAPTURED' }, res => {
-        if (res && res.ok && Array.isArray(res.items) && res.items.length) {
-          window.postMessage({ type: 'MEMOIR_EXTENSION_SYNC_EVENT', action: 'MEMOIR_SYNC_UPDATE', items: res.items }, '*');
-        }
-      });
+      if (!chrome?.runtime?.id) return;
+      try {
+        chrome.runtime.sendMessage({ action: 'GET_ALL_CAPTURED' }, res => {
+          if (chrome.runtime?.lastError) return;
+          if (res && res.ok && Array.isArray(res.items) && res.items.length) {
+            window.postMessage({ type: 'MEMOIR_EXTENSION_SYNC_EVENT', action: 'MEMOIR_SYNC_UPDATE', items: res.items }, '*');
+          }
+        });
+      } catch { /* channel closed */ }
     };
 
     pushAllToApp();
