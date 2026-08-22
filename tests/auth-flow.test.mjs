@@ -42,17 +42,21 @@ assert.doesNotMatch(authApiSource, /^\s*code,\s*$/m);
 assert.doesNotMatch(authApiSource, /lastCodeHash/);
 assert.match(authApiSource, /quotaExhausted \? 'auth\/service-busy'/);
 assert.match(authApiSource, /async function withDeadline/);
-assert.match(authApiSource, /await withDeadline\(reserveOtpRequest/);
-assert.match(authApiSource, /await withDeadline\(batch\.commit\(\)/);
+assert.match(authApiSource, /await reserveOtpRequest/);
+assert.match(authApiSource, /await withDeadline\(saveAuthState/);
 assert.match(authApiSource, /status: 'prepared'/);
 assert.match(authApiSource, /deliveredAtMs/);
+assert.match(authApiSource, /admin\.database\(\)/);
 assert.doesNotMatch(authApiSource, /memoir-master-production-key/);
 const requestOtpSource = authApiSource.slice(authApiSource.indexOf('async function requestOtp'), authApiSource.indexOf('async function verifyOtp'));
-assert.ok(requestOtpSource.indexOf('await withDeadline(batch.commit()') < requestOtpSource.indexOf("await telegramRequest(profile, 'sendMessage'"));
+assert.ok(requestOtpSource.indexOf('await withDeadline(saveAuthState') < requestOtpSource.indexOf("await telegramRequest(profile, 'sendMessage'"));
 assert.doesNotMatch(requestOtpSource, /Promise\.allSettled/);
+assert.doesNotMatch(authApiSource, /runTransaction/);
+assert.match(authApiSource, /OTP verification data lookup timed out/);
 
 const firebaseAdminSource = fs.readFileSync(new URL('../lib/firebaseAdmin.js', import.meta.url), 'utf8');
 assert.match(firebaseAdminSource, /verifyIdToken\(token, true\)/);
+assert.match(firebaseAdminSource, /loadAuthState\(admin\.database\(\)/);
 
 const mainSource = fs.readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 assert.ok((mainSource.match(/dataset\.submitting === 'true'/g) || []).length >= 3);

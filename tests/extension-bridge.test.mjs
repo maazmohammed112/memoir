@@ -41,6 +41,7 @@ assert.equal(context.filterGroup(bankCard), 'banks');
 const manifest = JSON.parse(fs.readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'));
 assert.equal(manifest.manifest_version, 3);
 assert.ok(manifest.permissions.includes('storage'));
+assert.ok(manifest.permissions.includes('scripting'));
 assert.ok(manifest.web_accessible_resources.length > 0);
 
 // Test 4: Extension Authentication Code mapping

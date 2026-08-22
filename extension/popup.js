@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const selected = allCapturedItems.find(i => i.id === itemId);
         if (selected) {
           chrome.tabs.query({ active: true, currentWindow: true }, activeTabs => {
-            if (activeTabs[0]) {
+            if (activeTabs[0] && chrome.scripting?.executeScript) {
               chrome.scripting.executeScript({
                 target: { tabId: activeTabs[0].id },
                 func: (item) => {
@@ -302,7 +302,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                   window.dispatchEvent(evt);
                 },
                 args: [selected],
+              }).catch(error => {
+                console.warn('Memoir autofill could not start:', error?.message || error);
               });
+            } else {
+              console.warn('Memoir autofill needs the Chrome scripting permission. Reload the extension and try again.');
             }
           });
           window.close();

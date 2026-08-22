@@ -104,6 +104,8 @@ Browser / PWA (Client)
         └── /api/sync: AES-256-GCM server automation mirror
 ```
 
+Authentication challenges, rate limits, and device sessions use an encrypted server-only Realtime Database record. This keeps Telegram OTP available when Firestore reaches its daily quota. Verified sessions are also mirrored to Firestore when it is healthy so client security rules remain enforced.
+
 ### Encryption Layers
 1. **Client-Side Master Vault (AES-GCM 256-bit)**:
    - Key derived client-side via PBKDF2-SHA-256 with 100,000 iterations.
@@ -134,6 +136,7 @@ Browser / PWA (Client)
    FIREBASE_API_KEY=...
    FIREBASE_AUTH_DOMAIN=...
    FIREBASE_PROJECT_ID=...
+   FIREBASE_DATABASE_URL=https://YOUR_PROJECT-default-rtdb.firebaseio.com
    FIREBASE_SERVICE_ACCOUNT_JSON=...
 
    # AI Providers
@@ -231,7 +234,10 @@ Headless automation reads the server-encrypted mirror, not browser IndexedDB. `F
 - `users/{uid}/items/{itemId}` — Client-side encrypted vault records.
 - `secureVault/{uid}/items/{itemId}` — Server-encrypted automation mirror.
 - `secureAudio/{uid}/items/{audioId}` — Encrypted audio metadata with `chunks` subcollection.
-- `verifiedSessions/{uid}/sessions/{authTime}` — Active bound device sessions.
-- `otpChallenges/{uid}/sessions/{authTime}` — Hashed Telegram OTP challenge records.
+- `verifiedSessions/{uid}/sessions/{authTime}` — Firestore mirror of active bound device sessions for client security rules.
 - `telegramActionQueue/{uid}/items/{queueId}` — Action queue for mutations originating from Telegram.
 - `reminderDeliveries/{uid}/items/{deliveryId}` — Atomic delivery and deduplication keys.
+
+### Realtime Database (server-only)
+
+- `serverAuth/{uid}` — AES-256-GCM encrypted OTP challenge, request/verification limits, and device-session state. Deploy `database.rules.json` so browser clients cannot read or write this path; Firebase Admin continues to access it from server APIs.
