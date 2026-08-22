@@ -1178,35 +1178,10 @@ function homeView() {
       </button>
     </div>
   `;
-  const pastMemories = normalMemories.filter(m => m.type !== 'Notification' && m.type !== 'Todo');
-  let serendipityHtml = '';
-  if (pastMemories.length >= 2) {
-    const dayIndex = Math.floor(Date.now() / 86400000);
-    const item = pastMemories[dayIndex % pastMemories.length];
-    if (item) {
-      serendipityHtml = `
-        <article class="serendipity-card" data-open="${item.id}" tabindex="0">
-          <div class="serendipity-header">
-            <span class="serendipity-kicker">${icon('History')} Vault Rediscovery</span>
-            <small>Surfaced for you</small>
-          </div>
-          <div class="serendipity-body">
-            <span class="icon-wrap rose">${icon(itemIcon(item))}</span>
-            <div class="serendipity-info">
-              <h3>${escapeHtml(item.title)}</h3>
-              <p>${escapeHtml(item.note || Object.entries(item.fields || {}).map(([k, v]) => `${k}: ${v}`).slice(0, 2).join(' · ') || 'Saved memory')}</p>
-            </div>
-            <span class="serendipity-action">${icon('ArrowUpRight')}</span>
-          </div>
-        </article>
-      `;
-    }
-  }
 
   return `<div class="hero-grid"><section class="hero"><img class="hero-rhino" src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Your private second brain</p><h2>Everything important, remembered beautifully.</h2><p>Save private details, retrieve only what you need, and never miss a meaningful moment.</p><button class="primary" data-add="memory">${icon('Plus')} Add a memory</button></section>
   <div class="stat-grid"><article class="stat large" data-view="vault" style="cursor:pointer"><span class="stat-symbol rose">${icon('ShieldCheck')}</span><div><strong>${normalMemories.length}</strong><span>memories kept safe</span></div></article><article class="stat" data-view="extension" style="cursor:pointer"><span class="stat-symbol green">${icon('Globe')}</span><div><strong>${extensionItems.length}</strong><span>browser captures</span></div></article><article class="stat" data-view="reminders" style="cursor:pointer"><span class="stat-symbol violet">${icon('AlarmClock')}</span><div><strong>${upcomingReminders.length}</strong><span>upcoming reminders</span></div></article></div></div>
   ${quickActionsHtml}
-  ${serendipityHtml}
   ${extensionBannerHtml}
   ${guardBannerHtml}
   ${expiriesHtml}
@@ -3197,15 +3172,14 @@ async function handleAudioFile(file, source = 'Memoir app') {
     const audioAtt = await prepareAudioAttachment(file, source);
     state.chatAttachment = audioAtt;
     if (Array.isArray(state.chatAttachments)) {
-      state.chatAttachments = [audioAtt];
+      state.chatAttachments.push(audioAtt);
     } else {
       state.chatAttachments = [audioAtt];
     }
-    await persistPendingAudio(audioAtt);
     renderView();
     const input = document.querySelector('#chat-query');
     if (input) input.focus();
-    toast('Audio attached! Tap Send to transcribe and submit to Rhinous.');
+    toast('Audio attached in preview! Tap Send to transcribe and save.');
   } catch (error) {
     toast(error?.message || 'The audio file could not be processed');
   }
@@ -3293,14 +3267,13 @@ function startLiveVoiceSession(stream) {
         } else {
           state.chatAttachments = [audioAtt];
         }
-        await persistPendingAudio(audioAtt, voiceTranscript);
         renderView();
         const input = document.querySelector('#chat-query');
         if (input) {
           if (voiceTranscript) input.value = voiceTranscript;
           input.focus();
         }
-        toast('Voice memo recorded! Review audio and tap Send to transcribe or ask Rhinous.');
+        toast('Voice memo recorded! Review audio preview and tap Send to transcribe.');
       } catch (error) { toast(error?.message || 'The recording could not be saved'); }
       finally { mediaStream?.getTracks().forEach(track => track.stop()); mediaStream = null; recordingStartedAt = 0; }
     };
@@ -3517,6 +3490,15 @@ async function askAssistant(query) {
         fieldNames: Object.keys(allFields(item)),
       };
     });
+
+    if (audioAtt && !audioAtt.recordId) {
+      try {
+        await persistPendingAudio(audioAtt, voiceTranscript || (cleanQuery !== 'Extract and structure details from the attached document(s)/image(s)' ? cleanQuery : ''));
+      } catch (err) {
+        console.warn('Audio persist on send fallback:', err?.message || err);
+      }
+    }
+
     const identityToken = await vaultStore.idToken();
     const payload = {
       provider: hasAttachments ? 'gemini' : state.provider,

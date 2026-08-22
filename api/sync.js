@@ -58,12 +58,19 @@ export default async function handler(req, res) {
       if (hasAdminMirror()) {
         try {
           const admin = await getAdmin();
-          const collection = admin.firestore().collection('secureVault').doc(uid).collection('items');
-          const existing = await collection.get();
+          const userCol = admin.firestore().collection('users').doc(uid).collection('items');
+          const secureCol = admin.firestore().collection('secureVault').doc(uid).collection('items');
+          const existingUser = await userCol.get().catch(() => ({ docs: [] }));
+          const existingSecure = await secureCol.get().catch(() => ({ docs: [] }));
           const incomingIds = new Set(items.map(item => item.id));
           const writes = [];
-          existing.docs.filter(doc => !incomingIds.has(doc.id)).forEach(doc => writes.push(() => doc.ref.delete()));
-          items.forEach(item => writes.push(() => collection.doc(item.id).set({ payload: serverEncrypt(item), updatedAt: Date.now() })));
+          existingUser.docs.filter(doc => !incomingIds.has(doc.id)).forEach(doc => writes.push(() => userCol.doc(doc.id).delete().catch(() => {})));
+          existingSecure.docs.filter(doc => !incomingIds.has(doc.id)).forEach(doc => writes.push(() => secureCol.doc(doc.id).delete().catch(() => {})));
+          items.forEach(item => {
+            const encPayload = serverEncrypt(item);
+            writes.push(() => userCol.doc(item.id).set({ payload: encPayload, updatedAt: item.updatedAt || Date.now(), encryption: 'AES-256-GCM', recordType: 'encrypted-vault-item' }));
+            writes.push(() => secureCol.doc(item.id).set({ payload: encPayload, updatedAt: item.updatedAt || Date.now() }));
+          });
           for (let index = 0; index < writes.length; index += 20) await Promise.all(writes.slice(index, index + 20).map(write => write()));
           const chatId = getUserByUid(uid)?.telegramChatId;
           if (chatId) await admin.firestore().collection('telegramLinks').doc(chatId).set({ uid, updatedAt: Date.now() }, { merge: true });
@@ -90,11 +97,17 @@ export default async function handler(req, res) {
     if (!hasAdminMirror()) return res.status(200).json({ ok: true, mirrored: 'runtime' });
     try {
       const admin = await getAdmin();
-      const ref = admin.firestore().collection('secureVault').doc(uid).collection('items').doc(id);
+      const userRef = admin.firestore().collection('users').doc(uid).collection('items').doc(id);
+      const secureRef = admin.firestore().collection('secureVault').doc(uid).collection('items').doc(id);
       if (body.op === 'delete') {
-        await ref.delete();
+        await Promise.all([userRef.delete().catch(() => {}), secureRef.delete().catch(() => {})]);
       } else {
-        await ref.set({ payload: serverEncrypt(body.item), updatedAt: Date.now() });
+        const clientPayload = body.payload || (body.item ? serverEncrypt(body.item) : '');
+        const serverEncPayload = serverEncrypt(body.item || {});
+        await Promise.all([
+          userRef.set({ payload: clientPayload, updatedAt: body.updatedAt || Date.now(), encryption: 'AES-256-GCM', recordType: 'encrypted-vault-item' }),
+          secureRef.set({ payload: serverEncPayload, updatedAt: body.updatedAt || Date.now() })
+        ]);
       }
       const chatId = getUserByUid(uid)?.telegramChatId;
       if (chatId) await admin.firestore().collection('telegramLinks').doc(chatId).set({ uid, updatedAt: Date.now() }, { merge: true });

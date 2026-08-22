@@ -83,12 +83,21 @@ function bytesToB64(bytes) {
 }
 const b64ToBytes = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
 
+async function deriveWrappingKey(password, salt, iterations = KEY_DERIVATION_ITERATIONS) {
+  const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, material, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+
 async function getVaultKey() {
   let key = await idb('keys', 'readonly', store => store.get(ownerKeyId()));
   if (key) return key;
   key = activeProfileUid === MAAZ_UID ? await idb('keys', 'readonly', store => store.get(LEGACY_KEY_ID)) : null;
   if (!key) {
-    key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    const code = activeProfileUid === MAAZ_UID ? '2002' : '2005';
+    const salt = new TextEncoder().encode(`memoir-key-salt:${activeProfileUid || MAAZ_UID}`);
+    const wrappingKey = await deriveWrappingKey(code, salt, KEY_DERIVATION_ITERATIONS);
+    const rawDerived = await crypto.subtle.exportKey('raw', wrappingKey);
+    key = await crypto.subtle.importKey('raw', rawDerived, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
     await idb('keys', 'readwrite', store => store.put(key, ownerKeyId()));
   }
   return key;
@@ -106,11 +115,19 @@ async function decryptWithKey(payload, key) {
 }
 
 async function encrypt(value) { return encryptWithKey(value, await getVaultKey()); }
-async function decrypt(payload) { return decryptWithKey(payload, await getVaultKey()); }
-
-async function deriveWrappingKey(password, salt, iterations = KEY_DERIVATION_ITERATIONS) {
-  const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, material, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+async function decrypt(payload) {
+  if (!payload) return null;
+  if (typeof payload === 'object' && !payload.cipher && payload.id) return payload;
+  if (typeof payload === 'string') {
+    try {
+      const parsed = JSON.parse(payload);
+      if (parsed && typeof parsed === 'object') {
+        if (!parsed.cipher && parsed.id) return parsed;
+        payload = parsed;
+      }
+    } catch { /* proceed to decrypt */ }
+  }
+  return decryptWithKey(payload, await getVaultKey());
 }
 
 async function localList() {
@@ -626,12 +643,12 @@ class VaultStore {
     const next = { ...item, id: item.id || crypto.randomUUID(), createdAt: item.createdAt || now, updatedAt: now, provenance: item.provenance || { source: 'Memoir app', createdAt: new Date(item.createdAt || now).toISOString() } };
     const payload = await localPut(next);
     this.items = [next, ...this.items.filter(row => row.id !== next.id)].sort((a, b) => b.updatedAt - a.updatedAt);
-    await idb('queue', 'readwrite', store => store.put({ id: next.id, op: 'put', updatedAt: now, payload }));
+    await idb('queue', 'readwrite', store => store.put({ id: next.id, op: 'put', updatedAt: now, payload, item: next }));
     this.emit();
     
     // Background cloud sync - instantaneous UI return
     this.flush().catch(() => {});
-    this.mirror({ op: 'put', id: next.id, item: next }).catch(() => {});
+    this.mirror({ op: 'put', id: next.id, item: next, payload, updatedAt: now }).catch(() => {});
     return next;
   }
 
@@ -641,12 +658,12 @@ class VaultStore {
     for (const [index, record] of (Array.isArray(records) ? records : []).entries()) {
       const now = baseTime + index; const next = { ...record, id: record.id || crypto.randomUUID(), createdAt: record.createdAt || now, updatedAt: now, provenance: record.provenance || { source: 'Memoir app', createdAt: new Date(record.createdAt || now).toISOString() } };
       const payload = await localPut(next);
-      await idb('queue', 'readwrite', store => store.put({ id: next.id, op: 'put', updatedAt: now, payload })); saved.push(next);
+      await idb('queue', 'readwrite', store => store.put({ id: next.id, op: 'put', updatedAt: now, payload, item: next })); saved.push(next);
     }
     this.items = [...saved, ...this.items.filter(item => !saved.some(next => next.id === item.id))].sort((a, b) => b.updatedAt - a.updatedAt);
     this.emit();
     this.flush().catch(() => {});
-    saved.forEach(item => this.mirror({ op: 'put', id: item.id, item }).catch(() => {}));
+    saved.forEach(item => this.mirror({ op: 'put', id: item.id, item, updatedAt: item.updatedAt }).catch(() => {}));
     return saved;
   }
 

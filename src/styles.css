@@ -301,32 +301,39 @@
   letter-spacing: .04em;
 }
 
-/* Category Filters Pills */
+/* Category Filters Pills - Non-overlapping horizontal scroll pill bar */
 .memory-filters {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
+  overflow-x: auto;
   gap: 8px;
-  margin: 10px 0 16px;
-  padding: 0;
+  margin: 12px 0 16px;
+  padding: 4px 2px 8px;
   width: 100%;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.memory-filters::-webkit-scrollbar {
+  display: none;
 }
 .memory-filters button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 7px 13px;
+  height: 34px;
   border-radius: 20px;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
-  flex: 0 0 auto;
+  flex-shrink: 0;
   box-sizing: border-box;
   position: relative;
   line-height: 1;
@@ -343,7 +350,8 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 .memory-filters button span {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   white-space: nowrap;
 }
 .memory-filters button b {
@@ -959,91 +967,6 @@ input, textarea {
 }
 .memory-card:active, .expiry-card:active {
   transform: scale(0.98);
-}
-
-/* --- Serendipity Rediscovery Card & Memory Bubble Filters --- */
-.serendipity-card {
-  margin: 14px 0 16px;
-  padding: 16px 18px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, rgba(243, 46, 139, 0.05), var(--surface));
-  border: 1px solid rgba(243, 46, 139, 0.22);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.03);
-  cursor: pointer;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
-  animation: enter 0.25s ease both;
-}
-.serendipity-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--rose);
-  box-shadow: 0 8px 24px rgba(243, 46, 139, 0.1);
-}
-.serendipity-card:active {
-  transform: scale(0.98);
-}
-.serendipity-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-.serendipity-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 9px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  background: #fdeaf2;
-  color: var(--rose);
-}
-.serendipity-header small {
-  font-size: 10px;
-  color: var(--muted);
-}
-.serendipity-body {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.serendipity-info {
-  min-width: 0;
-  flex: 1;
-}
-.serendipity-info h3 {
-  margin: 0 0 2px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.serendipity-info p {
-  margin: 0;
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.serendipity-action {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: var(--surface2);
-  color: var(--rose);
-  flex: none;
-}
-.serendipity-action .icon {
-  width: 16px;
-  height: 16px;
 }
 
 /* Filter Glyph in Memory Bubble Tabs */
