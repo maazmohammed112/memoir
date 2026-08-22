@@ -1,142 +1,163 @@
-# Memoir — encrypted personal vault
+# Memoir — Encrypted Personal Vault & Autonomous Chief of Staff
 
-Memoir is a mobile-first, local-first personal memory vault for credentials, banking records, documents, warranties, personal notes, clipboard history, birthdays, voice memos, and reminders. It combines encrypted offline storage, owner-isolated Firebase synchronization, the vault-scoped Rhinous assistant, multimodal smart capture (vision & audio), Telegram automation, a responsive premium interface, and installable PWA support.
+Memoir is a mobile-first, local-first personal memory vault for credentials, banking records, government documents, warranties, personal notes, clipboard history, birthdays, voice memos, and smart reminders. It combines encrypted offline storage, owner-isolated Firebase synchronization, the vault-scoped **Rhinous** assistant, on-device multimodal capture (multi-image & local PDF parsing), an autonomous Telegram Chief of Staff, and installable PWA support.
 
 No demo records are included. Every displayed record belongs to the currently selected and authenticated owner.
 
 ---
 
-## Current feature set
+## 🌟 Major Highlights & New Features
 
-### Home and interface
+### 1. 🖼️ Multi-Image & Multi-Document AI Capture (Up to 5 Files)
+- **Multi-File Selection**: Capture via camera or upload up to **5 images, invoices, warranty cards, or PDFs** in a single submission.
+- **Interactive Preview Chips**: Selected files appear as thumbnail chips above the chat input with filenames and individual **`[X]` removal buttons** to discard specific files before sending.
+- **Custom User Guidance**: Add custom instructions (e.g., *"Extract all 3 grocery bills and the AC warranty card"*, *"Organize these into my finance vault"*) or leave blank for automatic Smart Capture.
+- **Dual AI Vision Engine**: Powered by Google Gemini and Mistral Pixtral Vision (`pixtral-12b-2409` & `pixtral-large-latest`) with automatic bidirectional fallback.
 
-- Responsive layouts for mobile phones, tablets, laptops, and desktops.
-- Modern theme with Memoir branding, sharp Lucide vector icons, skeleton loading states, background sync indicators, confirmation dialogs, toasts, and activity animations.
-- A simplified six-destination navigation: Home, Memories, Rhinous, Planner, Capture, and Birthdays. Planner contains To-do Lists and Reminders; Capture contains Audio and Clipboard so the mobile dock stays clear and balanced.
-- **Expiring Soon Dashboard**: High-priority section on Home view alerting the owner about banking cards, IDs, and appliance warranties expiring within 5 months.
-- Global search across local titles, notes, field labels, and field values.
-- Birthday search results are routed to Birthdays; reminders and clipboard results are routed to their own sections.
+### 2. ⚡ Client-Side Local PDF & Document Text Extractor
+- **Zero AI Extraction Cost**: Uses browser-native stream decompression (`DecompressionStream('deflate')` / `DecompressionStream('deflate-raw')`) and PDF stream block parsing (`BT...ET`, `Tj`, `TJ`) to extract raw text **100% on the local machine**.
+- **100% Private & Instant**: Text extraction runs in milliseconds on device without uploading binary PDFs to external OCR services.
+- **Pristine AI Structuring**: The extracted text is provided directly to Rhinous to structure invoice numbers, GSTINs, amounts in ₹, purchase dates, and warranty validity with zero OCR errors or hallucinations.
 
-### Smart Multimodal Capture Agent (Vision & Voice)
+### 3. 🤖 Autonomous Chief of Staff (Morning & Evening Briefings)
+- **Morning Briefing (10:00 AM IST)**:
+  - Personalized daily summary sent directly to your Telegram bot.
+  - Formats today's scheduled reminders, pending to-do lists, upcoming birthdays, and expiring cards/warranties.
+- **Evening Daily Review (9:30 PM IST)**:
+  - Reflection check-in asking how your day went.
+  - Interactive 1-tap Telegram buttons: `[Done]`, `[Tomorrow 10 AM]`, `[Dismiss]`.
+- **Instant On-Demand Telegram Commands**:
+  - `/briefing` or `/today` — Trigger today's morning or evening briefing anytime.
+  - `/reminders` or `/tasks` — View all active reminders and pending tasks.
+  - `/test` or `/ping` — Diagnostic connectivity check confirming bot status, owner UID, and `Asia/Calcutta` timezone.
+  - `/start` and `/help` — View interactive usage instructions.
+- **Vercel Hobby Plan Compatible**: Scheduled via `vercel.json` (`schedule: "30 4 * * *"` = 10:00 AM IST daily) with client-side periodic sweeps.
 
-- **Camera Snap & OCR**: Snap or upload photos of warranty cards, electronics receipts, invoices, or identity documents directly into Rhinous chat.
-- **On-Device Image Compression**: High-resolution photos are compressed client-side to optimal sizes before encryption and processing.
-- **Dual AI Vision Engine**: Powered by Google Gemini and Mistral Pixtral Vision (`pixtral-12b-2409` & `pixtral-large-latest`) with automatic bidirectional fallback if one provider is throttled or offline.
-- **Field Extraction**: Automatically extracts Brand, Model, Serial Number, Purchase Date, Expiry/Validity Date, Warranty Period, and Support contacts.
-- **Voice Memo Dictation & Audio Storage**:
-  - A user-initiated permission dialog requests microphone access; denied permissions explain exactly how to re-enable the browser site permission.
-  - `MediaRecorder` always preserves the real recording while browser speech recognition may provide a live transcript preview.
-  - Audio files are AES-256-GCM encrypted, split into Firestore-safe chunks under the owner-isolated `secureAudio` collection, and referenced from the client-encrypted memory record.
-  - Dedicated Audio navigation lists app recordings, uploads, and Telegram voice notes with authenticated HTML5 playback.
-  - Audio upload accepts common mobile and desktop formats; app uploads are limited to 3 MB for reliable Vercel request handling and encrypted synchronization.
-  - Mistral Voxtral transcription is attempted first. If speech is unclear or transcription is unavailable, Memoir saves the original audio with its date/time and an explicit “No transcript available” status instead of inventing text.
-  - Audio is saved before AI transcription begins. Rate limits therefore never discard a recording; failed transcripts expose a retry action that reuses the existing encrypted audio.
-  - Transcripts are the only editable audio metadata. Transcript corrections automatically update reminders linked to the voice memo.
+### 4. 🧠 Intelligent Vault Assistant (Rhinous)
+- **Complete Credential & Field Resolution**: When asking for passwords, Wi-Fi keys, or birthdays, Rhinous retrieves the exact, complete record fields (e.g. `Date: August 22, 1995 (1995-08-22)`, `Network`, `Password`) directly to the authenticated owner.
+- **Temporal Calendar Awareness**: Understands user local time (`Asia/Calcutta`), day-of-week context, and handles recurring reminders naturally.
+- **Redacted Privacy Catalog**: The AI model only receives anonymized title/type metadata; sensitive payload decryption occurs exclusively on device.
 
-### Telegram Voice & Photo Bot
+---
 
-- **Photo Ingestion**: Send photos of receipts, warranty cards, or bills to your isolated Telegram bot to extract structured vault records automatically.
-- **Voice Note Capture**: Send voice notes dictating reminders (e.g. *"Remind me about laptop repair tomorrow at 4 PM"*) or memories.
-- **Voice Audio Persistence**: Telegram voice audio is downloaded, encrypted into the isolated chunked audio vault, transcribed with Voxtral when possible, and queued with its asset reference and transcript for the owner’s Audio tab.
-- **Done & Snooze Callbacks**: Inline buttons to complete or snooze reminders directly from Telegram.
-- Incoming Telegram update IDs are claimed atomically so webhook retries cannot produce repeated progress messages or duplicate captures.
+## 📱 Complete Feature Set
 
-### To-do Lists & Receipts
+### Home & Core Interface
+- Responsive mobile-first layout optimized for phones, tablets, laptops, and desktops.
+- Modern theme with Memoir branding, sharp Lucide vector icons, skeleton loaders, sync indicators, and micro-interactions.
+- **Consolidated Navigation**:
+  - **Home**: Quick stats, Expiring Soon dashboard, and recent activity.
+  - **Memories**: Encrypted cards, credentials, notes, documents, and finance.
+  - **Rhinous**: Multimodal AI chat assistant with multi-image & audio support.
+  - **Planner**: To-do Lists and Reminders.
+  - **Capture**: Voice Audio memo recorder and Clipboard Vault.
+  - **Birthdays**: Dedicated birthday tracker and wish generator.
+- **Expiring Soon Dashboard**: High-priority alert banner for banking cards, IDs, and appliance warranties expiring within 5 months.
+- **Global Instant Search**: Search across titles, notes, field labels, and values in real time.
 
-- Encrypted To-do workspace inside Planner, isolated per owner and excluded from the general Memories list.
-- Create lists manually or through Rhinous using comma-separated, line-separated, English, Hindi, or Hinglish item names.
-- Check/uncheck, rename, delete, and add optional INR amounts to every subtask independently.
-- Close and calculate a list without completing it, or move it into Completed while retaining the full history.
-- Generate branded paper-style receipt images locally in the browser without consuming AI credits, with the real rhino logo and a printer-feed preview animation.
-- Copy structured receipt text, copy the receipt image where supported, download it, or use the native mobile share sheet.
-- Telegram and Memoir provenance badges show where and when each supported record was created.
+### Voice Memo & Audio Vault
+- **In-App Voice Recording**: Client-side recording with `MediaRecorder` and live speech-to-text transcript preview.
+- **AES-256-GCM Encrypted Storage**: Audio is chunked and stored in Firestore under `secureAudio` per owner.
+- **Dedicated Audio Tab**: HTML5 audio player with transcription retry support, edit capabilities, and reminder linking.
+- **Telegram Voice Note Ingestion**: Voice messages sent to Telegram are automatically downloaded, encrypted, transcribed, and added to your Audio tab.
 
-### Expiry Tracking & Automated Alerts
+### To-do Lists & Thermal Receipts
+- Encrypted To-do workspace with subtasks, check/uncheck states, and optional INR amounts.
+- **Paper-Style Thermal Receipt Generator**: Renders printable branded receipt images locally in the browser with Rhino watermark and printer-feed animation.
+- Share receipts via image copy, download, or native OS share sheet.
 
-- **Validity Chips**: Cards, warranties, and identity documents calculate live remaining time (`4 yr 11 mo left`, `2 mo left`).
-- **5-Month Critical Window**: Records expiring in under 5 months display high-visibility `ShieldAlert` badges and appear on the Home dashboard.
-- **Multi-Stage Telegram Reminder Sweep**: Sends automated Telegram alerts at 5 months, 4 months, 3 months, 2 months, 1 month, 10 days, 5 days, 2 days, and 1 day before expiry.
+### Expiry Tracking & Multi-Stage Alerts
+- **Validity Chips**: Live calculations (`4 yr 11 mo left`, `2 mo left`).
+- **5-Month Warning Window**: Critical alerts displayed prominently on the dashboard.
+- **Multi-Stage Sweep**: Telegram notifications at 5 mo, 4 mo, 3 mo, 2 mo, 1 mo, 10 days, 5 days, 2 days, and 1 day before expiry.
 
 ### Selective Secure Sharing
-
-- **Field-Level Sharing**: Share specific memory fields (e.g., Bank Name, Account Number, IFSC) without exposing passwords, ATM PINs, or CVVs.
-- **Sensitive Guard**: Secret fields are filtered and hidden by default with prominent caution banners.
-- **Light Monospace Preview**: Real-time monospace preview box showing the exact formatted text before sharing.
-- **One-Tap Integrations**: Direct forwarding to **WhatsApp**, **Telegram**, **Gmail**, **Instagram Direct**, and the native OS Share Sheet.
-
-### Memories & Finance
-
-- Create, view, edit, delete, copy, search, and securely import memories.
-- Supported categories: Login, Finance, Identity, Government Document, Personal, Audio, To-do, Birthday, Wi-Fi, Clipboard, and Reminder.
-- Finance records containing card numbers render responsive payment cards with masked/revealed toggles and field copy buttons.
-- Document records support document numbers, issuing authority, validity dates, soft-copy drive links, and attached voice recordings.
-- Bulk import accepts 1–100 JSON memory objects and encrypts them client-side without page reload.
-
-### Smart Reminders & Temporal Intelligence
-
-- One-time and recurring daily, weekly, monthly, or yearly reminders.
-- **Temporal Context Awareness**: Rhinous analyzes the current date, time, and upcoming calendar days to schedule accurate dates.
-- **Exact-but-natural retrieval**: The signed-in device deterministically locks the intended record ID and requested field names, while Gemini or Mistral still composes the conversational response. This prevents a generic field such as `Password` from switching to another account without reducing Rhinous to predefined replies.
-  - If a daily or weekly reminder time has already passed today (e.g., *"every Friday at 11 AM"* when it is currently 2 PM on Friday), Rhinous automatically sets `Due at` to the upcoming Friday.
-- Telegram notification schedule: 1 day, 5 hours, 3 hours, 2 hours, 30 minutes, 10 minutes, and exactly at the due time.
-- Atomic delivery deduplication prevents duplicate notifications.
+- **Field-Level Granularity**: Share specific details (e.g. Bank Account & IFSC) while keeping passwords, PINs, and CVVs guarded.
+- **Attachment Inclusion**: Toggle whether to include decrypted images or PDF documents in the share payload.
+- **One-Tap Channels**: Forward directly to WhatsApp, Telegram, Gmail, Instagram Direct, or clipboard.
 
 ### Clipboard Vault
+- Fast text clipboard capture for temporary notes, code snippets, and addresses.
+- Isolated per user profile with full AI search and edit support.
 
-- Available beside Audio inside the consolidated Capture workspace.
-- Capture text clipboard or type notes directly.
-- Full search, copy, edit, delete, and AI retrieval for saved clips.
-- Isolated per Memoir owner.
-
-### Birthdays
-
-- Dedicated Birthday timeline ordered by the next upcoming month/day.
-- Supports optional birth year with exact age calculations (`Age unavailable` if omitted).
-- Automatic 5-stage Telegram reminders: 2 days, 1 day, 5 hours, 2 hours, and midnight.
-- Rhinous can compose personalized birthday wishes based on saved notes and tone.
+### Birthdays & Wishes
+- Ordered timeline by upcoming month and day with calculated age.
+- 5-stage automated Telegram reminders (2 days, 1 day, 5 hours, 2 hours, midnight).
+- Personalized wish generator powered by Rhinous.
 
 ---
 
-## Architecture & Security Model
+## 🔒 Architecture & Security Model
 
 ```text
-Browser / PWA
-  ├─ IndexedDB: client-encrypted records, wrapped key, offline queue
-  ├─ Firebase Auth: approved email/password identity
-  ├─ Firestore users/{uid}: client-encrypted cross-device vault
-  └─ Memoir APIs (Firebase ID token + device identity headers)
-       ├─ Auth + Telegram OTP + two-device session enforcement
-       ├─ Multimodal AI Router: Redacted catalog + Gemini / Mistral Pixtral
-       ├─ Secure Server Mirror: AES-256-GCM encrypted per UID
-       ├─ Telegram Webhook / Polling: Photo, voice note, and text ingestion
-       └─ Reminder & Expiry Sweep: Multi-stage automated deliveries
+Browser / PWA (Client)
+  ├── IndexedDB: Local AES-GCM encrypted records, wrapped keys, offline queue
+  ├── Firebase Auth: Email/password authentication with device binding
+  ├── Native Stream Decompressor: Client-side local PDF text extraction
+  └── Memoir Server APIs (Vercel / Node.js)
+        ├── /api/auth: Device sessions, Telegram OTP challenge/verify
+        ├── /api/assistant: Redacted routing, Gemini 2.5 & Mistral Pixtral Vision
+        ├── /api/telegram: Webhook, photo OCR, voice download, inline callbacks
+        ├── /api/reminders: Vercel Cron sweep, Chief of Staff briefings
+        ├── /api/audio: Encrypted chunked audio upload and streaming
+        └── /api/sync: AES-256-GCM server automation mirror
 ```
 
-### Encryption Boundaries
-
-1. **Owner Vault (Client-Side AES-GCM)**:
-   - 256-bit AES-GCM master key derived via PBKDF2-SHA-256.
-   - Firestore `users/{uid}/items` receives only ciphertext payloads.
-2. **Server Automation Mirror (Server-Side AES-256-GCM)**:
-   - Synchronized to `secureVault/{uid}/items` encrypted with `VAULT_SERVER_KEY`.
-   - Used for closed-browser Telegram ingestion, voice note processing, and automated reminder sweeps.
+### Encryption Layers
+1. **Client-Side Master Vault (AES-GCM 256-bit)**:
+   - Key derived client-side via PBKDF2-SHA-256 with 100,000 iterations.
+   - Firestore `users/{uid}/items` receives only encrypted ciphertexts.
+2. **Server Automation Mirror (AES-256-GCM)**:
+   - Stored in `secureVault/{uid}/items` encrypted with `VAULT_SERVER_KEY`.
+   - Enables headless Telegram bot replies, voice processing, and reminder sweeps when the browser is closed.
 
 ---
 
-## Local Development
+## 🛠️ Local Development
 
-Requirements: Node.js 22+ and pnpm / npm.
+### Prerequisites
+- Node.js 22+
+- npm or pnpm
 
-1. Clone repository and install dependencies:
+### Setup
+1. Clone the repository and install dependencies:
    ```bash
+   git clone https://github.com/maazmohammed112/memoir.git
+   cd memoir
    npm install
    ```
-2. Copy `.env.example` to `.env.local` and add credentials.
+
+2. Configure environment variables in `.env.local`:
+   ```ini
+   # Firebase
+   FIREBASE_API_KEY=...
+   FIREBASE_AUTH_DOMAIN=...
+   FIREBASE_PROJECT_ID=...
+   FIREBASE_SERVICE_ACCOUNT_JSON=...
+
+   # AI Providers
+   GEMINI_API_KEY=...
+   MISTRAL_API_KEY=...
+
+   # Telegram Bot (User 1 - Maaz)
+   MAAZ_TELEGRAM_BOT_TOKEN=...
+   MAAZ_TELEGRAM_CHAT_ID=...
+
+   # Telegram Bot (User 2 - Deepti)
+   DEEPTI_TELEGRAM_BOT_TOKEN=...
+   DEEPTI_TELEGRAM_CHAT_ID=...
+
+   # Security & Timezone
+   VAULT_SERVER_KEY=...
+   APP_TIMEZONE=Asia/Calcutta
+   ```
+
 3. Start development server:
    ```bash
    npm run dev
    ```
-4. Build and syntax check:
+
+4. Verify syntax and production build:
    ```bash
    npm run check
    npm run build
@@ -144,29 +165,27 @@ Requirements: Node.js 22+ and pnpm / npm.
 
 ---
 
-## API Endpoints
+## 📡 API Reference
 
-| Route | Methods | Purpose |
+| Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/api/auth` | POST | Vault selection, Telegram OTP request/verify/status/revoke, device sessions |
-| `/api/assistant` | POST | Redacted AI routing, document OCR, voice note transcription (Gemini / Mistral) |
-| `/api/audio` | GET / POST / DELETE | Authenticated encrypted audio upload, playback, and cleanup |
-| `/api/sync` | POST | Encrypted server-mirror mutations and snapshots |
-| `/api/telegram` | POST | Telegram webhook for photos, voice notes, text commands, and callback queries |
-| `/api/reminders` | POST / GET | On-demand and scheduled reminder / card expiry sweeps |
-| `/api/alexa` | POST | Safe Alexa bridge for non-sensitive vault actions and lookups |
-| `/api/health` | GET | Runtime health and diagnostic checks |
+| `/api/auth` | POST | Vault user profile selection, Telegram OTP auth, device sessions |
+| `/api/assistant` | POST | Redacted AI assistant, multi-image vision OCR, local PDF text ingestion |
+| `/api/telegram` | POST | Telegram webhook for photos, voice notes, `/briefing`, `/reminders`, `/test` |
+| `/api/reminders` | GET / POST | Vercel Cron & client-triggered reminder and Chief of Staff sweeps |
+| `/api/audio` | GET / POST / DELETE | Encrypted audio streaming, chunked upload, and cleanup |
+| `/api/sync` | POST | Encrypted server-mirror mutation and snapshot synchronization |
+| `/api/alexa` | POST | Secure Alexa bridge for voice lookups |
+| `/api/health` | GET | Health and diagnostic check |
 
 ---
 
-## Firestore Collections
+## 📁 Database Schema (Firestore)
 
-- `users/{uid}/items/{itemId}` — Client-encrypted vault records.
+- `users/{uid}/items/{itemId}` — Client-side encrypted vault records.
 - `secureVault/{uid}/items/{itemId}` — Server-encrypted automation mirror.
-- `secureAudio/{uid}/items/{audioId}` — Server-encrypted audio metadata with encrypted `chunks` subcollection.
-- `verifiedSessions/{uid}/sessions/{authTime}` — Device-bound active sessions.
-- `otpChallenges/{uid}/sessions/{authTime}` — Hashed expiring OTP challenges.
-- `authRateLimits/{uid}` — OTP request and verification security rate limits.
-- `accountCodeRateLimits/{fingerprint}` — Four-digit vault code attempt limits.
-- `telegramActionQueue/{uid}/items/{queueId}` — Encrypted actions queued via Telegram.
-- `reminderDeliveries/{uid}/items/{deliveryId}` — Reminder deduplication records.
+- `secureAudio/{uid}/items/{audioId}` — Encrypted audio metadata with `chunks` subcollection.
+- `verifiedSessions/{uid}/sessions/{authTime}` — Active bound device sessions.
+- `otpChallenges/{uid}/sessions/{authTime}` — Hashed Telegram OTP challenge records.
+- `telegramActionQueue/{uid}/items/{queueId}` — Action queue for mutations originating from Telegram.
+- `reminderDeliveries/{uid}/items/{deliveryId}` — Atomic delivery and deduplication keys.
