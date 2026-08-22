@@ -134,11 +134,26 @@ function updateSecurityCountdowns() {
 }
 let activityDepth = 0;
 async function withRhinoActivity(label, task) {
-  const started = Date.now(); activityDepth += 1; let node = document.querySelector('#rhino-activity');
-  if (!node) { node = document.createElement('div'); node.id = 'rhino-activity'; node.className = 'rhino-activity'; node.innerHTML = `<span><img src="/brand/memoir-rhino-ui.png" alt=""></span><strong></strong><i></i>`; document.body.appendChild(node); }
-  node.querySelector('strong').textContent = label; requestAnimationFrame(() => node.classList.add('show'));
-  try { return await task(); }
-  finally { await new Promise(resolve => setTimeout(resolve, Math.max(0, 320 - (Date.now() - started)))); activityDepth = Math.max(0, activityDepth - 1); if (!activityDepth) { node.classList.remove('show'); setTimeout(() => { if (!activityDepth) node.remove(); }, 220); } }
+  activityDepth += 1;
+  let node = document.querySelector('#rhino-activity');
+  if (!node) {
+    node = document.createElement('div');
+    node.id = 'rhino-activity';
+    node.className = 'rhino-activity';
+    node.innerHTML = `<span><img src="/brand/memoir-rhino-ui.png" alt=""></span><strong></strong><i></i>`;
+    document.body.appendChild(node);
+  }
+  node.querySelector('strong').textContent = label;
+  node.classList.add('show');
+  try {
+    return await task();
+  } finally {
+    activityDepth = Math.max(0, activityDepth - 1);
+    if (!activityDepth) {
+      node.classList.remove('show');
+      setTimeout(() => { if (!activityDepth) node.remove(); }, 60);
+    }
+  }
 }
 function activeProfile() { return state.auth.profile || { name: 'Owner', initials: 'ME', email: state.auth.email || '' }; }
 function titleForView() {

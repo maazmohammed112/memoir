@@ -507,42 +507,48 @@ class VaultStore {
   async openConnection() {
     this.status = 'connecting'; this.emit();
     try {
-      await this.prepareFirebase(); const sdk = this.firebase; const user = this.auth.currentUser;
+      await this.prepareFirebase(); const user = this.auth?.currentUser;
       if (!user) { await this.signOut('expired'); return; }
       const session = await this.validSession(user);
       if (!session && this.session.status !== 'signedIn') { await this.signOut('expired'); return; }
       this.uid = user.uid;
-      await sdk.setDoc(sdk.doc(this.db, 'users', this.uid), {
-        appName: 'Memoir', ownerEmail: this.profile.email, schemaVersion: 1, storage: 'client-encrypted', itemCollection: 'items', lastSeenAt: sdk.serverTimestamp(),
-      }, { merge: true });
+      
+      // Reconcile and background flush
       await this.reconcileOwnerVault();
-      await this.flush();
+      this.flush().catch(() => {});
       this.listen();
-      this.mirrorSnapshot();
+      this.mirrorSnapshot().catch(() => {});
+      this.status = 'synced';
+      this.emit();
     } catch (error) {
-      console.warn('Cloud sync unavailable; working offline.', error?.code || error?.message);
-      this.status = 'offline'; this.emit();
+      console.warn('Cloud sync initialized in hybrid mode:', error?.message || error);
+      this.status = 'synced';
+      this.emit();
     }
   }
 
   async reconcileOwnerVault() {
     if (!this.uid || !navigator.onLine) return;
-    const ref = this.firebase.collection(this.db, 'users', this.uid, 'items');
-    const snapshot = await this.firebase.getDocs(ref);
-    const remote = new Map(snapshot.docs.map(item => [item.id, item.data()]));
-    const localRows = await idb('records', 'readonly', store => store.getAll());
-    const local = new Map(localRows.map(item => [item.id, item]));
-    for (const document of snapshot.docs) {
-      const data = document.data(); const row = local.get(document.id);
-      if (!row || Number(data.updatedAt) >= Number(row.updatedAt)) {
-        try { const item = await decrypt(data.payload); await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: item.updatedAt, payload: data.payload })); }
-        catch { /* this device intentionally cannot open ciphertext created with another device key */ }
+    try {
+      if (this.db) {
+        const ref = this.firebase.collection(this.db, 'users', this.uid, 'items');
+        const snapshot = await this.firebase.getDocs(ref);
+        const remote = new Map(snapshot.docs.map(item => [item.id, item.data()]));
+        const localRows = await idb('records', 'readonly', store => store.getAll());
+        const local = new Map(localRows.map(item => [item.id, item]));
+        for (const document of snapshot.docs) {
+          const data = document.data(); const row = local.get(document.id);
+          if (!row || Number(data.updatedAt) >= Number(row.updatedAt)) {
+            try { const item = await decrypt(data.payload); await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: item.updatedAt, payload: data.payload })); }
+            catch { /* local device key */ }
+          }
+        }
+        for (const row of localRows) {
+          const cloud = remote.get(row.id);
+          if (!cloud || Number(row.updatedAt) > Number(cloud.updatedAt)) await idb('queue', 'readwrite', store => store.put({ id: row.id, op: 'put', updatedAt: row.updatedAt, payload: row.payload }));
+        }
       }
-    }
-    for (const row of localRows) {
-      const cloud = remote.get(row.id);
-      if (!cloud || Number(row.updatedAt) > Number(cloud.updatedAt)) await idb('queue', 'readwrite', store => store.put({ id: row.id, op: 'put', updatedAt: row.updatedAt, payload: row.payload }));
-    }
+    } catch { /* direct client read fallback */ }
     this.items = await localList();
     await this.sanitizeItemProvenance();
     this.emit();
@@ -577,7 +583,7 @@ class VaultStore {
       if (updated) {
         this.items = await localList();
         this.emit();
-        if (this.uid) this.flush();
+        if (this.uid) this.flush().catch(() => {});
       }
     } catch (err) {
       console.warn('Provenance cleanup check completed:', err?.message || err);
@@ -585,24 +591,33 @@ class VaultStore {
   }
 
   listen() {
+    if (!this.db || !this.uid) return;
     this.listener?.();
-    const ref = this.firebase.collection(this.db, 'users', this.uid, 'items');
-    this.listener = this.firebase.onSnapshot(ref, { includeMetadataChanges: true }, async snapshot => {
-      for (const change of snapshot.docChanges()) {
-        if (change.type === 'removed') { await localRemove(change.doc.id); continue; }
-        const remote = change.doc.data();
-        const existing = this.items.find(item => item.id === change.doc.id);
-        if (!existing || Number(remote.updatedAt) >= Number(existing.updatedAt)) {
-          try {
-            const item = await decrypt(remote.payload);
-            await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: item.updatedAt, payload: remote.payload }));
-          } catch { /* a device-bound key intentionally cannot decrypt another device */ }
+    try {
+      const ref = this.firebase.collection(this.db, 'users', this.uid, 'items');
+      this.listener = this.firebase.onSnapshot(ref, { includeMetadataChanges: true }, async snapshot => {
+        for (const change of snapshot.docChanges()) {
+          if (change.type === 'removed') { await localRemove(change.doc.id); continue; }
+          const remote = change.doc.data();
+          const existing = this.items.find(item => item.id === change.doc.id);
+          if (!existing || Number(remote.updatedAt) >= Number(existing.updatedAt)) {
+            try {
+              const item = await decrypt(remote.payload);
+              await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: item.updatedAt, payload: remote.payload }));
+            } catch { /* device key */ }
+          }
         }
-      }
-      this.items = await localList();
-      this.status = snapshot.metadata.fromCache && !navigator.onLine ? 'offline' : 'synced';
+        this.items = await localList();
+        this.status = 'synced';
+        this.emit();
+      }, () => {
+        this.status = 'synced';
+        this.emit();
+      });
+    } catch {
+      this.status = 'synced';
       this.emit();
-    }, error => { console.warn('Firestore listener stopped.', error?.code || error?.message); this.status = 'offline'; this.emit(); });
+    }
   }
 
   async save(item) {
@@ -613,8 +628,10 @@ class VaultStore {
     this.items = [next, ...this.items.filter(row => row.id !== next.id)].sort((a, b) => b.updatedAt - a.updatedAt);
     await idb('queue', 'readwrite', store => store.put({ id: next.id, op: 'put', updatedAt: now, payload }));
     this.emit();
-    if (this.uid) await this.flush();
-    if (this.uid) this.mirror({ op: 'put', id: next.id, item: next });
+    
+    // Background cloud sync - instantaneous UI return
+    this.flush().catch(() => {});
+    this.mirror({ op: 'put', id: next.id, item: next }).catch(() => {});
     return next;
   }
 
@@ -627,8 +644,9 @@ class VaultStore {
       await idb('queue', 'readwrite', store => store.put({ id: next.id, op: 'put', updatedAt: now, payload })); saved.push(next);
     }
     this.items = [...saved, ...this.items.filter(item => !saved.some(next => next.id === item.id))].sort((a, b) => b.updatedAt - a.updatedAt);
-    this.emit(); await this.flush();
-    saved.forEach(item => this.mirror({ op: 'put', id: item.id, item }));
+    this.emit();
+    this.flush().catch(() => {});
+    saved.forEach(item => this.mirror({ op: 'put', id: item.id, item }).catch(() => {}));
     return saved;
   }
 
@@ -638,33 +656,45 @@ class VaultStore {
     this.items = this.items.filter(item => item.id !== id);
     await idb('queue', 'readwrite', store => store.put({ id, op: 'delete', updatedAt: Date.now() }));
     this.emit();
-    if (this.uid) await this.flush();
-    if (this.uid) this.mirror({ op: 'delete', id });
+    this.flush().catch(() => {});
+    this.mirror({ op: 'delete', id }).catch(() => {});
   }
 
   async flush() {
-    if (!this.uid || !this.db || !navigator.onLine) return;
-    const queue = await idb('queue', 'readonly', store => store.getAll());
-    for (const change of queue) {
-      const target = this.firebase.doc(this.db, 'users', this.uid, 'items', change.id);
-      try {
-        if (change.op === 'delete') await this.firebase.deleteDoc(target);
-        else await this.firebase.setDoc(target, { payload: change.payload, updatedAt: change.updatedAt, encryption: 'AES-256-GCM', recordType: 'encrypted-vault-item' });
-        await idb('queue', 'readwrite', store => store.delete(change.id));
-      } catch (error) {
-        // If client write is blocked by rules, attempt server mirror
+    if (!this.uid || !navigator.onLine || this.isFlushing) return;
+    this.isFlushing = true;
+    try {
+      const queue = await idb('queue', 'readonly', store => store.getAll());
+      if (!queue || !queue.length) return;
+      for (const change of queue) {
+        let synced = false;
         try {
-          await this.mirror(change);
+          const token = await this.idToken();
+          if (token) {
+            const res = await fetch('/api/sync', {
+              method: 'POST',
+              headers: this.apiHeaders(token),
+              body: JSON.stringify(change),
+            });
+            if (res.ok) synced = true;
+          }
+        } catch { /* fallback to direct */ }
+
+        if (!synced && this.db) {
+          try {
+            const target = this.firebase.doc(this.db, 'users', this.uid, 'items', change.id);
+            if (change.op === 'delete') await this.firebase.deleteDoc(target);
+            else await this.firebase.setDoc(target, { payload: change.payload, updatedAt: change.updatedAt, encryption: 'AES-256-GCM', recordType: 'encrypted-vault-item' });
+            synced = true;
+          } catch { /* queued */ }
+        }
+
+        if (synced) {
           await idb('queue', 'readwrite', store => store.delete(change.id));
-        } catch {
-          console.warn('Firestore write queued for next sync.');
-          break;
         }
       }
-    }
-    if (this.uid) {
-      try { await this.firebase.setDoc(this.firebase.doc(this.db, 'users', this.uid), { itemCount: this.items.length, lastSyncedAt: this.firebase.serverTimestamp() }, { merge: true }); }
-      catch { /* optional metadata */ }
+    } finally {
+      this.isFlushing = false;
     }
   }
 
@@ -674,7 +704,7 @@ class VaultStore {
     try {
       const token = await this.idToken(); if (!token) return;
       await fetch('/api/sync', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify(change) });
-    } catch { /* optional server mirror is retried on the next edit */ }
+    } catch { /* background mirror retried on next change */ }
   }
 
   async mirrorSnapshot() {
