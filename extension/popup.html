@@ -1,0 +1,83 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memoir Vault</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="brand">
+        <span class="rhino-icon">🦏</span>
+        <div>
+          <h1>Memoir</h1>
+          <span class="version">Autofill & Capture</span>
+        </div>
+      </div>
+      <span class="status-dot" id="status-dot"></span>
+    </header>
+
+    <!-- Logged Out View -->
+    <div id="view-login" class="view">
+      <div class="login-box">
+        <p class="login-desc">Connect to your private vault to enable 1-tap autofill and smart capture.</p>
+        <div class="form-group">
+          <label for="vault-code">Enter 4-Digit Account Code</label>
+          <input type="password" id="vault-code" maxlength="4" placeholder="••••" inputmode="numeric" autofocus>
+        </div>
+        <div class="form-group advanced-opt">
+          <label for="server-url">Vault Server URL</label>
+          <input type="text" id="server-url" value="https://memo-vault.vercel.app" placeholder="https://...">
+        </div>
+        <button type="button" id="btn-login" class="btn primary">Connect Vault</button>
+        <p id="login-error" class="error-text" style="display:none;"></p>
+      </div>
+    </div>
+
+    <!-- Logged In View -->
+    <div id="view-active" class="view" style="display:none;">
+      <div class="profile-card">
+        <div class="avatar" id="user-avatar">M</div>
+        <div class="profile-info">
+          <strong id="user-name">Maaz</strong>
+          <small id="user-email">maaz@memo.com</small>
+        </div>
+        <span class="badge active">Active</span>
+      </div>
+
+      <!-- Current Site Matches -->
+      <div class="section-box">
+        <div class="section-title">
+          <span>Active Site</span>
+          <strong id="active-domain">current-site.com</strong>
+        </div>
+        <div id="site-credentials-list" class="credentials-list">
+          <p class="empty-text">No matching logins for this tab</p>
+        </div>
+      </div>
+
+      <!-- Toggles -->
+      <div class="toggles-box">
+        <label class="toggle-row">
+          <span>Smart Autofill</span>
+          <input type="checkbox" id="toggle-autofill" checked>
+        </label>
+        <label class="toggle-row">
+          <span>Form Auto-Capture</span>
+          <input type="checkbox" id="toggle-capture" checked>
+        </label>
+      </div>
+
+      <div class="footer-actions">
+        <button type="button" id="btn-open-app" class="btn secondary">Open Memoir App ↗</button>
+        <button type="button" id="btn-logout" class="btn text">Sign Out</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

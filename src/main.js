@@ -33,6 +33,7 @@ import ExternalLink from 'lucide/dist/esm/icons/external-link.mjs';
 import FileBadge from 'lucide/dist/esm/icons/file-badge.mjs';
 import FileText from 'lucide/dist/esm/icons/file-text.mjs';
 import Gem from 'lucide/dist/esm/icons/gem.mjs';
+import Globe from 'lucide/dist/esm/icons/globe.mjs';
 import House from 'lucide/dist/esm/icons/house.mjs';
 import ImageIcon from 'lucide/dist/esm/icons/image.mjs';
 import Info from 'lucide/dist/esm/icons/info.mjs';
@@ -78,7 +79,7 @@ const customBrandIcons = {
 const iconSet = {
   AlarmClock, AudioLines, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, Bell, BellRing, CakeSlice, Calendar, Camera,
   Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Clock,
-  CloudUpload, Copy, CreditCard, Download, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, House, Image: ImageIcon, Info, KeyRound, Landmark,
+  CloudUpload, Copy, CreditCard, Download, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, Globe, House, Image: ImageIcon, Info, KeyRound, Landmark,
   LockKeyhole, LogOut, ListTodo, Mail, MessageCircle, Mic, Minus, NotebookText, Paperclip, Pencil, Plus, ReceiptText, Search,
   Send, Share2, ShieldAlert, ShieldCheck, Sparkles, Trash2, TriangleAlert, UploadCloud: CloudUpload, WandSparkles, Wifi, X, Zap,
 };
@@ -150,12 +151,24 @@ function allFields(item) { return item.fields || {}; }
 function provenanceOf(item) {
   const source = String(item?.provenance?.source || item?.fields?.['Created via'] || item?.fields?.['Audio Source'] || 'Memoir app');
   const isTelegram = /telegram/i.test(source);
-  return { source: isTelegram ? 'Telegram' : 'Memoir app', createdAt: item?.provenance?.createdAt || item?.fields?.['Created at'] || item?.fields?.['Recorded at'] || new Date(item?.createdAt || Date.now()).toISOString(), icon: isTelegram ? 'Telegram' : 'Rhino' };
+  const isExtension = /extension|chrome/i.test(source);
+  return {
+    source: isTelegram ? 'Telegram' : isExtension ? 'Chrome Extension' : 'Memoir app',
+    createdAt: item?.provenance?.createdAt || item?.fields?.['Created at'] || item?.fields?.['Recorded at'] || new Date(item?.createdAt || Date.now()).toISOString(),
+    icon: isTelegram ? 'Telegram' : isExtension ? 'Globe' : 'Rhino',
+    domain: item?.provenance?.domain || item?.domain || '',
+  };
 }
-function provenanceBadge(item) { const info = provenanceOf(item); return `<button type="button" class="provenance-badge ${info.source === 'Telegram' ? 'telegram' : 'memoir'}" data-provenance="${item.id}" title="Where this was created">${info.icon === 'Telegram' ? icon('Telegram') : '<img src="/brand/memoir-rhino-ui.png" alt="">'}</button>`; }
+function provenanceBadge(item) {
+  const info = provenanceOf(item);
+  const badgeClass = info.source === 'Telegram' ? 'telegram' : info.source === 'Chrome Extension' ? 'extension' : 'memoir';
+  const iconMarkup = info.source === 'Telegram' ? icon('Telegram') : info.source === 'Chrome Extension' ? icon('Globe') : '<img src="/brand/memoir-rhino-ui.png" alt="">';
+  return `<button type="button" class="provenance-badge ${badgeClass}" data-provenance="${item.id}" title="Added via ${escapeHtml(info.source)}${info.domain ? ` (${escapeHtml(info.domain)})` : ''}">${iconMarkup}</button>`;
+}
 function showProvenance(id) {
   const item = state.items.find(row => row.id === id); if (!item) return; const info = provenanceOf(item); const created = new Date(info.createdAt); const time = Number.isNaN(created.getTime()) ? 'time unavailable' : created.toLocaleString();
-  modal.className = 'modal confirm'; modal.innerHTML = `<div class="modal-inner"><span class="confirm-icon provenance-confirm">${info.source === 'Telegram' ? icon('Telegram') : '<img src="/brand/memoir-rhino-ui.png" alt="">'}</span><div class="modal-head"><div><p class="eyebrow">Creation history</p><h2>Added from ${escapeHtml(info.source)}</h2></div></div><p>“${escapeHtml(item.title)}” was added on ${escapeHtml(time)} using ${escapeHtml(info.source)}.</p><div class="modal-actions"><button class="primary modal-cancel">Done</button></div></div>`; showModal();
+  const iconMarkup = info.source === 'Telegram' ? icon('Telegram') : info.source === 'Chrome Extension' ? icon('Globe') : '<img src="/brand/memoir-rhino-ui.png" alt="">';
+  modal.className = 'modal confirm'; modal.innerHTML = `<div class="modal-inner"><span class="confirm-icon provenance-confirm">${iconMarkup}</span><div class="modal-head"><div><p class="eyebrow">Creation history</p><h2>Added from ${escapeHtml(info.source)}</h2></div></div><p>“${escapeHtml(item.title)}” was captured on ${escapeHtml(time)} using ${escapeHtml(info.source)}${info.domain ? ` on ${escapeHtml(info.domain)}` : ''}.</p><div class="modal-actions"><button class="primary modal-cancel">Done</button></div></div>`; showModal();
 }
 function safeExternalLink(value) { try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.href : ''; } catch { return ''; } }
 function externalLinkButton(value, label = 'Open secure link') {
@@ -554,6 +567,8 @@ function currentView() { return ({ home: homeView, vault: vaultView, guard: guar
 function memories() { return state.items.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Notification', 'Todo'].includes(item.type)); }
 function vaultMemories() { return memories().filter(item => item.type !== 'Birthday' && item.type !== 'Audio'); }
 function memoryFilterGroup(item) {
+  const isExtension = /extension|chrome/i.test(String(item?.provenance?.source || item?.fields?.['Created via'] || ''));
+  if (isExtension) return 'extension';
   if (item.type === 'Finance') return 'banks';
   if (['Identity', 'Government Document'].includes(item.type)) return 'documents';
   if (item.type === 'Login') return 'logins';
@@ -1501,7 +1516,7 @@ function vaultView() {
     return `${switcher}<div class="workspace-body">${guardView()}</div>`;
   }
   const all = vaultMemories();
-  const filters = [['all', 'All'], ['banks', 'Banks'], ['documents', 'Documents'], ['logins', 'Logins'], ['wifi', 'Wi-Fi'], ['personal', 'Personal']];
+  const filters = [['all', 'All'], ['extension', 'Browser Captures'], ['banks', 'Banks'], ['documents', 'Documents'], ['logins', 'Logins'], ['wifi', 'Wi-Fi'], ['personal', 'Personal']];
   const counts = Object.fromEntries(filters.map(([id]) => [id, id === 'all' ? all.length : all.filter(item => memoryFilterGroup(item) === id).length]));
   const availableFilters = filters.filter(([id]) => id === 'all' || counts[id]);
   if (!availableFilters.some(([id]) => id === state.vaultCategory)) state.vaultCategory = 'all';
