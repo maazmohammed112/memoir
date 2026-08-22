@@ -961,3 +961,100 @@ input, textarea {
   transform: scale(0.98);
 }
 
+/* --- Serendipity Rediscovery Card & Memory Bubble Filters --- */
+.serendipity-card {
+  margin: 14px 0 16px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(243, 46, 139, 0.05), var(--surface));
+  border: 1px solid rgba(243, 46, 139, 0.22);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
+  animation: enter 0.25s ease both;
+}
+.serendipity-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--rose);
+  box-shadow: 0 8px 24px rgba(243, 46, 139, 0.1);
+}
+.serendipity-card:active {
+  transform: scale(0.98);
+}
+.serendipity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.serendipity-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: #fdeaf2;
+  color: var(--rose);
+}
+.serendipity-header small {
+  font-size: 10px;
+  color: var(--muted);
+}
+.serendipity-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.serendipity-info {
+  min-width: 0;
+  flex: 1;
+}
+.serendipity-info h3 {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.serendipity-info p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.serendipity-action {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--surface2);
+  color: var(--rose);
+  flex: none;
+}
+.serendipity-action .icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Filter Glyph in Memory Bubble Tabs */
+.filter-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+.filter-glyph .icon {
+  width: 14px;
+  height: 14px;
+}
+

@@ -1178,10 +1178,35 @@ function homeView() {
       </button>
     </div>
   `;
+  const pastMemories = normalMemories.filter(m => m.type !== 'Notification' && m.type !== 'Todo');
+  let serendipityHtml = '';
+  if (pastMemories.length >= 2) {
+    const dayIndex = Math.floor(Date.now() / 86400000);
+    const item = pastMemories[dayIndex % pastMemories.length];
+    if (item) {
+      serendipityHtml = `
+        <article class="serendipity-card" data-open="${item.id}" tabindex="0">
+          <div class="serendipity-header">
+            <span class="serendipity-kicker">${icon('History')} Vault Rediscovery</span>
+            <small>Surfaced for you</small>
+          </div>
+          <div class="serendipity-body">
+            <span class="icon-wrap rose">${icon(itemIcon(item))}</span>
+            <div class="serendipity-info">
+              <h3>${escapeHtml(item.title)}</h3>
+              <p>${escapeHtml(item.note || Object.entries(item.fields || {}).map(([k, v]) => `${k}: ${v}`).slice(0, 2).join(' · ') || 'Saved memory')}</p>
+            </div>
+            <span class="serendipity-action">${icon('ArrowUpRight')}</span>
+          </div>
+        </article>
+      `;
+    }
+  }
 
   return `<div class="hero-grid"><section class="hero"><img class="hero-rhino" src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Your private second brain</p><h2>Everything important, remembered beautifully.</h2><p>Save private details, retrieve only what you need, and never miss a meaningful moment.</p><button class="primary" data-add="memory">${icon('Plus')} Add a memory</button></section>
   <div class="stat-grid"><article class="stat large" data-view="vault" style="cursor:pointer"><span class="stat-symbol rose">${icon('ShieldCheck')}</span><div><strong>${normalMemories.length}</strong><span>memories kept safe</span></div></article><article class="stat" data-view="extension" style="cursor:pointer"><span class="stat-symbol green">${icon('Globe')}</span><div><strong>${extensionItems.length}</strong><span>browser captures</span></div></article><article class="stat" data-view="reminders" style="cursor:pointer"><span class="stat-symbol violet">${icon('AlarmClock')}</span><div><strong>${upcomingReminders.length}</strong><span>upcoming reminders</span></div></article></div></div>
   ${quickActionsHtml}
+  ${serendipityHtml}
   ${extensionBannerHtml}
   ${guardBannerHtml}
   ${expiriesHtml}
@@ -1714,12 +1739,19 @@ function vaultView() {
     return `${switcher}<div class="workspace-body">${browserCapturesView()}</div>`;
   }
   const all = vaultMemories();
-  const filters = [['all', 'All'], ['banks', 'Banks'], ['documents', 'Documents'], ['logins', 'Logins'], ['wifi', 'Wi-Fi'], ['notes', 'Notes']];
+  const filters = [
+    ['all', 'Gem', 'All Memories'],
+    ['banks', 'CreditCard', 'Cards & Banks'],
+    ['documents', 'FileText', 'Documents'],
+    ['logins', 'KeyRound', 'Logins & Keys'],
+    ['wifi', 'Wifi', 'Wi-Fi'],
+    ['notes', 'FileText', 'Notes']
+  ];
   const counts = Object.fromEntries(filters.map(([id]) => [id, id === 'all' ? all.length : all.filter(item => memoryFilterGroup(item) === id).length]));
   const availableFilters = filters.filter(([id]) => id === 'all' || counts[id]);
   if (!availableFilters.some(([id]) => id === state.vaultCategory)) state.vaultCategory = 'all';
   const list = state.vaultCategory === 'all' ? all : all.filter(item => memoryFilterGroup(item) === state.vaultCategory);
-  const filterBar = `<div class="memory-filters" role="tablist" aria-label="Filter memories by category">${availableFilters.map(([id, label]) => `<button type="button" role="tab" aria-selected="${state.vaultCategory === id}" class="${state.vaultCategory === id ? 'active' : ''}" data-vault-category="${id}"><span>${escapeHtml(label)}</span><b>${counts[id]}</b></button>`).join('')}</div>`;
+  const filterBar = `<div class="memory-filters" role="tablist" aria-label="Filter memories by category">${availableFilters.map(([id, glyph, label]) => `<button type="button" role="tab" aria-selected="${state.vaultCategory === id}" class="${state.vaultCategory === id ? 'active' : ''}" data-vault-category="${id}"><span class="filter-glyph">${icon(glyph)}</span><span>${escapeHtml(label)}</span><b>${counts[id]}</b></button>`).join('')}</div>`;
   const empty = all.length ? emptyState('Search', `No ${filters.find(([id]) => id === state.vaultCategory)?.[1] || ''} memories`, 'Choose another category or add a new memory.', 'Add memory', 'memory') : emptyState('Gem', 'Nothing saved yet', 'Start with a login, bank record, document, Wi-Fi detail, or anything personal.', 'Add first memory', 'memory');
   return `${switcher}<div class="workspace-body"><div class="toolbar"><input class="search-input" id="vault-filter" name="vault-filter" aria-label="Filter memories" placeholder="Filter titles, notes, fields or values…"><button class="secondary" id="bulk-import">${icon('NotebookText')} Secure import</button><button class="primary" data-add="memory">${icon('Plus')} Add memory</button></div>${filterBar}${list.length ? `<div class="vault-list" id="vault-list">${list.map(vaultRow).join('')}</div>` : empty}</div>`;
 }
@@ -3398,6 +3430,57 @@ async function askAssistant(query) {
   state.chatLoading = true;
   renderView();
   scrollChat();
+
+  if (!hasAttachments && /\b(today('?s)? agenda|daily briefing|my agenda|what is on my agenda|my schedule today|briefing for today)\b/i.test(cleanQuery)) {
+    const upcoming = reminders().filter(r => reminderStatus(r) === 'upcoming');
+    const upcomingBirthdays = memories().filter(m => m.type === 'Birthday' && (nextBirthday(m)?.daysAway ?? 999) <= 14);
+    const expiries = criticalExpiringMemories();
+    const activeTodos = state.items.filter(m => m.type === 'Todo' && todoStatus(m) === 'active');
+    
+    let briefing = `### 📅 Executive Daily Briefing\n\n`;
+    briefing += `**Good ${new Date().getHours() < 12 ? 'morning' : 'day'}, ${activeProfile().name}.** Here is your private vault summary for today:\n\n`;
+    
+    if (upcoming.length) {
+      briefing += `**🔔 Upcoming Reminders (${upcoming.length}):**\n`;
+      upcoming.slice(0, 4).forEach(r => {
+        briefing += `• **${r.title}** — due ${formatDue(r)}\n`;
+      });
+      briefing += `\n`;
+    } else {
+      briefing += `• *No pending reminders scheduled for today.*\n\n`;
+    }
+
+    if (upcomingBirthdays.length) {
+      briefing += `**🎂 Meaningful Moments & Birthdays:**\n`;
+      upcomingBirthdays.forEach(b => {
+        const next = nextBirthday(b);
+        briefing += `• **${b.title}** (${next?.daysAway === 0 ? 'Today! 🎉' : next?.daysAway === 1 ? 'Tomorrow' : `in ${next?.daysAway} days`})\n`;
+      });
+      briefing += `\n`;
+    }
+
+    if (expiries.length) {
+      briefing += `**⚠️ Document & Card Expiries (${expiries.length}):**\n`;
+      expiries.slice(0, 3).forEach(e => {
+        briefing += `• **${e.title}** (${e.status.text})\n`;
+      });
+      briefing += `\n`;
+    }
+
+    if (activeTodos.length) {
+      const allRows = activeTodos.flatMap(t => parseTodoItems(t)).filter(row => !row.done);
+      briefing += `**📋 Open Tasks & Lists:**\n`;
+      briefing += `• ${allRows.length} active task${allRows.length === 1 ? '' : 's'} across ${activeTodos.length} list${activeTodos.length === 1 ? '' : 's'}.\n\n`;
+    }
+
+    briefing += `*All records stay encrypted, synced, and secured on device.*`;
+
+    state.messages.push({ role: 'assistant', title: 'DAILY EXECUTIVE BRIEFING', markdown: briefing });
+    state.chatLoading = false;
+    renderView();
+    scrollChat();
+    return;
+  }
 
   if (!hasAttachments && /\b(security audit|password health|rhino guard|audit vault|audit my passwords|reused password|weak password|weak pin|atm pin safe)\b/i.test(cleanQuery)) {
     const audit = auditVaultSecurity(state.items, activeProfile());
