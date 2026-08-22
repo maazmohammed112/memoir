@@ -257,10 +257,10 @@ async function callMistral(prompt, images = null) {
   throw lastError || new Error('No Mistral model is currently available');
 }
 
-export async function routeQuery({ provider = 'gemini', query, images, image, audio, catalog, history, timezone = 'Asia/Calcutta', now = new Date().toISOString() }) {
+export async function routeQuery({ provider = 'gemini', query, documentText, images, image, audio, catalog, history, timezone = 'Asia/Calcutta', now = new Date().toISOString() }) {
   const allImages = Array.isArray(images) && images.length ? images : (image?.data ? [image] : []);
   const cleanCatalog = safeCatalog(catalog);
-  if (!allImages.length && !audio && isClearlyOffTopic(query)) return { kind: 'refusal', title: 'Rhinous is vault-only', markdown: 'I’m your private vault assistant. I can help with saved memories, credentials, clipboard items, birthdays, and vault changes—not unrelated general trivia.', matches: [], actions: [], provider, model: 'scope-guard' };
+  if (!allImages.length && !audio && !documentText && isClearlyOffTopic(query)) return { kind: 'refusal', title: 'Rhinous is vault-only', markdown: 'I’m your private vault assistant. I can help with saved memories, credentials, clipboard items, birthdays, and vault changes—not unrelated general trivia.', matches: [], actions: [], provider, model: 'scope-guard' };
   const cleanHistory = safeHistory(history);
   const audioTranscript = audio?.data ? await transcribeAudio(audio) : '';
 
@@ -308,8 +308,10 @@ ${upcomingDays.join('\n')}
 PRIVACY-SAFE CONVERSATION LOG:
 ${JSON.stringify(cleanHistory)}
 
+${documentText ? `LOCALLY EXTRACTED DOCUMENT TEXT (FROM USER DEVICE / PDF PARSER):\n${String(documentText).slice(0, 12000)}\n` : ''}
+
 CURRENT USER REQUEST:
-${String(query || (allImages.length ? `Extract and structure details from ${allImages.length} attached document/image(s)` : audio ? 'Transcribe this voice memo and extract memory or reminder details' : '')).slice(0, 4000)}
+${String(query || (documentText ? 'Extract and structure all details from the parsed document text above' : allImages.length ? `Extract and structure details from ${allImages.length} attached document/image(s)` : audio ? 'Transcribe this voice memo and extract memory or reminder details' : '')).slice(0, 4000)}
 
 ${audio?.data ? `AUDIO TRANSCRIPT STATUS: ${usableTranscript(audioTranscript) ? 'completed' : 'unavailable or unclear'}\nAUDIO TRANSCRIPT:\n${usableTranscript(audioTranscript) ? audioTranscript.slice(0, 8000) : 'No reliable transcript was produced. Preserve the audio as an Audio memory without inventing words.'}` : ''}
 
@@ -396,8 +398,8 @@ export default async function handler(req, res) {
     if (!token) return res.status(401).json({ error: 'Missing identity token' });
     await verifyOwnerToken(token, deviceIdFrom(req));
     const body = req.body || {};
-    if (!String(body.query || '').trim() && !body.image && !body.audio) {
-      return res.status(400).json({ error: 'A query, image, or audio input is required' });
+    if (!String(body.query || '').trim() && !body.image && !body.audio && !body.images?.length && !body.documentText) {
+      return res.status(400).json({ error: 'A query, document, image, or audio input is required' });
     }
     const answer = await routeQuery(body);
     res.setHeader('Cache-Control', 'no-store');

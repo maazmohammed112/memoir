@@ -2175,16 +2175,164 @@ async function executeShare(platform, text, itemTitle, selectedAttachments = [])
 }
 
 
-let speechRecognizer = null;
+async function decompressPdfStream(uint8Bytes) {
+  try {
+    const ds = new DecompressionStream('deflate');
+    const writer = ds.writable.getWriter();
+    writer.write(uint8Bytes);
+    writer.close();
+    const reader = ds.readable.getReader();
+    const chunks = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const c of chunks) {
+      result.set(c, offset);
+      offset += c.length;
+    }
+    return new TextDecoder('latin1').decode(result);
+  } catch {
+    try {
+      const dsRaw = new DecompressionStream('deflate-raw');
+      const writer = dsRaw.writable.getWriter();
+      writer.write(uint8Bytes);
+      writer.close();
+      const reader = dsRaw.readable.getReader();
+      const chunks = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
+      const result = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const c of chunks) {
+        result.set(c, offset);
+        offset += c.length;
+      }
+      return new TextDecoder('latin1').decode(result);
+    } catch {
+      return new TextDecoder('latin1').decode(uint8Bytes);
+    }
+  }
+}
 
-function compressImageFile(file) {
+function cleanPdfString(str) {
+  return str
+    .replace(/\\([()\\])/g, '$1')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\\d{3}/g, m => String.fromCharCode(parseInt(m.slice(1), 8)))
+    .trim();
+}
+
+async function extractLocalPdfText(file) {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const rawBytes = new Uint8Array(arrayBuffer);
+    const rawString = new TextDecoder('latin1').decode(rawBytes);
+    const textPieces = [];
+
+    const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+    let match;
+    const streamPromises = [];
+
+    while ((match = streamRegex.exec(rawString)) !== null) {
+      const streamContent = match[1];
+      const streamBytes = new Uint8Array(streamContent.length);
+      for (let i = 0; i < streamContent.length; i++) {
+        streamBytes[i] = streamContent.charCodeAt(i);
+      }
+      streamPromises.push(decompressPdfStream(streamBytes));
+    }
+
+    const decompressedStreams = await Promise.all(streamPromises);
+
+    for (const decompressed of decompressedStreams) {
+      const btRegex = /BT([\s\S]*?)ET/g;
+      let btMatch;
+      while ((btMatch = btRegex.exec(decompressed)) !== null) {
+        const block = btMatch[1];
+        const tjRegex = /\((.*?)\)\s*Tj/g;
+        let tjMatch;
+        while ((tjMatch = tjRegex.exec(block)) !== null) {
+          const cleaned = cleanPdfString(tjMatch[1]);
+          if (cleaned) textPieces.push(cleaned);
+        }
+
+        const tjArrayRegex = /\[([\s\S]*?)\]\s*TJ/g;
+        let arrMatch;
+        while ((arrMatch = tjArrayRegex.exec(block)) !== null) {
+          const inner = arrMatch[1];
+          const itemRegex = /\((.*?)\)/g;
+          let itemMatch;
+          const lineParts = [];
+          while ((itemMatch = itemRegex.exec(inner)) !== null) {
+            const cleaned = cleanPdfString(itemMatch[1]);
+            if (cleaned) lineParts.push(cleaned);
+          }
+          if (lineParts.length) textPieces.push(lineParts.join(' '));
+        }
+
+        const quoteRegex = /\((.*?)\)\s*['"]/g;
+        let qMatch;
+        while ((qMatch = quoteRegex.exec(block)) !== null) {
+          const cleaned = cleanPdfString(qMatch[1]);
+          if (cleaned) textPieces.push(cleaned);
+        }
+      }
+    }
+
+    if (!textPieces.length) {
+      const uncompressedTj = /\((.*?)\)\s*Tj/g;
+      let simpleMatch;
+      while ((simpleMatch = uncompressedTj.exec(rawString)) !== null) {
+        const cleaned = cleanPdfString(simpleMatch[1]);
+        if (cleaned.length > 2 && !textPieces.includes(cleaned)) textPieces.push(cleaned);
+      }
+    }
+
+    return textPieces.join('\n').trim();
+  } catch (err) {
+    console.warn('Local PDF extraction handled gracefully:', err?.message);
+    return '';
+  }
+}
+
+async function compressImageFile(file) {
+  if (!file) throw new Error('No file provided');
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+  if (isPdf) {
+    const extractedText = await extractLocalPdfText(file);
+    const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+      reader.onload = () => resolve({
+        data: String(reader.result || ''),
+        mimeType: 'application/pdf',
+        name: file.name,
+        previewUrl: '',
+        isPdf: true,
+        extractedText: extractedText || '',
+      });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   return new Promise((resolve, reject) => {
-    if (!file) return reject(new Error('No file provided'));
     if (!file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = () => resolve({
         data: String(reader.result || ''),
-        mimeType: file.type || 'application/pdf',
+        mimeType: file.type || 'application/octet-stream',
         name: file.name,
         previewUrl: '',
       });
@@ -2524,8 +2672,11 @@ async function askAssistant(query) {
         data: att.data,
         mimeType: att.mimeType || 'image/jpeg',
         name: att.name || 'document',
+        extractedText: att.extractedText || '',
       }));
       payload.image = payload.images[0];
+      const docTexts = imageAtts.filter(a => a.extractedText).map(a => `[DOCUMENT: ${a.name}]\n${a.extractedText}`);
+      if (docTexts.length) payload.documentText = docTexts.join('\n\n');
     }
     const response = await fetch('/api/assistant', { method: 'POST', headers: vaultStore.apiHeaders(identityToken), body: JSON.stringify(payload) });
     if (!response.ok) throw new Error(await response.text());
