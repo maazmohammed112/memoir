@@ -238,3 +238,28 @@
 .memoir-btn-save:hover {
   background: #000000;
 }
+
+/* Inline In-Field Save Badge */
+.memoir-inline-save-btn {
+  position: absolute;
+  z-index: 2147483646;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+  animation: memoir-fade-in 0.15s ease-out;
+}
+
+.memoir-inline-save-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  border-color: #111827;
+}
