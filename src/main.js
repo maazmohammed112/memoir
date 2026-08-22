@@ -97,7 +97,7 @@ const state = {
   view: 'home', items: [], status: 'loading', hidden: true,
   provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, vaultCategory: 'all', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', todoTab: 'active', telegramSyncing: false,
   auth: { status: 'checking', email: '', message: '', profile: null }, authError: '',
-  chatAttachment: null, isRecordingVoice: false, plannerSection: 'todos', captureSection: 'audio', lastResolvedItemId: '', assistantReveals: new Set(),
+  chatAttachments: [], chatAttachment: null, isRecordingVoice: false, plannerSection: 'todos', captureSection: 'audio', lastResolvedItemId: '', assistantReveals: new Set(),
 };
 
 marked.setOptions({ gfm: true, breaks: true });
@@ -1188,11 +1188,16 @@ function birthdaysView() {
 
 function assistantView() {
   const messages = state.messages.length ? state.messages.map(renderMessage).join('') : `<div class="message bot"><strong>RHINOUS</strong><p>Your private vault intelligence. Ask for an exact detail, manage memories, capture warranties/documents from photos, or transcribe voice notes naturally.</p></div>`;
-  const attachmentMarkup = state.chatAttachment ? `
-    <div class="chat-attachment-bar">
-      ${state.chatAttachment.kind === 'audio' ? `<span class="attachment-audio-icon">${icon('AudioLines')}</span>` : `<img src="${state.chatAttachment.previewUrl}" alt="Preview">`}
-      <span>${state.chatAttachment.kind === 'audio' ? 'Audio · ' : 'Image · '}${escapeHtml(state.chatAttachment.name || 'Captured document')}</span>
-      <button type="button" id="chat-remove-attachment" title="Remove attachment">${icon('X')}</button>
+  const attachments = Array.isArray(state.chatAttachments) ? state.chatAttachments : (state.chatAttachment ? [state.chatAttachment] : []);
+  const attachmentMarkup = attachments.length ? `
+    <div class="chat-attachments-list">
+      ${attachments.map((att, idx) => `
+        <div class="chat-attachment-chip" data-attachment-id="${escapeHtml(att.id || String(idx))}">
+          ${att.kind === 'audio' ? `<span class="attachment-audio-icon">${icon('AudioLines')}</span>` : `<img src="${escapeHtml(att.previewUrl || '')}" alt="Preview">`}
+          <span class="attachment-chip-name">${escapeHtml(att.name || (att.kind === 'audio' ? 'Voice memo' : `Image ${idx + 1}`))}</span>
+          <button type="button" class="chat-chip-remove" data-remove-attachment="${escapeHtml(att.id || String(idx))}" title="Remove this file">${icon('X')}</button>
+        </div>
+      `).join('')}
     </div>` : '';
   const voiceIndicator = state.isRecordingVoice ? `
     <div class="chat-voice-indicator">
@@ -1200,8 +1205,10 @@ function assistantView() {
       <span>Listening… Speak your note, warranty, or reminder</span>
     </div>` : '';
 
-  return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div>${attachmentMarkup}${voiceIndicator}<form class="chat-form" id="chat-form"><input type="file" id="chat-camera-input" accept="image/*" capture="environment" hidden><input type="file" id="chat-upload-input" accept="image/*" hidden><input type="file" id="chat-audio-input" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac" hidden><div class="chat-input-row"><button type="button" class="chat-media-btn" id="chat-camera-btn" title="Snap photo of document/warranty">${icon('Camera')}</button><button type="button" class="chat-media-btn" id="chat-upload-btn" title="Upload image or invoice">${icon('Paperclip')}</button><button type="button" class="chat-media-btn" id="chat-audio-upload-btn" title="Upload an audio recording">${icon('AudioLines')}</button><button type="button" class="chat-media-btn ${state.isRecordingVoice ? 'recording' : ''}" id="chat-voice-btn" title="Record a voice memo">${icon('Mic')}</button><input id="chat-query" autocomplete="off" placeholder="${state.chatAttachment ? 'Add notes or tap Send to extract…' : 'Ask Rhinous or dictate memory/reminder…'}"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></div></form></section>
-  <aside class="panel"><p class="eyebrow">Smart Multi-Modal</p><h3>Capture, snap & transcribe</h3><div class="suggestions">${['Snap a warranty card or invoice to auto-extract fields', 'Dictate: “Remember my appliance warranty with 2 years validity”', 'Remind me to renew my passport tomorrow at 6 PM', 'Give me only my EPFO password'].map(text => `<button class="suggestion" data-ask="${escapeHtml(text)}">${escapeHtml(text)}</button>`).join('')}</div><div class="privacy-line">${icon('ShieldCheck')}<span>Smart Capture extracts structured records on device. Credentials stay encrypted in your isolated vault.</span></div></aside></div>`;
+  const placeholderText = attachments.length ? `Notes for ${attachments.length} attachment${attachments.length > 1 ? 's' : ''} or tap Send to extract…` : 'Ask Rhinous or dictate memory/reminder…';
+
+  return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div>${attachmentMarkup}${voiceIndicator}<form class="chat-form" id="chat-form"><input type="file" id="chat-camera-input" accept="image/*" capture="environment" multiple hidden><input type="file" id="chat-upload-input" accept="image/*,application/pdf" multiple hidden><input type="file" id="chat-audio-input" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac" hidden><div class="chat-input-row"><button type="button" class="chat-media-btn" id="chat-camera-btn" title="Snap photo of document/warranty (up to 5)">${icon('Camera')}</button><button type="button" class="chat-media-btn" id="chat-upload-btn" title="Upload images or invoices (up to 5)">${icon('Paperclip')}</button><button type="button" class="chat-media-btn" id="chat-audio-upload-btn" title="Upload an audio recording">${icon('AudioLines')}</button><button type="button" class="chat-media-btn ${state.isRecordingVoice ? 'recording' : ''}" id="chat-voice-btn" title="Record a voice memo">${icon('Mic')}</button><input id="chat-query" autocomplete="off" placeholder="${escapeHtml(placeholderText)}"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></div></form></section>
+  <aside class="panel"><p class="eyebrow">Smart Multi-Modal</p><h3>Capture, snap & transcribe</h3><div class="suggestions">${['Snap up to 5 warranty cards/invoices to auto-extract', 'Dictate: “Remember my appliance warranty with 2 years validity”', 'Remind me to renew my passport tomorrow at 6 PM', 'Give me only my EPFO password'].map(text => `<button class="suggestion" data-ask="${escapeHtml(text)}">${escapeHtml(text)}</button>`).join('')}</div><div class="privacy-line">${icon('ShieldCheck')}<span>Smart Capture extracts structured records on device. Credentials stay encrypted in your isolated vault.</span></div></aside></div>`;
 }
 
 function renderMessage(message, messageIndex = 0) {
@@ -1317,46 +1324,69 @@ function bindView() {
 
   document.querySelector('#chat-camera-btn')?.addEventListener('click', () => document.querySelector('#chat-camera-input')?.click());
   document.querySelector('#chat-camera-input')?.addEventListener('change', async event => {
-    const file = event.target.files?.[0];
-    if (file) {
-      toast('Processing photo…');
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    const current = Array.isArray(state.chatAttachments) ? state.chatAttachments : [];
+    const availableSlots = 5 - current.length;
+    if (availableSlots <= 0) return toast('Maximum of 5 attachments reached. Remove one to add more.');
+    const toProcess = files.slice(0, availableSlots);
+    toast(`Processing ${toProcess.length} photo${toProcess.length > 1 ? 's' : ''}…`);
+    for (const file of toProcess) {
       try {
-        state.chatAttachment = await compressImageFile(file);
-        renderView();
+        const compressed = await compressImageFile(file);
+        current.push({
+          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+          kind: 'image',
+          ...compressed,
+        });
       } catch (err) {
-        toast('Could not process photo');
+        console.error('Error processing camera photo:', err);
       }
     }
+    state.chatAttachments = current;
+    event.target.value = '';
+    renderView();
   });
 
   document.querySelector('#chat-upload-btn')?.addEventListener('click', () => document.querySelector('#chat-upload-input')?.click());
   document.querySelector('#chat-upload-input')?.addEventListener('change', async event => {
-    const file = event.target.files?.[0];
-    if (file) {
-      toast('Processing document…');
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    const current = Array.isArray(state.chatAttachments) ? state.chatAttachments : [];
+    const availableSlots = 5 - current.length;
+    if (availableSlots <= 0) return toast('Maximum of 5 attachments reached. Remove one to add more.');
+    const toProcess = files.slice(0, availableSlots);
+    toast(`Processing ${toProcess.length} file${toProcess.length > 1 ? 's' : ''}…`);
+    for (const file of toProcess) {
       try {
-        state.chatAttachment = await compressImageFile(file);
-        renderView();
+        const compressed = await compressImageFile(file);
+        current.push({
+          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+          kind: 'image',
+          ...compressed,
+        });
       } catch (err) {
-        toast('Could not process document');
+        console.error('Error processing file upload:', err);
       }
     }
+    state.chatAttachments = current;
+    event.target.value = '';
+    renderView();
   });
 
-  document.querySelector('#chat-audio-upload-btn')?.addEventListener('click', () => document.querySelector('#chat-audio-input')?.click());
-  document.querySelector('#chat-audio-input')?.addEventListener('change', async event => {
-    const file = event.target.files?.[0];
-    if (file) await handleAudioFile(file, 'Memoir upload');
-  });
-  document.querySelector('#audio-upload-main')?.addEventListener('click', () => document.querySelector('#audio-upload-input-main')?.click());
-  document.querySelector('#audio-upload-input-main')?.addEventListener('change', async event => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    state.view = 'assistant'; shell();
-    await handleAudioFile(file, 'Memoir upload');
+  document.querySelectorAll('[data-remove-attachment]').forEach(button => {
+    button.onclick = event => {
+      event.stopPropagation();
+      const id = button.dataset.removeAttachment;
+      const current = Array.isArray(state.chatAttachments) ? state.chatAttachments : [];
+      state.chatAttachments = current.filter(att => att.id !== id);
+      state.chatAttachment = null;
+      renderView();
+    };
   });
 
   document.querySelector('#chat-remove-attachment')?.addEventListener('click', () => {
+    state.chatAttachments = [];
     state.chatAttachment = null;
     renderView();
   });
@@ -2446,17 +2476,28 @@ async function retryAudioTranscription(id) {
 
 
 async function askAssistant(query) {
-  const attachment = state.chatAttachment;
+  const attachments = Array.isArray(state.chatAttachments) && state.chatAttachments.length ? [...state.chatAttachments] : (state.chatAttachment ? [state.chatAttachment] : []);
+  state.chatAttachments = [];
   state.chatAttachment = null;
-  const isImageOrVoice = Boolean(attachment);
+  const audioAtt = attachments.find(a => a.kind === 'audio');
+  const imageAtts = attachments.filter(a => a.kind !== 'audio');
+  const hasAttachments = attachments.length > 0;
 
-  if ((!query?.trim() && !isImageOrVoice) || state.chatLoading) return;
-  const cleanQuery = (query || (attachment ? 'Extract details from this document/image' : '')).trim();
+  if ((!query?.trim() && !hasAttachments) || state.chatLoading) return;
+  const cleanQuery = (query || (hasAttachments ? 'Extract and structure details from the attached document(s)/image(s)' : '')).trim();
   const history = assistantHistory(state.messages);
   const protectedInput = protectPrivateInput(cleanQuery);
   let proposedActions = [];
 
-  const userMessageText = attachment ? `${attachment.kind === 'audio' ? 'Audio' : 'Image'} attached: ${attachment.name || (attachment.kind === 'audio' ? 'Voice memo' : 'Document image')} ${cleanQuery !== 'Extract details from this document/image' ? cleanQuery : ''}` : cleanQuery;
+  let userMessageText = cleanQuery;
+  if (audioAtt) {
+    userMessageText = `Audio attached: ${audioAtt.name || 'Voice memo'} ${cleanQuery !== 'Extract and structure details from the attached document(s)/image(s)' ? cleanQuery : ''}`;
+  } else if (imageAtts.length) {
+    const names = imageAtts.map(a => a.name || 'document').join(', ');
+    const isDefaultQuery = cleanQuery === 'Extract and structure details from the attached document(s)/image(s)';
+    userMessageText = isDefaultQuery ? `Attached ${imageAtts.length} document/photo${imageAtts.length > 1 ? 's' : ''}: ${names}` : `${cleanQuery}\n(${imageAtts.length} attachment${imageAtts.length > 1 ? 's' : ''}: ${names})`;
+  }
+
   state.messages.push({ role: 'user', text: userMessageText.trim() });
   state.chatLoading = true;
   renderView();
@@ -2466,41 +2507,43 @@ async function askAssistant(query) {
     const catalog = state.items.filter(item => item.type !== 'Notification').map(item => ({ id: item.id, type: category(item), title: item.title, fieldNames: Object.keys(allFields(item)) }));
     const identityToken = await vaultStore.idToken();
     const payload = {
-      provider: attachment ? 'gemini' : state.provider,
+      provider: hasAttachments ? 'gemini' : state.provider,
       query: protectedInput.text,
       catalog,
       history,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Calcutta',
       now: new Date().toISOString(),
     };
-    if (attachment?.kind === 'audio') {
+    if (audioAtt) {
       payload.audio = {
-        data: attachment.data,
-        mimeType: attachment.mimeType || 'audio/webm',
+        data: audioAtt.data,
+        mimeType: audioAtt.mimeType || 'audio/webm',
       };
-    } else if (attachment) {
-      payload.image = {
-        data: attachment.data,
-        mimeType: attachment.mimeType || 'image/jpeg',
-      };
+    } else if (imageAtts.length) {
+      payload.images = imageAtts.map(att => ({
+        data: att.data,
+        mimeType: att.mimeType || 'image/jpeg',
+        name: att.name || 'document',
+      }));
+      payload.image = payload.images[0];
     }
     const response = await fetch('/api/assistant', { method: 'POST', headers: vaultStore.apiHeaders(identityToken), body: JSON.stringify(payload) });
     if (!response.ok) throw new Error(await response.text());
     const answer = await response.json();
     const message = buildAssistantMessage(answer, cleanQuery, protectedInput.values);
-    if (attachment?.kind === 'audio') {
+    if (audioAtt) {
       const transcript = String(answer.audioTranscript || '').trim();
-      const audioItem = state.items.find(item => item.id === attachment.recordId);
+      const audioItem = state.items.find(item => item.id === audioAtt.recordId);
       const audioAction = message.actions?.find(action => action.type === 'Audio');
       const reliableTranscript = transcript || (audioAction?.fields?.['Audio Transcript'] && !/^(no transcript|awaiting)/i.test(audioAction.fields['Audio Transcript']) ? audioAction.fields['Audio Transcript'] : '');
       if (audioItem) {
         const updated = await updateAudioTranscriptEverywhere(audioItem, reliableTranscript, reliableTranscript ? 'Completed' : 'Audio only · transcription unavailable');
         if (audioAction?.title) await vaultStore.save({ ...updated, title: audioAction.title, note: reliableTranscript || updated.note });
       }
-      message.actions = (message.actions || []).filter(action => action.type !== 'Audio').map(action => action.type === 'Reminder' ? { ...action, fields: { ...(action.fields || {}), 'Audio Transcript': reliableTranscript || 'No transcript available', 'Source audio ID': attachment.recordId || '', 'Created via': attachment.source || 'Memoir app' } } : action);
+      message.actions = (message.actions || []).filter(action => action.type !== 'Audio').map(action => action.type === 'Reminder' ? { ...action, fields: { ...(action.fields || {}), 'Audio Transcript': reliableTranscript || 'No transcript available', 'Source audio ID': audioAtt.recordId || '', 'Created via': audioAtt.source || 'Memoir app' } } : action);
       message.title = reliableTranscript ? 'Audio saved and transcribed' : 'Audio saved · transcription available later';
       message.markdown = reliableTranscript ? 'The encrypted recording is already in Audio. Review any reminder prepared from the transcript below.' : 'The recording is safely stored. The AI transcription service is currently unavailable or could not understand the speech. Use **Try transcription again** from Audio after limits reset.';
-      if (!reliableTranscript) message.retryAudioId = attachment.recordId;
+      if (!reliableTranscript) message.retryAudioId = audioAtt.recordId;
     }
     proposedActions = message.actions || [];
     state.messages.push(message);

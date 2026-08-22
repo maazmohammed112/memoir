@@ -238,7 +238,7 @@ export function getZonedParts(timestamp = Date.now(), timeZone = process.env.APP
   };
 }
 
-async function loadAllVaultItems(profile) {
+export async function loadAllVaultItems(profile) {
   let items = listRuntimeItems(profile.uid);
   if (!items.length && hasAdminMirror()) {
     const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
@@ -248,7 +248,7 @@ async function loadAllVaultItems(profile) {
   return items;
 }
 
-function generateMorningBriefing(profile, allItems, zonedNow) {
+export function generateMorningBriefing(profile, allItems, zonedNow) {
   const name = profile.name || 'Maaz';
   const lines = [
     `Hello, good morning, ${name}! Hope you are doing good.`,
@@ -378,7 +378,7 @@ function generateMorningBriefing(profile, allItems, zonedNow) {
   };
 }
 
-function generateEveningReview(profile, allItems, zonedNow) {
+export function generateEveningReview(profile, allItems, zonedNow) {
   const name = profile.name || 'Maaz';
   const lines = [
     `Good evening, ${name}! How was your day?`,
@@ -559,15 +559,25 @@ export async function runReminderSweep(now = Date.now(), targetUid = '') {
 export default async function handler(req, res) {
   try {
     if (req.method === 'POST') {
-      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''); if (!token) return res.status(401).json({ error: 'Missing identity token' });
-      const identity = await verifyOwnerToken(token, deviceIdFrom(req)); return res.status(200).json({ ok: true, ...(await runReminderSweep(Date.now(), identity.uid)) });
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!token) return res.status(401).json({ error: 'Missing identity token' });
+      const identity = await verifyOwnerToken(token, deviceIdFrom(req));
+      return res.status(200).json({ ok: true, ...(await runReminderSweep(Date.now(), identity.uid)) });
     }
     if (req.method === 'GET') {
-      const secret = String(process.env.CRON_SECRET || ''); const authorization = String(req.headers.authorization || '');
-      if (!secret || authorization !== `Bearer ${secret}`) return res.status(403).json({ error: 'Invalid scheduler token' });
+      const isVercelCron = Boolean(req.headers['x-vercel-cron']);
+      const secret = String(process.env.CRON_SECRET || '');
+      const authorization = String(req.headers.authorization || '');
+      const hasValidSecret = secret && authorization === `Bearer ${secret}`;
+      if (!isVercelCron && !hasValidSecret && process.env.NODE_ENV === 'production') {
+        return res.status(403).json({ error: 'Invalid scheduler token' });
+      }
       return res.status(200).json({ ok: true, ...(await runReminderSweep()) });
     }
     return res.status(405).json({ error: 'Method not allowed' });
-  } catch (error) { console.error('Reminder sweep failed:', error?.message); return res.status(503).json({ error: 'Reminder delivery is temporarily unavailable' }); }
+  } catch (error) {
+    console.error('Reminder sweep failed:', error?.message);
+    return res.status(503).json({ error: 'Reminder delivery is temporarily unavailable' });
+  }
 }
 

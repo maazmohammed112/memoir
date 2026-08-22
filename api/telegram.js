@@ -7,6 +7,7 @@ import { saveAudioAsset } from '../lib/audioVault.js';
 import { routeQuery } from './assistant.js';
 import { acknowledgeRuntimeActions, listRuntimeItems, pullRuntimeActions, putRuntimeItem, queueRuntimeActions } from '../lib/runtimeVault.js';
 
+import { generateMorningBriefing, generateEveningReview, getZonedParts } from './reminders.js';
 const conversations = new Map();
 const pollers = new Map();
 const sentMessageKeys = new Set();
@@ -265,8 +266,34 @@ async function processTelegramUpdateOnce(update, profile = getUserByChatId(updat
     return;
   }
 
-  if (/^\/start\b/i.test(query)) return sendToOwner(profile, 'Memoir is connected to your isolated vault. I can find non-sensitive notes, birthdays and reminders, and queue changes. You can also send photos of warranty cards or voice notes to capture them automatically! Passwords, PINs, CVVs and banking information are never revealed in Telegram.');
-  if (/^\/help\b/i.test(query)) return sendToOwner(profile, 'Try: “What reminders are due today?”, “Add a reminder to renew my passport tomorrow at 6 PM”, or send a photo of an appliance warranty card / send a voice memo.');
+  if (/^\/(test|ping)\b/i.test(query)) {
+    return sendToOwner(profile, `⚡ Memoir Bot is online!\n\nConnected to vault: ${profile.name} (${profile.email})\nChat ID: ${profile.telegramChatId}\nTimezone: ${process.env.APP_TIMEZONE || 'Asia/Calcutta'}\nReady for daily briefings, reminders, credentials, and image capture.`);
+  }
+
+  if (/^\/(briefing|summary|today)\b/i.test(query)) {
+    const allItems = await loadVault(profile);
+    const zonedNow = getZonedParts(Date.now(), process.env.APP_TIMEZONE || 'Asia/Calcutta');
+    const briefing = zonedNow.hour >= 18 ? generateEveningReview(profile, allItems, zonedNow) : generateMorningBriefing(profile, allItems, zonedNow);
+    return telegram(profile, 'sendMessage', {
+      chat_id: profile.telegramChatId,
+      text: briefing.text,
+      reply_markup: briefing.reply_markup,
+    });
+  }
+
+  if (/^\/(reminders|todo|tasks)\b/i.test(query)) {
+    const allItems = await loadVault(profile);
+    const zonedNow = getZonedParts(Date.now(), process.env.APP_TIMEZONE || 'Asia/Calcutta');
+    const briefing = generateMorningBriefing(profile, allItems, zonedNow);
+    return telegram(profile, 'sendMessage', {
+      chat_id: profile.telegramChatId,
+      text: briefing.text,
+      reply_markup: briefing.reply_markup,
+    });
+  }
+
+  if (/^\/start\b/i.test(query)) return sendToOwner(profile, `Memoir is connected to your isolated vault, ${profile.name}! I can find notes, passwords, birthdays and reminders, or give your daily briefing. Try /briefing, /reminders, /test, or send photos of documents and voice memos.`);
+  if (/^\/help\b/i.test(query)) return sendToOwner(profile, 'Try:\n• /briefing — Today’s morning/evening briefing\n• /reminders — Active reminders & tasks\n• /test — Check Telegram connection\n• “What is my Wi-Fi password?”\n• “When is Deepti’s birthday?”\n• Send photos or voice notes to capture them!');
   const items = await loadVault(profile);
   if (!items.length && !imagePayload && !audioPayload) return sendToOwner(profile, 'Memoir is connected, but this account’s safe catalog is not loaded yet. Open the signed-in Memoir app once so its encrypted Telegram bridge can sync.');
   const catalog = items.map(item => ({ id: item.id, type: item.type, title: item.title, fieldNames: Object.keys(item.fields || {}) }));

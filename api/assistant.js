@@ -211,11 +211,12 @@ function voiceMemoFallback(transcript, timezone, now, provider, model = 'audio-s
   };
 }
 
-async function callMistral(prompt, image = null) {
+async function callMistral(prompt, images = null) {
   if (!process.env.MISTRAL_API_KEY) throw new Error('Mistral is not configured');
   const { Mistral } = await import('@mistralai/mistralai');
   const client = new Mistral({ apiKey: process.env.MISTRAL_API_KEY });
-  const models = image?.data ? mistralVisionModels : mistralTextModels;
+  const allImages = Array.isArray(images) ? images : (images?.data ? [images] : []);
+  const models = allImages.length ? mistralVisionModels : mistralTextModels;
 
   let lastError;
   for (const raw of models) {
@@ -223,13 +224,13 @@ async function callMistral(prompt, image = null) {
     if (!model || (coolingDown.get(`mistral:${model}`) || 0) > Date.now()) continue;
     try {
       let content = prompt;
-      if (image?.data) {
-        const cleanBase64 = String(image.data).replace(/^data:[^;]+;base64,/, '').trim();
-        const dataUrl = `data:${image.mimeType || 'image/jpeg'};base64,${cleanBase64}`;
-        content = [
-          { type: 'text', text: prompt },
-          { type: 'image_url', imageUrl: dataUrl },
-        ];
+      if (allImages.length) {
+        content = [{ type: 'text', text: prompt }];
+        allImages.forEach(img => {
+          const cleanBase64 = String(img.data || '').replace(/^data:[^;]+;base64,/, '').trim();
+          const dataUrl = `data:${img.mimeType || 'image/jpeg'};base64,${cleanBase64}`;
+          content.push({ type: 'image_url', imageUrl: dataUrl });
+        });
       }
       const response = await client.chat.complete({
         model,
@@ -256,9 +257,10 @@ async function callMistral(prompt, image = null) {
   throw lastError || new Error('No Mistral model is currently available');
 }
 
-export async function routeQuery({ provider = 'gemini', query, image, audio, catalog, history, timezone = 'Asia/Calcutta', now = new Date().toISOString() }) {
+export async function routeQuery({ provider = 'gemini', query, images, image, audio, catalog, history, timezone = 'Asia/Calcutta', now = new Date().toISOString() }) {
+  const allImages = Array.isArray(images) && images.length ? images : (image?.data ? [image] : []);
   const cleanCatalog = safeCatalog(catalog);
-  if (!image && !audio && isClearlyOffTopic(query)) return { kind: 'refusal', title: 'Rhinous is vault-only', markdown: 'I’m your private vault assistant. I can help with saved memories, credentials, clipboard items, birthdays, and vault changes—not unrelated general trivia.', matches: [], actions: [], provider, model: 'scope-guard' };
+  if (!allImages.length && !audio && isClearlyOffTopic(query)) return { kind: 'refusal', title: 'Rhinous is vault-only', markdown: 'I’m your private vault assistant. I can help with saved memories, credentials, clipboard items, birthdays, and vault changes—not unrelated general trivia.', matches: [], actions: [], provider, model: 'scope-guard' };
   const cleanHistory = safeHistory(history);
   const audioTranscript = audio?.data ? await transcribeAudio(audio) : '';
 
@@ -307,7 +309,7 @@ PRIVACY-SAFE CONVERSATION LOG:
 ${JSON.stringify(cleanHistory)}
 
 CURRENT USER REQUEST:
-${String(query || (image ? 'Extract and structure details from this image document or warranty card' : audio ? 'Transcribe this voice memo and extract memory or reminder details' : '')).slice(0, 4000)}
+${String(query || (allImages.length ? `Extract and structure details from ${allImages.length} attached document/image(s)` : audio ? 'Transcribe this voice memo and extract memory or reminder details' : '')).slice(0, 4000)}
 
 ${audio?.data ? `AUDIO TRANSCRIPT STATUS: ${usableTranscript(audioTranscript) ? 'completed' : 'unavailable or unclear'}\nAUDIO TRANSCRIPT:\n${usableTranscript(audioTranscript) ? audioTranscript.slice(0, 8000) : 'No reliable transcript was produced. Preserve the audio as an Audio memory without inventing words.'}` : ''}
 
@@ -319,14 +321,14 @@ ${JSON.stringify(cleanCatalog)}`;
 
   const tryGemini = async () => {
     const contents = [promptText];
-    if (image?.data) {
+    allImages.forEach(img => {
       contents.push({
         inlineData: {
-          mimeType: image.mimeType || 'image/jpeg',
-          data: String(image.data).replace(/^data:[^;]+;base64,/, '').trim(),
+          mimeType: img.mimeType || 'image/jpeg',
+          data: String(img.data || '').replace(/^data:[^;]+;base64,/, '').trim(),
         },
       });
-    }
+    });
     if (audio?.data && !usableTranscript(audioTranscript)) {
       contents.push({
         inlineData: {
@@ -339,7 +341,7 @@ ${JSON.stringify(cleanCatalog)}`;
   };
 
   const tryMistral = async () => {
-    return callMistral(promptText, image);
+    return callMistral(promptText, allImages);
   };
 
   try {
