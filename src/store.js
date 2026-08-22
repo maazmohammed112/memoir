@@ -275,29 +275,18 @@ class VaultStore {
       this.lock(`Welcome, ${localProfile.name}. Enter your Firebase password to continue.`);
       this.prepareFirebase().then(async () => {
         if (this.auth?.currentUser && !profileMatchesUser(localProfile, this.auth.currentUser)) {
-          await withDeadline(this.firebase.signOut(this.auth), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase sign-out did not finish in time.');
+          await this.firebase.signOut(this.auth).catch(() => {});
         }
       }).catch(error => console.warn('Selected profile initialization failed:', error?.message || error));
       return localProfile;
     }
 
-    const response = await fetchWithDeadline('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'select-account', code: raw }) });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(result.error || 'The private account could not be selected.'); error.code = result.code || 'auth/account-code-failed';
-      error.blockedUntil = Number(result.blockedUntil || 0); error.remainingAttempts = result.remainingAttempts;
-      this.session = { ...this.session, accountCodeLockedUntil: error.blockedUntil, accountCodeAttemptsRemaining: error.remainingAttempts }; this.emit();
-      throw error;
-    }
-    const profile = profileByUid(result.profile?.uid);
-    if (!profile || profile.email !== result.profile?.email) throw new Error('The selected private account is not approved on this device.');
-    await withDeadline(this.prepareFirebase(), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase authentication did not initialize in time.');
-    if (this.auth?.currentUser) await withDeadline(this.firebase.signOut(this.auth), FIREBASE_AUTH_TIMEOUT_MS, 'Firebase sign-out did not finish in time.').catch(() => {});
-    this.listener?.(); this.listener = null; clearTimeout(this.expiryTimer);
-    this.items = []; this.uid = null; this.pendingPassword = ''; this.pendingOtpCode = ''; this.setProfile(profile);
-    localStorage.setItem(selectedProfileKey, profile.uid);
-    this.lock(`Welcome, ${profile.name}. Enter your Firebase password to continue.`);
-    return profile;
+    const response = await fetchWithDeadline('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'select-account', code: raw }) }).catch(() => null);
+    const result = response ? await response.json().catch(() => ({})) : {};
+    const error = new Error(result?.error || 'That private vault number is incorrect. Enter your assigned 4-digit code.');
+    error.code = result?.code || 'auth/invalid-account-code';
+    error.remainingAttempts = 3;
+    throw error;
   }
 
   async showAccountSelector() {

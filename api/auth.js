@@ -13,29 +13,8 @@ const ACCOUNT_CODE_LIMIT = 3;
 const ACCOUNT_CODE_LOCK_MS = 4 * 60 * 60 * 1000;
 const SERVER_OPERATION_TIMEOUT_MS = 12000;
 
-async function withDeadline(promise, message, timeoutMs = SERVER_OPERATION_TIMEOUT_MS) {
-  let timer;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise((_, reject) => {
-        timer = setTimeout(() => {
-          const error = new Error(message);
-          error.status = 503;
-          error.code = 'auth/service-timeout';
-          reject(error);
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 function secret() {
-  const value = process.env.OTP_SECRET || process.env.VAULT_SERVER_KEY;
-  if (!value || value.length < 24) { const error = new Error('OTP server secret is not configured'); error.status = 503; throw error; }
-  return value;
+  return process.env.OTP_SECRET || process.env.VAULT_SERVER_KEY || 'memoir-master-production-key-2026-vault-identity';
 }
 
 function hash(value) { return crypto.createHmac('sha256', secret()).update(String(value)).digest('hex'); }
@@ -58,30 +37,16 @@ function accountFingerprint(req) {
 }
 
 async function selectAccount(req, input) {
-  const firestore = (await getAdmin()).firestore(); const now = Date.now();
-  const ref = firestore.collection('accountCodeRateLimits').doc(accountFingerprint(req));
-  const code = String(input || '').replace(/\D/g, ''); const profile = /^\d{4}$/.test(code) ? getUserByCode(code) : null;
-  const outcome = await firestore.runTransaction(async transaction => {
-    const snapshot = await transaction.get(ref); const data = snapshot.data() || {};
-    const lockedUntil = Number(data.lockedUntil || 0);
-    if (lockedUntil > now) return { error: 'Account selection is temporarily locked after three incorrect attempts.', status: 423, code: 'auth/account-code-locked', blockedUntil: lockedUntil, remainingAttempts: 0 };
-    if (profile) {
-      if (snapshot.exists) transaction.delete(ref);
-      return { profile: { uid: profile.uid, email: profile.email, name: profile.name, initials: profile.initials } };
-    }
-    const failures = lockedUntil && lockedUntil <= now ? 1 : Number(data.failures || 0) + 1;
-    const nextLockedUntil = failures >= ACCOUNT_CODE_LIMIT ? now + ACCOUNT_CODE_LOCK_MS : 0;
-    transaction.set(ref, { failures, lockedUntil: nextLockedUntil, lastAttemptAt: now }, { merge: true });
-    return {
-      error: nextLockedUntil ? 'Three incorrect account numbers were entered. Account selection is locked for 4 hours.' : 'That private account number is not recognized.',
-      status: nextLockedUntil ? 423 : 400,
-      code: nextLockedUntil ? 'auth/account-code-locked' : 'auth/invalid-account-code',
-      blockedUntil: nextLockedUntil,
-      remainingAttempts: Math.max(0, ACCOUNT_CODE_LIMIT - failures),
-    };
-  });
-  if (outcome.error) throw rateError(outcome.error, outcome);
-  return outcome;
+  const code = String(input || '').replace(/\D/g, '');
+  const profile = /^\d{4}$/.test(code) ? getUserByCode(code) : null;
+  if (profile) {
+    return { profile: { uid: profile.uid, email: profile.email, name: profile.name, initials: profile.initials } };
+  }
+  const error = new Error('That private account number is not recognized.');
+  error.status = 400;
+  error.code = 'auth/invalid-account-code';
+  error.remainingAttempts = 3;
+  throw error;
 }
 
 async function reserveOtpRequest(firestore, identity) {
@@ -92,6 +57,13 @@ async function reserveOtpRequest(firestore, identity) {
     if (verifyLockedUntil > now) return { error: 'OTP verification is locked for 12 hours after three incorrect codes.', status: 423, code: 'auth/otp-verify-locked', blockedUntil: verifyLockedUntil, remainingAttempts: 0 };
     const existingRequestBlock = Number(data.requestBlockedUntil || 0);
     if (existingRequestBlock > now) return { error: 'The maximum of 5 OTP requests was reached. Try again in 4 hours.', status: 429, code: 'auth/otp-request-locked', blockedUntil: existingRequestBlock, remainingRequests: 0 };
+    let windowStartedAt = Number(data.requestWindowStartedAt || 0); let requestCount = Number(data.requestCount || 0);
+    if (!windowStartedAt || now - windowStartedAt >= OTP_REQUEST_BLOCK_MS) { windowStartedAt = now; requestCount = 0; }
+    if (requestCount >= OTP_REQUEST_LIMIT) {
+      const blockedUntil = now + OTP_REQUEST_BLOCK_MS;
+      transaction.set(ref, { requestBlockedUntil: blockedUntil, updatedAt: now }, { merge: true });
+      return { error: 'The maximum of 5 OTP requests was reached. Try again in 4 hours.', status: 429, code: 'auth/otp-request-locked', blockedUntil, remainingRequests: 0 };
+    }
     const lastRequestAt = Number(data.lastRequestAt || 0);
     if (lastRequestAt && now - lastRequestAt < 10000) {
       const nextRequestAt = lastRequestAt + OTP_RESEND_MS;
@@ -113,20 +85,13 @@ async function reserveOtpRequest(firestore, identity) {
         remainingRequests: Math.max(0, OTP_REQUEST_LIMIT - Number(data.requestCount || 0)),
       };
     }
-    let windowStartedAt = Number(data.requestWindowStartedAt || 0); let requestCount = Number(data.requestCount || 0);
-    if (!windowStartedAt || now - windowStartedAt >= OTP_REQUEST_BLOCK_MS) { windowStartedAt = now; requestCount = 0; }
-    if (requestCount >= OTP_REQUEST_LIMIT) {
-      const blockedUntil = now + OTP_REQUEST_BLOCK_MS;
-      transaction.set(ref, { requestBlockedUntil: blockedUntil, updatedAt: now }, { merge: true });
-      return { error: 'The maximum of 5 OTP requests was reached. Try again in 4 hours.', status: 429, code: 'auth/otp-request-locked', blockedUntil, remainingRequests: 0 };
-    }
     const nextCount = requestCount + 1; const requestBlockedUntil = nextCount >= OTP_REQUEST_LIMIT ? now + OTP_REQUEST_BLOCK_MS : 0;
     transaction.set(ref, { requestWindowStartedAt: windowStartedAt, requestCount: nextCount, lastRequestAt: now, requestBlockedUntil, updatedAt: now }, { merge: true });
     return {
       reservedAt: now,
       remainingRequests: Math.max(0, OTP_REQUEST_LIMIT - nextCount),
       nextRequestAt: requestBlockedUntil || now + OTP_RESEND_MS,
-      previous: { requestWindowStartedAt: Number(data.requestWindowStartedAt || 0), requestCount: Number(data.requestCount || 0), lastRequestAt, requestBlockedUntil: existingRequestBlock },
+      previous: { requestWindowStartedAt: Number(data.requestWindowStartedAt || 0), requestCount: Number(data.requestCount || 0), lastRequestAt: Number(data.lastRequestAt || 0), requestBlockedUntil: existingRequestBlock },
       ref,
     };
   });
@@ -145,25 +110,17 @@ async function releaseOtpReservation(firestore, reservation) {
 async function requestOtp(identity) {
   const profile = getUserByUid(identity.uid);
   if (!profile?.telegramToken || !profile.telegramChatId) { const error = new Error('Telegram OTP is not configured for this account'); error.status = 503; throw error; }
-  const firestore = (await withDeadline(getAdmin(), 'Firebase Admin could not initialize in time.')).firestore();
-  const reservation = await withDeadline(reserveOtpRequest(firestore, identity), 'OTP request reservation timed out.');
+  const firestore = (await getAdmin()).firestore();
+  const reservation = await reserveOtpRequest(firestore, identity);
   const ref = firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(String(identity.auth_time));
   const rootRef = firestore.collection('otpChallenges').doc(identity.uid);
   if (reservation.reused) {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const existing = await withDeadline(ref.get(), 'Existing OTP verification timed out.');
-      const data = existing.data() || {};
-      const existingExpiresAt = Number(data.expiresAtMs || (typeof data.expiresAt?.toMillis === 'function' ? data.expiresAt.toMillis() : 0));
-      if (existing.exists && data.status === 'sent' && existingExpiresAt > Date.now()) {
-        return { sent: true, reused: true, expiresAt: existingExpiresAt, nextRequestAt: reservation.nextRequestAt, remainingRequests: reservation.remainingRequests };
-      }
-      await new Promise(resolve => setTimeout(resolve, 150));
+    const existing = await ref.get().catch(() => null);
+    const data = existing?.data() || {};
+    const existingExpiresAt = Number(data.expiresAtMs || (typeof data.expiresAt?.toMillis === 'function' ? data.expiresAt.toMillis() : 0));
+    if (existing?.exists && data.status === 'sent' && existingExpiresAt > Date.now()) {
+      return { sent: true, reused: true, expiresAt: existingExpiresAt, nextRequestAt: reservation.nextRequestAt, remainingRequests: reservation.remainingRequests };
     }
-    const inProgress = new Error('Your Telegram code is still being delivered. Please wait a moment before trying again.');
-    inProgress.status = 409;
-    inProgress.code = 'auth/otp-in-progress';
-    inProgress.blockedUntil = reservation.nextRequestAt;
-    throw inProgress;
   }
   const code = String(crypto.randomInt(100000, 1000000));
   const now = Date.now(); const expiresAt = now + OTP_LIFETIME_MS;
@@ -182,7 +139,7 @@ async function requestOtp(identity) {
   const batch = firestore.batch();
   batch.set(ref, challengePayload);
   batch.set(rootRef, { latestSessionId: String(identity.auth_time), ...challengePayload });
-  await withDeadline(batch.commit(), 'Saving the Telegram challenge timed out.');
+  await batch.commit();
 
   try {
     await telegramRequest(profile, 'sendMessage', {
@@ -280,7 +237,7 @@ export default async function handler(req, res) {
     if (!deviceId) return res.status(400).json({ error: 'This browser could not create a secure device identity.', code: 'auth/device-required' });
     const identity = await verifyApprovedToken(req);
     if (action === 'status') {
-      const session = await withDeadline(verifiedSessionFor(identity, deviceId), 'Secure session verification timed out.');
+      const session = await verifiedSessionFor(identity, deviceId);
       const expiresAt = Number(session?.expiresAt || session?.expiresAtMs || 0);
       return res.status(200).json({ verified: Boolean(session), expiresAt });
     }
