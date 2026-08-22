@@ -66,7 +66,7 @@ import Zap from 'lucide/dist/esm/icons/zap.mjs';
 import { vaultStore } from './store.js';
 
 const nav = [
-  ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['guard', 'ShieldCheck', 'Guard'], ['assistant', 'Rhino', 'Rhinous'],
+  ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['assistant', 'Rhino', 'Rhinous'],
   ['planner', 'ListTodo', 'Planner'], ['capture', 'AudioLines', 'Capture'], ['birthdays', 'CakeSlice', 'Birthdays'],
 ];
 const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', 'Government Document': 'FileBadge', Personal: 'NotebookText', Audio: 'AudioLines', Todo: 'ListTodo', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
@@ -95,7 +95,7 @@ const modal = document.querySelector('#modal');
 const toastNode = document.querySelector('#toast');
 const state = {
   view: 'home', items: [], status: 'loading', hidden: true,
-  provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, vaultCategory: 'all', guardTab: 'all', generatedPassword: '', generatedPin: '', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', todoTab: 'active', telegramSyncing: false,
+  provider: localStorage.getItem('memoir-provider') || 'gemini', query: '', selectedMemoryId: null, vaultSection: 'memories', vaultCategory: 'all', guardTab: 'all', generatedPassword: '', generatedPin: '', messages: [], assistantLog: loadAssistantLog(), chatLoading: false, reminderTab: 'upcoming', todoTab: 'active', telegramSyncing: false,
   auth: { status: 'checking', email: '', message: '', profile: null }, authError: '',
   chatAttachments: [], chatAttachment: null, isRecordingVoice: false, plannerSection: 'todos', captureSection: 'audio', lastResolvedItemId: '', assistantReveals: new Set(),
 };
@@ -140,7 +140,10 @@ async function withRhinoActivity(label, task) {
   finally { await new Promise(resolve => setTimeout(resolve, Math.max(0, 320 - (Date.now() - started)))); activityDepth = Math.max(0, activityDepth - 1); if (!activityDepth) { node.classList.remove('show'); setTimeout(() => { if (!activityDepth) node.remove(); }, 220); } }
 }
 function activeProfile() { return state.auth.profile || { name: 'Owner', initials: 'ME', email: state.auth.email || '' }; }
-function titleForView() { return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', guard: 'Rhino Guard Security', assistant: 'Ask Rhinous', planner: 'Plan and complete', capture: 'Capture library', birthdays: 'Meaningful moments' }[state.view]; }
+function titleForView() {
+  if (state.view === 'vault' && state.vaultSection === 'security') return 'Rhino Guard Security';
+  return { home: `Good morning, ${activeProfile().name}`, vault: 'Your memories', assistant: 'Ask Rhinous', planner: 'Plan and complete', capture: 'Capture library', birthdays: 'Meaningful moments' }[state.view] || 'Your memories';
+}
 function category(item) { return item.kind === 'clipboard' ? 'Clipboard' : item.type || 'Personal'; }
 function itemIcon(item) { return typeIcons[category(item)] || 'Gem'; }
 function allFields(item) { return item.fields || {}; }
@@ -1489,6 +1492,14 @@ function vaultView() {
   const selected = state.items.find(item => item.id === state.selectedMemoryId);
   if (selected && selected.type !== 'Birthday') return detailMarkup(selected);
   state.selectedMemoryId = null;
+  const guardAudit = auditVaultSecurity(state.items, activeProfile());
+  const switcher = workspaceSwitch('vault', state.vaultSection || 'memories', [
+    ['memories', 'Gem', 'All Memories', 'Vault items, documents & logins'],
+    ['security', 'ShieldCheck', 'Rhino Guard', `${guardAudit.score}% Health · ${guardAudit.allVulnerabilities.length ? `${guardAudit.allVulnerabilities.length} alerts` : 'Secure'}`],
+  ]);
+  if (state.vaultSection === 'security') {
+    return `${switcher}<div class="workspace-body">${guardView()}</div>`;
+  }
   const all = vaultMemories();
   const filters = [['all', 'All'], ['banks', 'Banks'], ['documents', 'Documents'], ['logins', 'Logins'], ['wifi', 'Wi-Fi'], ['personal', 'Personal']];
   const counts = Object.fromEntries(filters.map(([id]) => [id, id === 'all' ? all.length : all.filter(item => memoryFilterGroup(item) === id).length]));
@@ -1497,7 +1508,7 @@ function vaultView() {
   const list = state.vaultCategory === 'all' ? all : all.filter(item => memoryFilterGroup(item) === state.vaultCategory);
   const filterBar = `<div class="memory-filters" role="tablist" aria-label="Filter memories by category">${availableFilters.map(([id, label]) => `<button type="button" role="tab" aria-selected="${state.vaultCategory === id}" class="${state.vaultCategory === id ? 'active' : ''}" data-vault-category="${id}"><span>${escapeHtml(label)}</span><b>${counts[id]}</b></button>`).join('')}</div>`;
   const empty = all.length ? emptyState('Search', `No ${filters.find(([id]) => id === state.vaultCategory)?.[1] || ''} memories`, 'Choose another category or add a new memory.', 'Add memory', 'memory') : emptyState('Gem', 'Nothing saved yet', 'Start with a login, bank record, document, Wi-Fi detail, or anything personal.', 'Add first memory', 'memory');
-  return `<div class="toolbar"><input class="search-input" id="vault-filter" placeholder="Filter titles, notes, fields or values…"><button class="secondary" id="bulk-import">${icon('NotebookText')} Secure import</button><button class="primary" data-add="memory">${icon('Plus')} Add memory</button></div>${filterBar}${list.length ? `<div class="vault-list" id="vault-list">${list.map(vaultRow).join('')}</div>` : empty}`;
+  return `${switcher}<div class="workspace-body"><div class="toolbar"><input class="search-input" id="vault-filter" placeholder="Filter titles, notes, fields or values…"><button class="secondary" id="bulk-import">${icon('NotebookText')} Secure import</button><button class="primary" data-add="memory">${icon('Plus')} Add memory</button></div>${filterBar}${list.length ? `<div class="vault-list" id="vault-list">${list.map(vaultRow).join('')}</div>` : empty}</div>`;
 }
 function audioView() {
   const selected = state.items.find(item => item.id === state.selectedMemoryId);
@@ -1651,6 +1662,8 @@ function bindShell() {
 function shortcutHandler(event) { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search')?.focus(); } document.addEventListener('keydown', shortcutHandler, { once: true }); }
 function navigate(viewName) {
   document.querySelector('.notification-popover')?.remove();
+  if (viewName === 'guard' || viewName === 'security') { state.vaultSection = 'security'; viewName = 'vault'; }
+  else if (viewName === 'memories') { state.vaultSection = 'memories'; viewName = 'vault'; }
   if (viewName === 'todos' || viewName === 'reminders') { state.plannerSection = viewName; viewName = 'planner'; }
   if (viewName === 'audio' || viewName === 'clipboard') { state.captureSection = viewName; viewName = 'capture'; }
   state.view = viewName; state.query = ''; state.selectedMemoryId = null; shell(); window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1658,6 +1671,7 @@ function navigate(viewName) {
 function renderView() { const node = document.querySelector('#view'); if (node) node.innerHTML = currentView(); bindView(); }
 
 function bindView() {
+  document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => navigate(button.dataset.view));
   document.querySelectorAll('[data-add]').forEach(button => button.onclick = () => button.dataset.add === 'clipboard' ? pasteClipboard() : button.dataset.add === 'reminder' ? openReminderEditor() : button.dataset.add === 'birthday' ? openBirthdayEditor() : button.dataset.add === 'todo' ? openTodoEditor() : button.dataset.add === 'audio-upload' ? document.querySelector('#audio-upload-input-main')?.click() : openEditor(null, 'Personal'));
   document.querySelectorAll('[data-open]').forEach(button => button.onclick = () => openDetail(button.dataset.open, button.dataset.openView || 'vault'));
   document.querySelector('#back-to-memories')?.addEventListener('click', () => { state.selectedMemoryId = null; renderView(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
@@ -1666,7 +1680,13 @@ function bindView() {
   document.querySelectorAll('[data-copy]').forEach(button => button.onclick = () => copyText(button.dataset.copy));
   document.querySelectorAll('[data-provider]').forEach(button => button.onclick = () => { state.provider = button.dataset.provider; localStorage.setItem('memoir-provider', state.provider); renderView(); });
   document.querySelectorAll('[data-ai-reveal]').forEach(button => button.onclick = () => { const key = button.dataset.aiReveal; if (state.assistantReveals.has(key)) state.assistantReveals.delete(key); else state.assistantReveals.add(key); renderView(); });
-  document.querySelectorAll('[data-workspace-section]').forEach(button => button.onclick = () => { const key = button.dataset.workspaceKind === 'planner' ? 'plannerSection' : 'captureSection'; state[key] = button.dataset.workspaceSection; state.selectedMemoryId = null; renderView(); });
+  document.querySelectorAll('[data-workspace-section]').forEach(button => button.onclick = () => {
+    const kind = button.dataset.workspaceKind;
+    const key = kind === 'planner' ? 'plannerSection' : kind === 'vault' ? 'vaultSection' : 'captureSection';
+    state[key] = button.dataset.workspaceSection;
+    state.selectedMemoryId = null;
+    renderView();
+  });
   document.querySelectorAll('[data-ask]').forEach(button => button.onclick = () => askAssistant(button.dataset.ask));
   document.querySelectorAll('[data-birthday-message]').forEach(button => button.onclick = () => generateBirthdayMessage(button.dataset.birthdayMessage));
   document.querySelectorAll('[data-reminder-tab]').forEach(button => button.onclick = () => { state.reminderTab = button.dataset.reminderTab; renderView(); });
