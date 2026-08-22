@@ -1779,7 +1779,7 @@ function assistantView() {
     <div class="chat-attachments-list">
       ${attachments.map((att, idx) => `
         <div class="chat-attachment-chip" data-attachment-id="${escapeHtml(att.id || String(idx))}">
-          ${att.kind === 'audio' ? `<span class="attachment-audio-icon">${icon('AudioLines')}</span>` : `<img src="${escapeHtml(att.previewUrl || '')}" alt="Preview">`}
+          ${att.kind === 'audio' ? `<span class="attachment-audio-icon">${icon('AudioLines')}</span>` : (att.isPdf || att.mimeType === 'application/pdf' || String(att.name || '').toLowerCase().endsWith('.pdf')) ? `<span class="attachment-doc-icon pdf">${icon('FileText')}</span>` : `<img src="${escapeHtml(att.previewUrl || '')}" alt="Preview">`}
           <span class="attachment-chip-name">${escapeHtml(att.name || (att.kind === 'audio' ? 'Voice memo' : `Image ${idx + 1}`))}</span>
           <button type="button" class="chat-chip-remove" data-remove-attachment="${escapeHtml(att.id || String(idx))}" title="Remove this file">${icon('X')}</button>
         </div>
@@ -2816,55 +2816,32 @@ async function executeShare(platform, text, itemTitle, selectedAttachments = [])
 
 
 async function decompressPdfStream(uint8Bytes) {
+  if (!uint8Bytes || uint8Bytes.length < 2) return '';
+  
+  // 1. Try 'deflate' (standard zlib/flate) with safe Response wrapper
   try {
-    const ds = new DecompressionStream('deflate');
-    const writer = ds.writable.getWriter();
-    writer.write(uint8Bytes);
-    writer.close();
-    const reader = ds.readable.getReader();
-    const chunks = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-    }
-    const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-    const result = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const c of chunks) {
-      result.set(c, offset);
-      offset += c.length;
-    }
-    return new TextDecoder('latin1').decode(result);
+    const stream = new Blob([uint8Bytes]).stream().pipeThrough(new DecompressionStream('deflate'));
+    const buffer = await new Response(stream).arrayBuffer();
+    return new TextDecoder('latin1').decode(new Uint8Array(buffer));
+  } catch {}
+
+  // 2. Try 'deflate-raw' (raw deflate without header)
+  try {
+    const stream = new Blob([uint8Bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    const buffer = await new Response(stream).arrayBuffer();
+    return new TextDecoder('latin1').decode(new Uint8Array(buffer));
+  } catch {}
+
+  // 3. Fallback: uncompressed raw bytes
+  try {
+    return new TextDecoder('latin1').decode(uint8Bytes);
   } catch {
-    try {
-      const dsRaw = new DecompressionStream('deflate-raw');
-      const writer = dsRaw.writable.getWriter();
-      writer.write(uint8Bytes);
-      writer.close();
-      const reader = dsRaw.readable.getReader();
-      const chunks = [];
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-      }
-      const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-      const result = new Uint8Array(totalLength);
-      let offset = 0;
-      for (const c of chunks) {
-        result.set(c, offset);
-        offset += c.length;
-      }
-      return new TextDecoder('latin1').decode(result);
-    } catch {
-      return new TextDecoder('latin1').decode(uint8Bytes);
-    }
+    return '';
   }
 }
 
 function cleanPdfString(str) {
-  return str
+  return String(str || '')
     .replace(/\\([()\\])/g, '$1')
     .replace(/\\n/g, '\n')
     .replace(/\\r/g, '\r')
@@ -2880,22 +2857,28 @@ async function extractLocalPdfText(file) {
     const rawString = new TextDecoder('latin1').decode(rawBytes);
     const textPieces = [];
 
+    // Find stream objects with text content
     const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
     let match;
     const streamPromises = [];
+    let count = 0;
 
-    while ((match = streamRegex.exec(rawString)) !== null) {
+    while ((match = streamRegex.exec(rawString)) !== null && count < 60) {
       const streamContent = match[1];
-      const streamBytes = new Uint8Array(streamContent.length);
-      for (let i = 0; i < streamContent.length; i++) {
-        streamBytes[i] = streamContent.charCodeAt(i);
+      if (streamContent.length > 10) {
+        const streamBytes = new Uint8Array(streamContent.length);
+        for (let i = 0; i < streamContent.length; i++) {
+          streamBytes[i] = streamContent.charCodeAt(i);
+        }
+        streamPromises.push(decompressPdfStream(streamBytes));
+        count++;
       }
-      streamPromises.push(decompressPdfStream(streamBytes));
     }
 
     const decompressedStreams = await Promise.all(streamPromises);
 
     for (const decompressed of decompressedStreams) {
+      if (!decompressed) continue;
       const btRegex = /BT([\s\S]*?)ET/g;
       let btMatch;
       while ((btMatch = btRegex.exec(decompressed)) !== null) {
@@ -2941,7 +2924,7 @@ async function extractLocalPdfText(file) {
 
     return textPieces.join('\n').trim();
   } catch (err) {
-    console.warn('Local PDF extraction handled gracefully:', err?.message);
+    console.warn('Local PDF extraction handled gracefully:', err?.message || err);
     return '';
   }
 }

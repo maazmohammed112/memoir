@@ -169,6 +169,11 @@
 .chat-attachments-list{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px;margin:0 14px 8px;border:1px solid var(--line);border-radius:14px;background:var(--surface);animation:enter .2s ease both}
 .chat-attachment-chip{display:inline-flex;align-items:center;gap:7px;padding:4px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);max-width:210px;font-size:11px;font-weight:600}
 .chat-attachment-chip img{width:28px;height:28px;border-radius:6px;object-fit:cover;flex:none}
+.attachment-audio-icon,
+.attachment-doc-icon{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;flex:none;background:var(--surface);color:var(--violet)}
+.attachment-doc-icon.pdf{background:rgba(227,60,85,0.12);color:var(--danger)}
+.attachment-audio-icon .icon,
+.attachment-doc-icon .icon{width:16px;height:16px}
 .attachment-chip-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--ink);flex:1}
 .chat-chip-remove{width:20px;height:20px;border:0;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,0.06);color:var(--muted);cursor:pointer;flex:none;transition:.15s}
 .chat-chip-remove:hover{background:var(--danger);color:#fff}
