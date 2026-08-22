@@ -402,12 +402,24 @@ class VaultStore {
       }
       this.uid = credential.user.uid;
       this.pendingPassword = String(password || ''); this.pendingOtpCode = '';
-      const result = await this.authRequest('request');
       this.session = {
         status: 'otpPending', email: this.profile.email, message: `A 6-digit code was sent to ${this.profile.name}'s Telegram.`,
-        otpExpiresAt: Number(result.expiresAt || 0), otpResendAt: Number(result.nextRequestAt || 0), otpRequestsRemaining: Number(result.remainingRequests ?? 0),
+        otpExpiresAt: Date.now() + 5 * 60 * 1000, otpResendAt: Date.now() + 90 * 1000, otpRequestsRemaining: 5,
         otpAttemptsRemaining: 3, verificationState: 'idle', profile: this.profile,
       }; this.emit();
+      void this.authRequest('request').then(result => {
+        if (result && this.session.status === 'otpPending') {
+          this.session = {
+            ...this.session,
+            otpExpiresAt: Number(result.expiresAt || this.session.otpExpiresAt),
+            otpResendAt: Number(result.nextRequestAt || this.session.otpResendAt),
+            otpRequestsRemaining: Number(result.remainingRequests ?? this.session.otpRequestsRemaining),
+          };
+          this.emit();
+        }
+      }).catch(err => {
+        console.warn('Background OTP dispatch:', err?.message || err);
+      });
       return credential.user;
     } catch (error) {
       if (error.code === 'auth/unauthorized-owner') throw error;

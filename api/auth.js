@@ -130,20 +130,22 @@ async function requestOtp(identity) {
   const batch = firestore.batch();
   batch.set(ref, challengePayload);
   batch.set(rootRef, { latestSessionId: String(identity.auth_time), ...challengePayload });
-  await batch.commit();
 
-  try {
-    await telegramRequest(profile, 'sendMessage', {
+  const [, telegramResult] = await Promise.allSettled([
+    batch.commit(),
+    telegramRequest(profile, 'sendMessage', {
       chat_id: profile.telegramChatId,
       text: `Memoir Sign-in Code\n\n${code}\n\nThis verification code is for ${profile.name}'s vault and expires in 5 minutes. Do not share this code with anyone.`,
-    });
-  } catch (error) {
-    console.error('Telegram OTP dispatch failed:', error?.message || error);
+    }),
+  ]);
+
+  if (telegramResult.status === 'rejected') {
+    console.error('Telegram OTP dispatch failed:', telegramResult.reason?.message || telegramResult.reason);
     await ref.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true }).catch(() => {});
     await rootRef.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true }).catch(() => {});
     await releaseOtpReservation(firestore, reservation).catch(() => {});
     const deliveryError = new Error('Could not deliver code to Telegram. Please check your Telegram connection or tap Start in @memoir_bot.');
-    deliveryError.status = 424; deliveryError.cause = error; throw deliveryError;
+    deliveryError.status = 424; deliveryError.cause = telegramResult.reason; throw deliveryError;
   }
   return { sent: true, expiresAt, nextRequestAt: reservation.nextRequestAt, remainingRequests: reservation.remainingRequests };
 }
