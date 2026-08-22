@@ -1,8 +1,8 @@
 import { deviceIdFrom, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 
 const coolingDown = new Map();
-const geminiModels = (process.env.GEMINI_MODELS || 'gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-2.5-flash-lite,gemini-3-flash').split(',');
-const mistralModels = (process.env.MISTRAL_MODELS || 'ministral-3b-2512,ministral-8b-2512,mistral-small-2603,mistral-medium-latest').split(',');
+const geminiModels = (process.env.GEMINI_MODELS || 'gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash,gemini-2.5-flash-lite').split(',');
+const mistralModels = (process.env.MISTRAL_MODELS || 'mistral-small-latest,ministral-8b-latest,open-mistral-nemo,mistral-medium-latest,ministral-3b-latest').split(',');
 
 const SYSTEM = `You are Rhinous, the private, smart, highly capable intelligence layer for Memoir, a personal vault.
 Your scope includes all the user's saved memories, passwords, credentials, cards, documents, Wi-Fi, clipboard items, to-do lists, birthdays, reminders, and vault organization.

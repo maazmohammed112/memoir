@@ -3545,10 +3545,10 @@ async function askAssistant(query) {
     proposedActions = message.actions || [];
     state.messages.push(message);
   } catch (error) {
-    if (attachment?.kind === 'audio') {
-      const audioItem = state.items.find(item => item.id === attachment.recordId);
+    if (audioAtt) {
+      const audioItem = state.items.find(item => item.id === audioAtt.recordId);
       if (audioItem) await updateAudioTranscriptEverywhere(audioItem, '', 'Awaiting transcription · retry available');
-      state.messages.push({ role: 'assistant', title: 'Audio saved safely', markdown: 'The recording is already visible in Audio. Transcription could not run because the selected AI is unavailable or its limit was reached. You can retry later without recording again.', retryAudioId: attachment.recordId });
+      state.messages.push({ role: 'assistant', title: 'Audio saved safely', markdown: 'The recording is already visible in Audio. Transcription could not run because the selected AI is unavailable or its limit was reached. You can retry later without recording again.', retryAudioId: audioAtt.recordId });
     } else {
       const fallback = localRoute(cleanQuery);
       state.messages.push(fallback || { role: 'assistant', markdown: `### Assistant response\nI couldn’t process this request: ${error?.message || 'Check your network connection'}.` });
