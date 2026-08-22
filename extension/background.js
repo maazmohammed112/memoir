@@ -48,6 +48,8 @@ function broadcastToAllTabs(msg) {
 }
 
 async function syncItemToCloud(auth, op, item, id) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const targetUrl = auth.serverUrl || DEFAULT_SERVER_URL;
     await fetch(`${targetUrl}/api/sync`, {
@@ -60,9 +62,12 @@ async function syncItemToCloud(auth, op, item, id) {
         id: id || item?.id,
         item,
       }),
+      signal: controller.signal,
     });
   } catch (e) {
     console.warn('Memoir cloud sync queued locally:', e.message);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

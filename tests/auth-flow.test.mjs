@@ -41,6 +41,18 @@ assert.doesNotMatch(authApiSource, /verified: true, fallback: true/);
 assert.doesNotMatch(authApiSource, /^\s*code,\s*$/m);
 assert.doesNotMatch(authApiSource, /lastCodeHash/);
 assert.match(authApiSource, /quotaExhausted \? 'auth\/service-busy'/);
+assert.match(authApiSource, /async function withDeadline/);
+assert.match(authApiSource, /await withDeadline\(reserveOtpRequest/);
+assert.match(authApiSource, /await withDeadline\(batch\.commit\(\)/);
+assert.match(authApiSource, /status: 'prepared'/);
+assert.match(authApiSource, /deliveredAtMs/);
+assert.doesNotMatch(authApiSource, /memoir-master-production-key/);
+const requestOtpSource = authApiSource.slice(authApiSource.indexOf('async function requestOtp'), authApiSource.indexOf('async function verifyOtp'));
+assert.ok(requestOtpSource.indexOf('await withDeadline(batch.commit()') < requestOtpSource.indexOf("await telegramRequest(profile, 'sendMessage'"));
+assert.doesNotMatch(requestOtpSource, /Promise\.allSettled/);
+
+const firebaseAdminSource = fs.readFileSync(new URL('../lib/firebaseAdmin.js', import.meta.url), 'utf8');
+assert.match(firebaseAdminSource, /verifyIdToken\(token, true\)/);
 
 const mainSource = fs.readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 assert.ok((mainSource.match(/dataset\.submitting === 'true'/g) || []).length >= 3);
@@ -48,5 +60,10 @@ assert.ok((mainSource.match(/dataset\.submitting === 'true'/g) || []).length >= 
 const extensionSource = fs.readFileSync(new URL('../extension/content.js', import.meta.url), 'utf8');
 assert.match(extensionSource, /if \(!isMemoirApp\) \{\s*initAutofillAndBadges\(\)/);
 assert.match(extensionSource, /memoir-inline-save-btn[\s\S]*forEach\(element => element\.remove\(\)\)/);
+assert.match(extensionSource, /function sendMessageSafely/);
+assert.equal((extensionSource.match(/chrome\.runtime\.sendMessage/g) || []).length, 1);
+
+const stylesSource = fs.readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+assert.match(stylesSource, /\.memoir-inline-save-btn,[\s\S]*display: none !important/);
 
 console.log('Memoir account isolation, OTP, session, and extension auth regressions passed.');

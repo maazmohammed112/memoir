@@ -14,6 +14,18 @@
 
   const logoUrl = chrome.runtime.getURL('brand/memoir-rhino-ui.png');
 
+  function sendMessageSafely(message, callback = () => {}) {
+    try {
+      chrome.runtime.sendMessage(message, response => {
+        const channelError = chrome.runtime.lastError;
+        if (channelError) { callback(null, channelError); return; }
+        callback(response, null);
+      });
+    } catch (error) {
+      callback(null, error);
+    }
+  }
+
   const SVGS = {
     sparkles: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>',
     key: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg>',
@@ -154,7 +166,7 @@
 
   async function handleFieldFocus(input, info) {
     activeTargetInput = input;
-    chrome.runtime.sendMessage({ action: 'GET_CREDENTIALS_FOR_URL', url: window.location.href }, response => {
+    sendMessageSafely({ action: 'GET_CREDENTIALS_FOR_URL', url: window.location.href }, response => {
       const matches = (response && response.ok && response.matches) ? response.matches : [];
       showAutofillDropdown(input, matches, info);
     });
@@ -491,7 +503,7 @@
     const usernameVal = capturedFields['Username / ID'] || capturedFields['Username'] || '';
     const docVal = capturedFields['Document number'] || capturedFields['Reference number'] || '';
 
-    chrome.runtime.sendMessage({
+    sendMessageSafely({
       action: 'CHECK_DUPLICATE',
       domain: currentDomain,
       username: usernameVal,
@@ -592,7 +604,7 @@
       prompt.querySelector('.memoir-capture-actions').remove();
       prompt.querySelectorAll('.memoir-capture-edit-box, .memoir-dup-warning-box').forEach(el => el.remove());
 
-      chrome.runtime.sendMessage({
+      sendMessageSafely({
         action: 'SAVE_CAPTURED_CREDENTIAL',
         item: finalItem,
         updateExistingId: updateId || null,
@@ -642,8 +654,7 @@
     const pushAllToApp = () => {
       if (!chrome?.runtime?.id) return;
       try {
-        chrome.runtime.sendMessage({ action: 'GET_ALL_CAPTURED' }, res => {
-          if (chrome.runtime?.lastError) return;
+        sendMessageSafely({ action: 'GET_ALL_CAPTURED' }, res => {
           if (res && res.ok && Array.isArray(res.items) && res.items.length) {
             window.postMessage({ type: 'MEMOIR_EXTENSION_SYNC_EVENT', action: 'MEMOIR_SYNC_UPDATE', items: res.items }, '*');
           }

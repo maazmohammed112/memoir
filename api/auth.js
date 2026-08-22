@@ -11,10 +11,36 @@ const OTP_VERIFY_LIMIT = 3; // 3 wrong attempts maximum
 const OTP_VERIFY_LOCK_MS = 12 * 60 * 60 * 1000; // 12 hours lock after 3 wrong OTPs
 const ACCOUNT_CODE_LIMIT = 3;
 const ACCOUNT_CODE_LOCK_MS = 4 * 60 * 60 * 1000;
-const SERVER_OPERATION_TIMEOUT_MS = 12000;
+const SERVER_OPERATION_TIMEOUT_MS = 10000;
+
+async function withDeadline(promise, message, timeoutMs = SERVER_OPERATION_TIMEOUT_MS) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error(message);
+          error.status = 503;
+          error.code = 'auth/service-timeout';
+          reject(error);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function secret() {
-  return process.env.OTP_SECRET || process.env.VAULT_SERVER_KEY || 'memoir-master-production-key-2026-vault-identity';
+  const value = process.env.OTP_SECRET || process.env.VAULT_SERVER_KEY;
+  if (!value || value.length < 24) {
+    const error = new Error('OTP server secret is not configured.');
+    error.status = 503;
+    error.code = 'auth/server-secret-missing';
+    throw error;
+  }
+  return value;
 }
 
 function hash(value) { return crypto.createHmac('sha256', secret()).update(String(value)).digest('hex'); }
@@ -65,7 +91,7 @@ async function reserveOtpRequest(firestore, identity) {
       return { error: 'The maximum of 5 OTP requests was reached. Try again in 4 hours.', status: 429, code: 'auth/otp-request-locked', blockedUntil, remainingRequests: 0 };
     }
     const lastRequestAt = Number(data.lastRequestAt || 0);
-    if (lastRequestAt && now - lastRequestAt < 4000) {
+    if (lastRequestAt && now - lastRequestAt < 10000) {
       const nextRequestAt = lastRequestAt + OTP_RESEND_MS;
       return {
         reused: true,
@@ -73,7 +99,16 @@ async function reserveOtpRequest(firestore, identity) {
         remainingRequests: Math.max(0, OTP_REQUEST_LIMIT - Number(data.requestCount || 0)),
         nextRequestAt,
         ref,
+      };
+    }
+    if (lastRequestAt && now - lastRequestAt < OTP_RESEND_MS) {
+      const blockedUntil = lastRequestAt + OTP_RESEND_MS;
+      return {
+        error: 'Please wait for the resend timer before requesting another Telegram code.',
+        status: 429,
         code: 'auth/otp-cooldown',
+        blockedUntil,
+        remainingRequests: Math.max(0, OTP_REQUEST_LIMIT - Number(data.requestCount || 0)),
       };
     }
     const nextCount = requestCount + 1; const requestBlockedUntil = nextCount >= OTP_REQUEST_LIMIT ? now + OTP_REQUEST_BLOCK_MS : 0;
@@ -91,27 +126,32 @@ async function reserveOtpRequest(firestore, identity) {
 }
 
 async function releaseOtpReservation(firestore, reservation) {
-  await firestore.runTransaction(async transaction => {
+  await withDeadline(firestore.runTransaction(async transaction => {
     const snapshot = await transaction.get(reservation.ref); const data = snapshot.data() || {};
     if (Number(data.lastRequestAt || 0) !== reservation.reservedAt) return;
     transaction.set(reservation.ref, { ...reservation.previous, updatedAt: Date.now() }, { merge: true });
-  }).catch(() => {});
+  }), 'Releasing the OTP reservation timed out.', 4000).catch(() => {});
 }
 
 async function requestOtp(identity) {
   const profile = getUserByUid(identity.uid);
   if (!profile?.telegramToken || !profile.telegramChatId) { const error = new Error('Telegram OTP is not configured for this account'); error.status = 503; throw error; }
-  const firestore = (await getAdmin()).firestore();
-  const reservation = await reserveOtpRequest(firestore, identity);
+  const firestore = (await withDeadline(getAdmin(), 'Firebase Admin initialization timed out.')).firestore();
+  const reservation = await withDeadline(reserveOtpRequest(firestore, identity), 'OTP reservation timed out. Please try again.');
   const ref = firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(String(identity.auth_time));
   const rootRef = firestore.collection('otpChallenges').doc(identity.uid);
   if (reservation.reused) {
-    const existing = await ref.get().catch(() => null);
+    const existing = await withDeadline(ref.get(), 'Existing OTP lookup timed out.', 6000).catch(() => null);
     const data = existing?.data() || {};
     const existingExpiresAt = Number(data.expiresAtMs || (typeof data.expiresAt?.toMillis === 'function' ? data.expiresAt.toMillis() : 0));
-    if (existing?.exists && data.status === 'sent' && existingExpiresAt > Date.now()) {
+    if (existing?.exists && data.status === 'sent' && Number(data.deliveredAtMs || 0) > 0 && existingExpiresAt > Date.now()) {
       return { sent: true, reused: true, expiresAt: existingExpiresAt, nextRequestAt: reservation.nextRequestAt, remainingRequests: reservation.remainingRequests };
     }
+    const pending = new Error('Your Telegram code request is still being processed. Please wait a few seconds and try again.');
+    pending.status = 409;
+    pending.code = 'auth/otp-in-progress';
+    pending.blockedUntil = reservation.nextRequestAt;
+    throw pending;
   }
   const code = String(crypto.randomInt(100000, 1000000));
   const now = Date.now(); const expiresAt = now + OTP_LIFETIME_MS;
@@ -123,29 +163,42 @@ async function requestOtp(identity) {
     expiresAt: new Date(expiresAt),
     expiresAtMs: expiresAt,
     attempts: 0,
-    status: 'sent',
-    sentAt: new Date(now),
+    status: 'prepared',
+    preparedAt: new Date(now),
   };
   
   const batch = firestore.batch();
   batch.set(ref, challengePayload);
   batch.set(rootRef, { latestSessionId: String(identity.auth_time), ...challengePayload });
 
-  const [, telegramResult] = await Promise.allSettled([
-    batch.commit(),
-    telegramRequest(profile, 'sendMessage', {
+  try {
+    await withDeadline(batch.commit(), 'Saving the OTP challenge timed out. Please try again.');
+  } catch (error) {
+    await releaseOtpReservation(firestore, reservation);
+    throw error;
+  }
+
+  try {
+    await telegramRequest(profile, 'sendMessage', {
       chat_id: profile.telegramChatId,
       text: `Memoir Sign-in Code\n\n${code}\n\nThis verification code is for ${profile.name}'s vault and expires in 5 minutes. Do not share this code with anyone.`,
-    }),
-  ]);
-
-  if (telegramResult.status === 'rejected') {
-    console.error('Telegram OTP dispatch failed:', telegramResult.reason?.message || telegramResult.reason);
-    await ref.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true }).catch(() => {});
-    await rootRef.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true }).catch(() => {});
-    await releaseOtpReservation(firestore, reservation).catch(() => {});
-    const deliveryError = new Error('Could not deliver code to Telegram. Please check your Telegram connection or tap Start in @memoir_bot.');
-    deliveryError.status = 424; deliveryError.cause = telegramResult.reason; throw deliveryError;
+    });
+    const deliveredAt = Date.now();
+    await withDeadline(Promise.all([
+      ref.set({ status: 'sent', sentAt: new Date(deliveredAt), deliveredAtMs: deliveredAt }, { merge: true }),
+      rootRef.set({ status: 'sent', sentAt: new Date(deliveredAt), deliveredAtMs: deliveredAt }, { merge: true }),
+    ]), 'Recording OTP delivery confirmation timed out.', 4000).catch(error => {
+      console.warn('OTP was delivered but delivery confirmation could not be recorded:', error?.message || error);
+    });
+  } catch (error) {
+    console.error('Telegram OTP dispatch failed:', error?.message || error);
+    await withDeadline(Promise.all([
+      ref.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true }),
+      rootRef.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true }),
+    ]), 'Recording OTP delivery failure timed out.', 4000).catch(() => {});
+    await releaseOtpReservation(firestore, reservation);
+    const deliveryError = new Error('Could not deliver code to Telegram. Please check your Telegram connection or tap Start in your Memoir bot.');
+    deliveryError.status = 424; deliveryError.code = 'auth/telegram-delivery-failed'; deliveryError.cause = error; throw deliveryError;
   }
   return { sent: true, expiresAt, nextRequestAt: reservation.nextRequestAt, remainingRequests: reservation.remainingRequests };
 }
@@ -153,14 +206,14 @@ async function requestOtp(identity) {
 async function verifyOtp(identity, input, { deviceId, deviceName, replaceDevices = false } = {}) {
   const code = String(input || '').replace(/\D/g, '');
   if (!/^\d{6}$/.test(code)) { const error = new Error('Enter the complete 6-digit code.'); error.status = 400; error.code = 'auth/otp-invalid-format'; throw error; }
-  const firestore = (await getAdmin()).firestore(); const sessionId = String(identity.auth_time); const now = Date.now();
+  const firestore = (await withDeadline(getAdmin(), 'Firebase Admin initialization timed out.')).firestore(); const sessionId = String(identity.auth_time); const now = Date.now();
   const challengeRef = firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(sessionId);
   const rootRef = firestore.collection('otpChallenges').doc(identity.uid);
   const sessionsRef = firestore.collection('verifiedSessions').doc(identity.uid).collection('sessions');
   const sessionRef = sessionsRef.doc(sessionId); const currentDeviceHash = deviceHash(deviceId);
   const rateRef = firestore.collection('authRateLimits').doc(identity.uid);
   const expiresAt = Math.min(Number(identity.auth_time) * 1000 + SESSION_LENGTH_MS, now + SESSION_LENGTH_MS);
-  const outcome = await firestore.runTransaction(async transaction => {
+  const outcome = await withDeadline(firestore.runTransaction(async transaction => {
     const [challengeSnapshot, rootSnapshot, rateSnapshot, sessionsSnapshot] = await Promise.all([
       transaction.get(challengeRef),
       transaction.get(rootRef),
@@ -216,13 +269,16 @@ async function verifyOtp(identity, input, { deviceId, deviceName, replaceDevices
     transaction.update(challengeRef, { status: 'used', usedAt: new Date(), hash: null });
     transaction.set(rootRef, { status: 'used', usedAt: new Date(), hash: null }, { merge: true });
     return { verified: true };
-  });
+  }), 'OTP verification timed out. Please try again.', 12000);
   if (outcome.error) throw rateError(outcome.error, outcome);
   return { verified: true, expiresAt };
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const traceId = crypto.randomBytes(4).toString('hex');
+  const startedAt = Date.now();
+  res.setHeader('X-Memoir-Auth-Trace', traceId);
   try {
     const action = String(req.body?.action || 'status');
     if (action === 'select-account') return res.status(200).json(await selectAccount(req, req.body?.code));
@@ -230,11 +286,15 @@ export default async function handler(req, res) {
     if (!deviceId) return res.status(400).json({ error: 'This browser could not create a secure device identity.', code: 'auth/device-required' });
     const identity = await verifyApprovedToken(req);
     if (action === 'status') {
-      const session = await verifiedSessionFor(identity, deviceId);
+      const session = await withDeadline(verifiedSessionFor(identity, deviceId), 'Secure session verification timed out.');
       const expiresAt = Number(session?.expiresAt || session?.expiresAtMs || 0);
       return res.status(200).json({ verified: Boolean(session), expiresAt });
     }
-    if (action === 'request') return res.status(200).json(await requestOtp(identity));
+    if (action === 'request') {
+      const result = await requestOtp(identity);
+      console.info(`[auth:${traceId}] OTP delivered in ${Date.now() - startedAt}ms`);
+      return res.status(200).json(result);
+    }
     if (action === 'verify') return res.status(200).json(await verifyOtp(identity, req.body?.code, { deviceId, deviceName, replaceDevices: Boolean(req.body?.replaceDevices) }));
     if (action === 'revoke') {
       try {
@@ -246,6 +306,7 @@ export default async function handler(req, res) {
     }
     return res.status(400).json({ error: 'Unknown action' });
   } catch (error) {
+    console.error(`[auth:${traceId}] failed after ${Date.now() - startedAt}ms:`, error?.code || error?.message || error);
     const quotaExhausted = Number(error?.code) === 8 || /RESOURCE_EXHAUSTED|quota exceeded/i.test(error?.message || '');
     const isAuthError = error.code?.startsWith?.('auth/') || /token|unauthorized|approved|expired/i.test(error.message || '');
     const status = error.status || (quotaExhausted ? 503 : isAuthError ? 401 : 500);

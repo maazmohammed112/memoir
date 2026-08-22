@@ -984,3 +984,9 @@ input, textarea {
   height: 14px;
 }
 
+/* Memoir never displays controls injected by an older build of its extension. */
+.memoir-inline-save-btn,
+.memoir-autofill-dropdown,
+.memoir-capture-prompt {
+  display: none !important;
+}
