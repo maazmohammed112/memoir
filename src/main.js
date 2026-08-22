@@ -1831,13 +1831,29 @@ function assistantView() {
   const attachments = Array.isArray(state.chatAttachments) ? state.chatAttachments : (state.chatAttachment ? [state.chatAttachment] : []);
   const attachmentMarkup = attachments.length ? `
     <div class="chat-attachments-list">
-      ${attachments.map((att, idx) => `
-        <div class="chat-attachment-chip" data-attachment-id="${escapeHtml(att.id || String(idx))}">
-          ${att.kind === 'audio' ? `<span class="attachment-audio-icon">${icon('AudioLines')}</span>` : (att.isPdf || att.mimeType === 'application/pdf' || String(att.name || '').toLowerCase().endsWith('.pdf')) ? `<span class="attachment-doc-icon pdf">${icon('FileText')}</span>` : `<img src="${escapeHtml(att.previewUrl || '')}" alt="Preview">`}
-          <span class="attachment-chip-name">${escapeHtml(att.name || (att.kind === 'audio' ? 'Voice memo' : `Image ${idx + 1}`))}</span>
-          <button type="button" class="chat-chip-remove" data-remove-attachment="${escapeHtml(att.id || String(idx))}" title="Remove this file">${icon('X')}</button>
-        </div>
-      `).join('')}
+      ${attachments.map((att, idx) => {
+        const isAudio = att.kind === 'audio';
+        const isPdfDoc = isPdf(att.mimeType, att.name);
+        const audioSrc = att.data || att.previewUrl || '';
+        return `
+          <div class="chat-attachment-chip ${isAudio ? 'audio-chip' : ''}" data-attachment-id="${escapeHtml(att.id || String(idx))}">
+            ${isAudio ? `
+              <span class="attachment-audio-icon">${icon('AudioLines')}</span>
+              <div class="attachment-audio-meta">
+                <span class="attachment-chip-name">${escapeHtml(att.name || 'Voice memo')}</span>
+                ${audioSrc ? `<audio controls preload="metadata" class="chat-audio-player" src="${escapeHtml(audioSrc)}"></audio>` : ''}
+              </div>
+            ` : isPdfDoc ? `
+              <span class="attachment-doc-icon pdf">${icon('FileText')}</span>
+              <span class="attachment-chip-name">${escapeHtml(att.name || 'Document.pdf')}</span>
+            ` : `
+              <img src="${escapeHtml(att.previewUrl || '')}" alt="Preview">
+              <span class="attachment-chip-name">${escapeHtml(att.name || `Image ${idx + 1}`)}</span>
+            `}
+            <button type="button" class="chat-chip-remove" data-remove-attachment="${escapeHtml(att.id || String(idx))}" title="Remove this file">${icon('X')}</button>
+          </div>
+        `;
+      }).join('')}
     </div>` : '';
   const voiceIndicator = state.isRecordingVoice ? `
     <div class="chat-voice-indicator">
@@ -3124,7 +3140,7 @@ async function prepareAudioAttachment(file, source = 'Memoir app') {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || 'The encrypted audio upload could not be completed');
-  return { kind: 'audio', data, mimeType: file.type || 'audio/webm', name: file.name || 'Voice memo', assetId: result.assetId, source, createdAt: recordingStartedAt || Date.now(), previewUrl: '' };
+  return { id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, kind: 'audio', data, mimeType: file.type || 'audio/webm', name: file.name || 'Voice memo', assetId: result.assetId, source, createdAt: recordingStartedAt || Date.now(), previewUrl: data };
 }
 
 async function persistPendingAudio(attachment, browserTranscript = '') {
@@ -3145,11 +3161,19 @@ async function persistPendingAudio(attachment, browserTranscript = '') {
 
 async function handleAudioFile(file, source = 'Memoir app') {
   try {
-    toast('Encrypting audio for secure sync…');
-    state.chatAttachment = await prepareAudioAttachment(file, source);
-    await persistPendingAudio(state.chatAttachment);
+    toast('Preparing audio preview…');
+    const audioAtt = await prepareAudioAttachment(file, source);
+    state.chatAttachment = audioAtt;
+    if (Array.isArray(state.chatAttachments)) {
+      state.chatAttachments = [audioAtt];
+    } else {
+      state.chatAttachments = [audioAtt];
+    }
+    await persistPendingAudio(audioAtt);
     renderView();
-    await askAssistant('Transcribe this voice memo and save it as an audio memory');
+    const input = document.querySelector('#chat-query');
+    if (input) input.focus();
+    toast('Audio attached! Tap Send to transcribe and submit to Rhinous.');
   } catch (error) {
     toast(error?.message || 'The audio file could not be processed');
   }
@@ -3230,10 +3254,21 @@ function startLiveVoiceSession(stream) {
       mediaRecorder = null; audioChunks = [];
       try {
         const file = new File([blob], `voice-memo-${new Date(recordingStartedAt).toISOString().replace(/[:.]/g, '-')}.${extension}`, { type: mimeType });
-        state.chatAttachment = await prepareAudioAttachment(file, 'Memoir recording');
-        await persistPendingAudio(state.chatAttachment, voiceTranscript);
+        const audioAtt = await prepareAudioAttachment(file, 'Memoir recording');
+        state.chatAttachment = audioAtt;
+        if (Array.isArray(state.chatAttachments)) {
+          state.chatAttachments.push(audioAtt);
+        } else {
+          state.chatAttachments = [audioAtt];
+        }
+        await persistPendingAudio(audioAtt, voiceTranscript);
         renderView();
-        await askAssistant(voiceTranscript ? `Save this audio memory. Browser transcript: ${voiceTranscript}` : 'Transcribe this voice memo and save it as an audio memory');
+        const input = document.querySelector('#chat-query');
+        if (input) {
+          if (voiceTranscript) input.value = voiceTranscript;
+          input.focus();
+        }
+        toast('Voice memo recorded! Review audio and tap Send to transcribe or ask Rhinous.');
       } catch (error) { toast(error?.message || 'The recording could not be saved'); }
       finally { mediaStream?.getTracks().forEach(track => track.stop()); mediaStream = null; recordingStartedAt = 0; }
     };

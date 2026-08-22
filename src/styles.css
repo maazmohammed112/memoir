@@ -168,6 +168,9 @@
 .chat-attachment-bar button:hover{background:var(--danger);color:#fff}
 .chat-attachments-list{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px;margin:0 14px 8px;border:1px solid var(--line);border-radius:14px;background:var(--surface);animation:enter .2s ease both}
 .chat-attachment-chip{display:inline-flex;align-items:center;gap:7px;padding:4px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);max-width:210px;font-size:11px;font-weight:600}
+.chat-attachment-chip.audio-chip{max-width:320px;width:100%;padding:8px 10px;border-radius:14px;background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,0.04);align-items:flex-start}
+.attachment-audio-meta{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.chat-audio-player{width:100%;height:30px;border-radius:8px;outline:none}
 .chat-attachment-chip img{width:28px;height:28px;border-radius:6px;object-fit:cover;flex:none}
 .attachment-audio-icon,
 .attachment-doc-icon{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;flex:none;background:var(--surface);color:var(--violet)}
