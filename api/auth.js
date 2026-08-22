@@ -113,10 +113,8 @@ async function requestOtp(identity) {
   const firestore = (await getAdmin()).firestore(); const reservation = await reserveOtpRequest(firestore, identity);
   const ref = firestore.collection('otpChallenges').doc(identity.uid).collection('sessions').doc(String(identity.auth_time));
   const rootRef = firestore.collection('otpChallenges').doc(identity.uid);
-  const previous = await ref.get(); const previousData = previous.data() || {};
-  let code; let stableHash;
-  do { code = String(crypto.randomInt(100000, 1000000)); stableHash = codeHash(identity.uid, code); }
-  while (stableHash === previousData.lastCodeHash);
+  const code = String(crypto.randomInt(100000, 1000000));
+  const stableHash = codeHash(identity.uid, code);
   const now = Date.now(); const expiresAt = now + OTP_LIFETIME_MS;
   const challengePayload = {
     hash: challengeHash(identity.uid, identity.auth_time, code),
@@ -143,10 +141,11 @@ async function requestOtp(identity) {
       text: `Memoir Sign-in Code\n\n${code}\n\nThis verification code is for ${profile.name}'s vault and expires in 5 minutes. Do not share this code with anyone.`,
     });
   } catch (error) {
-    await ref.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true });
-    await rootRef.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true });
-    await releaseOtpReservation(firestore, reservation);
-    const deliveryError = new Error('Open your assigned Telegram bot, tap Start, then request a new sign-in code.');
+    console.error('Telegram OTP dispatch failed:', error?.message || error);
+    await ref.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true }).catch(() => {});
+    await rootRef.set({ status: 'delivery-failed', failedAt: new Date() }, { merge: true }).catch(() => {});
+    await releaseOtpReservation(firestore, reservation).catch(() => {});
+    const deliveryError = new Error('Could not deliver code to Telegram. Please check your Telegram connection or tap Start in @memoir_bot.');
     deliveryError.status = 424; deliveryError.cause = error; throw deliveryError;
   }
   return { sent: true, expiresAt, nextRequestAt: reservation.nextRequestAt, remainingRequests: reservation.remainingRequests };

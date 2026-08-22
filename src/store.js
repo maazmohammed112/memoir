@@ -378,7 +378,7 @@ class VaultStore {
     if (!this.auth?.currentUser) throw new Error('Sign in again to continue.');
     const token = await this.auth.currentUser.getIdToken();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
+    const timer = setTimeout(() => controller.abort(), 35000);
     let response;
     try {
       response = await fetch('/api/auth', {
@@ -393,7 +393,7 @@ class VaultStore {
         timeoutError.code = 'auth/timeout';
         throw timeoutError;
       }
-      const netError = new Error('Network connection was interrupted. Please tap Continue to retry.');
+      const netError = new Error('Network connection was interrupted. Please tap Continue securely to retry.');
       netError.code = 'auth/network-error';
       throw netError;
     } finally {
