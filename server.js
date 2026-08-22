@@ -22,6 +22,8 @@ server.post('/api/telegram', telegram);
 server.post('/api/sync', sync);
 server.post('/api/reminders', reminders);
 server.get('/api/reminders', reminders);
+server.get('/api/reminders-morning', reminders);
+server.get('/api/reminders-evening', reminders);
 server.post('/api/alexa', alexa);
 server.post('/api/audio', audio);
 server.get('/api/audio', audio);

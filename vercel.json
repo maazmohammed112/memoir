@@ -4,8 +4,12 @@
   "framework": "vite",
   "crons": [
     {
-      "path": "/api/reminders",
-      "schedule": "30 4 * * *"
+      "path": "/api/reminders-morning",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/reminders-evening",
+      "schedule": "0 16 * * *"
     }
   ],
   "rewrites": [

@@ -9,6 +9,10 @@ import { EXPIRY_NOTIFICATION_OFFSETS, extractItemExpiry } from '../lib/expiryInt
 const deliveryReservations = new Set();
 const activeSweeps = new Map();
 const hasAdminMirror = () => Boolean((process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_FILE) && process.env.VAULT_SERVER_KEY);
+const schedulerGraceMs = () => {
+  const configured = Number(process.env.SCHEDULER_GRACE_MINUTES || 20);
+  return (Number.isFinite(configured) ? Math.max(10, configured) : 20) * 60 * 1000;
+};
 
 export const REMINDER_OFFSETS = [
   [24 * 60 * 60 * 1000, '1 day'],
@@ -18,6 +22,14 @@ export const REMINDER_OFFSETS = [
   [30 * 60 * 1000, '30 minutes'],
   [10 * 60 * 1000, '10 minutes'],
   [0, 'now'],
+];
+
+export const BIRTHDAY_OFFSETS = [
+  [48 * 60 * 60 * 1000, 'in two days'],
+  [24 * 60 * 60 * 1000, 'tomorrow'],
+  [5 * 60 * 60 * 1000, 'in five hours'],
+  [2 * 60 * 60 * 1000, 'in two hours'],
+  [0, 'today'],
 ];
 
 function dueTimestamp(item) {
@@ -42,13 +54,16 @@ function localDueString(timestamp) {
   const value = Object.fromEntries(parts.map(part => [part.type, part.value])); return `${value.year}-${value.month}-${value.day}T${value.hour}:${value.minute}`;
 }
 
-async function loadReminderItems(profile) {
-  let items = listRuntimeItems(profile.uid);
-  if (!items.length && hasAdminMirror()) {
-    const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
-    items = snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean); replaceRuntimeItems(profile.uid, items);
-  }
+async function loadReminderItems(profile, allItems) {
+  const items = Array.isArray(allItems) ? allItems : await loadAllVaultItems(profile);
   return items.filter(item => item.type === 'Reminder');
+}
+
+function recordTimestamp(value) {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  const parsed = new Date(value || '').getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 const scopedKey = (profile, key) => `${profile.uid}:${key}`;
@@ -83,9 +98,9 @@ async function sendReminder(profile, item, label, due) {
   await telegram(profile, 'sendMessage', { chat_id: profile.telegramChatId, text: text.slice(0, 4000), reply_markup: { inline_keyboard: [[{ text: 'Done', callback_data: `m:done:${item.id}:${due}` }, { text: 'Snooze 30m', callback_data: `m:snooze:${item.id}:${due}` }]] } });
 }
 
-async function performReminderSweep(profile, now = Date.now()) {
+async function performReminderSweep(profile, now = Date.now(), allItems) {
   if (!profile?.telegramToken || !profile.telegramChatId) return { checked: 0, delivered: 0, autoCompleted: 0 };
-  const reminders = await loadReminderItems(profile);
+  const reminders = await loadReminderItems(profile, allItems);
   let delivered = 0; let autoCompleted = 0;
   for (const item of reminders) {
     const due = dueTimestamp(item); if (!due || isCompleted(item)) continue;
@@ -105,8 +120,8 @@ async function performReminderSweep(profile, now = Date.now()) {
     if (isSnoozed(item)) continue;
     for (const [offset, label] of REMINDER_OFFSETS) {
       const sendAt = due - offset; const key = `${item.id}:${due}:${offset}`;
-      if (Number(item.createdAt || 0) > sendAt || now < sendAt) continue;
-      const grace = offset === 0 ? 10 * 60 * 1000 : 65 * 60 * 1000;
+      if (recordTimestamp(item.createdAt) > sendAt || now < sendAt) continue;
+      const grace = offset === 0 ? schedulerGraceMs() : 65 * 60 * 1000;
       if (!await reserveDelivery(profile, key)) continue;
       if (now - sendAt > grace) { await finishDelivery(profile, key); continue; }
       try {
@@ -118,6 +133,79 @@ async function performReminderSweep(profile, now = Date.now()) {
     }
   }
   return { checked: reminders.length, delivered, autoCompleted };
+}
+
+function parseBirthdayDate(value) {
+  const parts = String(value || '').trim().split('-').map(Number);
+  if (parts.length === 3) {
+    const [, month, day] = parts;
+    return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? { month, day } : null;
+  }
+  if (parts.length === 2) {
+    const [month, day] = parts;
+    return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? { month, day } : null;
+  }
+  return null;
+}
+
+function zonedMidnightTimestamp(year, month, day, timeZone) {
+  const desired = Date.UTC(year, month - 1, day);
+  let timestamp = desired;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const parts = getZonedParts(timestamp, timeZone);
+    const represented = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute);
+    timestamp += desired - represented;
+  }
+  return timestamp;
+}
+
+export function nextBirthdayOccurrence(item, now = Date.now(), timeZone = process.env.APP_TIMEZONE || 'Asia/Calcutta') {
+  const birthday = parseBirthdayDate(item?.fields?.Date);
+  if (!birthday) return null;
+  const localNow = getZonedParts(now, timeZone);
+  const alreadyPassed = birthday.month < localNow.month || (birthday.month === localNow.month && birthday.day < localNow.day);
+  const year = localNow.year + (alreadyPassed ? 1 : 0);
+  const safeDay = Math.min(birthday.day, new Date(Date.UTC(year, birthday.month, 0)).getUTCDate());
+  const timestamp = zonedMidnightTimestamp(year, birthday.month, safeDay, timeZone);
+  return { timestamp, dateKey: `${year}-${String(birthday.month).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}` };
+}
+
+async function performBirthdaySweep(profile, now = Date.now(), allItems = []) {
+  if (!profile?.telegramToken || !profile.telegramChatId) return { checked: 0, delivered: 0 };
+  const birthdays = allItems.filter(item => item.type === 'Birthday' && item.fields?.Date);
+  let delivered = 0;
+
+  for (const item of birthdays) {
+    const occurrence = nextBirthdayOccurrence(item, now);
+    if (!occurrence) continue;
+    for (const [offset, label] of BIRTHDAY_OFFSETS) {
+      const sendAt = occurrence.timestamp - offset;
+      const key = `birthday:${item.id}:${occurrence.dateKey}:${offset}`;
+      if (recordTimestamp(item.createdAt) > sendAt || now < sendAt) continue;
+      if (!await reserveDelivery(profile, key)) continue;
+      if (now - sendAt > schedulerGraceMs()) { await finishDelivery(profile, key); continue; }
+      try {
+        const name = String(item.title || 'Someone important').replace(/['’]s birthday/i, '').replace(/\s+birthday$/i, '');
+        await telegram(profile, 'sendMessage', {
+          chat_id: profile.telegramChatId,
+          text: `Birthday reminder\n\n${name}'s birthday is ${label}.${item.note ? `\n\nNote: ${String(item.note).slice(0, 800)}` : ''}\n\nOpen Memoir to prepare a thoughtful wish.`.slice(0, 4000),
+        });
+        await queuePersistedAction(profile, {
+          op: 'create',
+          type: 'Notification',
+          title: item.title,
+          note: 'Telegram birthday delivery receipt',
+          fields: { Category: 'Birthday', 'Scheduled at': String(sendAt), 'Sent at': String(Date.now()), 'Source id': item.id, 'Delivery key': key, Status: 'sent' },
+        }, 'notification-engine');
+        await finishDelivery(profile, key);
+        delivered += 1;
+      } catch (error) {
+        await releaseDelivery(profile, key);
+        console.warn('Birthday notification failed:', error?.message);
+      }
+    }
+  }
+  return { checked: birthdays.length, delivered };
 }
 
 async function sendExpiryNotification(profile, exp, label, expiryTimestamp) {
@@ -144,14 +232,9 @@ async function sendExpiryNotification(profile, exp, label, expiryTimestamp) {
   });
 }
 
-async function performExpirySweep(profile, now = Date.now()) {
+async function performExpirySweep(profile, now = Date.now(), allItems) {
   if (!profile?.telegramToken || !profile.telegramChatId) return { checked: 0, delivered: 0 };
-  let items = listRuntimeItems(profile.uid);
-  if (!items.length && hasAdminMirror()) {
-    const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
-    items = snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
-    replaceRuntimeItems(profile.uid, items);
-  }
+  const items = Array.isArray(allItems) ? allItems : await loadAllVaultItems(profile);
 
   const expiring = items.map(item => extractItemExpiry(item, now)).filter(Boolean);
   let delivered = 0;
@@ -206,7 +289,7 @@ export function getZonedParts(timestamp = Date.now(), timeZone = process.env.APP
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
     weekday: 'long',
   });
   const parts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map(p => [p.type, p.value]));
@@ -239,11 +322,13 @@ export function getZonedParts(timestamp = Date.now(), timeZone = process.env.APP
 }
 
 export async function loadAllVaultItems(profile) {
-  let items = listRuntimeItems(profile.uid);
-  if (!items.length && hasAdminMirror()) {
+  let items;
+  if (hasAdminMirror()) {
     const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
     items = snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
     replaceRuntimeItems(profile.uid, items);
+  } else {
+    items = listRuntimeItems(profile.uid);
   }
   return items;
 }
@@ -449,7 +534,7 @@ export function generateEveningReview(profile, allItems, zonedNow) {
   };
 }
 
-async function performChiefOfStaffSweep(profile, now = Date.now()) {
+async function performChiefOfStaffSweep(profile, now = Date.now(), allItems) {
   if (!profile?.telegramToken || !profile.telegramChatId) return { morningSent: false, eveningSent: false };
 
   const zonedNow = getZonedParts(now, process.env.APP_TIMEZONE || 'Asia/Calcutta');
@@ -461,8 +546,8 @@ async function performChiefOfStaffSweep(profile, now = Date.now()) {
     const morningKey = `briefing:morning:${zonedNow.dateKey}`;
     if (await reserveDelivery(profile, morningKey)) {
       try {
-        const allItems = await loadAllVaultItems(profile);
-        const briefing = generateMorningBriefing(profile, allItems, zonedNow);
+        const briefingItems = Array.isArray(allItems) ? allItems : await loadAllVaultItems(profile);
+        const briefing = generateMorningBriefing(profile, briefingItems, zonedNow);
         await telegram(profile, 'sendMessage', {
           chat_id: profile.telegramChatId,
           text: briefing.text,
@@ -495,8 +580,8 @@ async function performChiefOfStaffSweep(profile, now = Date.now()) {
     const eveningKey = `briefing:evening:${zonedNow.dateKey}`;
     if (await reserveDelivery(profile, eveningKey)) {
       try {
-        const allItems = await loadAllVaultItems(profile);
-        const review = generateEveningReview(profile, allItems, zonedNow);
+        const reviewItems = Array.isArray(allItems) ? allItems : await loadAllVaultItems(profile);
+        const review = generateEveningReview(profile, reviewItems, zonedNow);
         await telegram(profile, 'sendMessage', {
           chat_id: profile.telegramChatId,
           text: review.text,
@@ -531,13 +616,16 @@ export async function runReminderSweep(now = Date.now(), targetUid = '') {
   const profiles = targetUid ? [getUserByUid(targetUid)].filter(Boolean) : listUserProfiles();
   const results = await Promise.all(profiles.map(async profile => {
     if (activeSweeps.has(profile.uid)) return activeSweeps.get(profile.uid);
-    const sweep = Promise.all([
-      performReminderSweep(profile, now),
-      performExpirySweep(profile, now),
-      performChiefOfStaffSweep(profile, now),
-    ]).then(([remindersResult, expiryResult, cosResult]) => ({
+    const sweep = loadAllVaultItems(profile).then(allItems => Promise.all([
+      performReminderSweep(profile, now, allItems),
+      performBirthdaySweep(profile, now, allItems),
+      performExpirySweep(profile, now, allItems),
+      performChiefOfStaffSweep(profile, now, allItems),
+    ])).then(([remindersResult, birthdayResult, expiryResult, cosResult]) => ({
       checked: remindersResult.checked + expiryResult.checked,
-      delivered: remindersResult.delivered + expiryResult.delivered,
+      delivered: remindersResult.delivered + birthdayResult.delivered + expiryResult.delivered,
+      birthdaysChecked: birthdayResult.checked,
+      birthdaysDelivered: birthdayResult.delivered,
       autoCompleted: remindersResult.autoCompleted,
       morningBriefing: cosResult.morningSent,
       eveningReview: cosResult.eveningSent,
@@ -551,13 +639,21 @@ export async function runReminderSweep(now = Date.now(), targetUid = '') {
     checked: total.checked + result.checked,
     delivered: total.delivered + result.delivered,
     autoCompleted: total.autoCompleted + (result.autoCompleted || 0),
+    birthdaysChecked: (total.birthdaysChecked || 0) + (result.birthdaysChecked || 0),
+    birthdaysDelivered: (total.birthdaysDelivered || 0) + (result.birthdaysDelivered || 0),
     morningBriefings: (total.morningBriefings || 0) + (result.morningBriefing ? 1 : 0),
     eveningReviews: (total.eveningReviews || 0) + (result.eveningReview ? 1 : 0),
-  }), { checked: 0, delivered: 0, autoCompleted: 0, morningBriefings: 0, eveningReviews: 0 });
+  }), { checked: 0, delivered: 0, autoCompleted: 0, birthdaysChecked: 0, birthdaysDelivered: 0, morningBriefings: 0, eveningReviews: 0 });
+}
+
+export function isSchedulerAuthorized(req, env = process.env) {
+  const secret = String(env.CRON_SECRET || '');
+  return Boolean(secret) && String(req?.headers?.authorization || '') === `Bearer ${secret}`;
 }
 
 export default async function handler(req, res) {
   try {
+    res.setHeader?.('Cache-Control', 'no-store, max-age=0');
     if (req.method === 'POST') {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!token) return res.status(401).json({ error: 'Missing identity token' });
@@ -565,11 +661,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, ...(await runReminderSweep(Date.now(), identity.uid)) });
     }
     if (req.method === 'GET') {
-      const isVercelCron = Boolean(req.headers['x-vercel-cron']);
-      const secret = String(process.env.CRON_SECRET || '');
-      const authorization = String(req.headers.authorization || '');
-      const hasValidSecret = secret && authorization === `Bearer ${secret}`;
-      if (!isVercelCron && !hasValidSecret && process.env.NODE_ENV === 'production') {
+      if (!isSchedulerAuthorized(req) && process.env.NODE_ENV === 'production') {
         return res.status(403).json({ error: 'Invalid scheduler token' });
       }
       return res.status(200).json({ ok: true, ...(await runReminderSweep()) });
@@ -580,4 +672,3 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'Reminder delivery is temporarily unavailable' });
   }
 }
-

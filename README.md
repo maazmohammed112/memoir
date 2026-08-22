@@ -31,7 +31,8 @@ No demo records are included. Every displayed record belongs to the currently se
   - `/reminders` or `/tasks` — View all active reminders and pending tasks.
   - `/test` or `/ping` — Diagnostic connectivity check confirming bot status, owner UID, and `Asia/Calcutta` timezone.
   - `/start` and `/help` — View interactive usage instructions.
-- **Vercel Hobby Plan Compatible**: Scheduled via `vercel.json` (`schedule: "30 4 * * *"` = 10:00 AM IST daily) with client-side periodic sweeps.
+- **App-Closed Cloud Delivery**: A `cron-job.org` heartbeat calls the secured server sweep every five minutes. It works independently of the browser/PWA and covers reminders, birthdays, expiry alerts, and both Chief of Staff briefings.
+- **Vercel Hobby Backups**: Two once-daily Vercel cron jobs provide redundant morning and evening briefing delivery without requiring Vercel Pro. Browser sweeps remain only an extra fast-path while Memoir is open.
 
 ### 4. 🧠 Intelligent Vault Assistant (Rhinous)
 - **Complete Credential & Field Resolution**: When asking for passwords, Wi-Fi keys, or birthdays, Rhinous retrieves the exact, complete record fields (e.g. `Date: August 22, 1995 (1995-08-22)`, `Network`, `Password`) directly to the authenticated owner.
@@ -98,7 +99,7 @@ Browser / PWA (Client)
         ├── /api/auth: Device sessions, Telegram OTP challenge/verify
         ├── /api/assistant: Redacted routing, Gemini 2.5 & Mistral Pixtral Vision
         ├── /api/telegram: Webhook, photo OCR, voice download, inline callbacks
-        ├── /api/reminders: Vercel Cron sweep, Chief of Staff briefings
+        ├── /api/reminders: secured cloud sweep for reminders, birthdays, expiry alerts, and briefings
         ├── /api/audio: Encrypted chunked audio upload and streaming
         └── /api/sync: AES-256-GCM server automation mirror
 ```
@@ -149,6 +150,8 @@ Browser / PWA (Client)
 
    # Security & Timezone
    VAULT_SERVER_KEY=...
+   CRON_SECRET=use-a-random-value-at-least-16-characters-long
+   SCHEDULER_GRACE_MINUTES=20
    APP_TIMEZONE=Asia/Calcutta
    ```
 
@@ -165,6 +168,47 @@ Browser / PWA (Client)
 
 ---
 
+## App-Closed Telegram Automation
+
+Memoir uses three cooperating triggers. All of them call the same idempotent server sweep, so Firestore delivery claims prevent duplicate Telegram messages even when two triggers overlap.
+
+1. **cron-job.org heartbeat — primary**
+   - A free external HTTPS job calls `/api/reminders` every five minutes without opening Memoir.
+   - It refreshes each approved owner from the encrypted `secureVault/{uid}/items` mirror before evaluating anything.
+   - It covers normal/recurring reminders, five-stage birthday alerts, expiry alerts, overdue automation, the 10:00 AM briefing, and the 9:30 PM review.
+2. **Vercel Hobby cron — briefing backup**
+   - `/api/reminders-morning` runs once daily in Vercel's `05:00 UTC` execution hour, which falls inside Memoir's morning delivery window in India.
+   - `/api/reminders-evening` runs once daily in the `16:00 UTC` execution hour, which falls inside the evening delivery window.
+   - These are backups because Vercel Hobby permits daily schedules but only offers hourly timing precision.
+3. **Signed-in browser sweep — optional fast-path**
+   - When Memoir is already open, the app can request the same owner-scoped sweep immediately.
+   - Closing the tab or phone does not stop the cron-job.org/Vercel cloud triggers.
+
+### One-time cron-job.org setup
+
+Create one job at [cron-job.org](https://cron-job.org/) with these exact settings:
+
+- **Title**: `Memoir Telegram heartbeat`
+- **URL**: `https://memoir-vert.vercel.app/api/reminders`
+- **Enabled**: Yes
+- **Schedule**: Every 5 minutes
+- **Request method**: `GET`
+- **Custom header name**: `Authorization`
+- **Custom header value**: `Bearer YOUR_CRON_SECRET` — replace `YOUR_CRON_SECRET` with the exact value configured as `CRON_SECRET` in Vercel Production.
+- **Request timeout**: 30 seconds
+- **Save response body**: Off, if the console offers this option
+- **Failure notification**: On
+
+Use cron-job.org's **Test run** button once after saving. A successful invocation returns HTTP `200` and a compact JSON result containing counts only; it never returns vault contents or the secret. HTTP `403` means the two `CRON_SECRET` values do not match. Do not place the secret in the URL query string.
+
+The custom authorization value is stored by the scheduler because it must send it on every request. Use a dedicated random scheduler secret (at least 16 characters), keep response-body history disabled, and rotate the same value in both Vercel and cron-job.org if it is ever exposed.
+
+### Required production data path
+
+Headless automation reads the server-encrypted mirror, not browser IndexedDB. `FIREBASE_SERVICE_ACCOUNT_JSON`, `FIREBASE_PROJECT_ID`, and `VAULT_SERVER_KEY` must therefore be configured in Vercel Production, and the app must successfully mirror each saved update to `secureVault/{uid}/items`. Every scheduled sweep now refreshes that collection instead of trusting a possibly stale warm-function cache.
+
+---
+
 ## 📡 API Reference
 
 | Endpoint | Method | Purpose |
@@ -172,7 +216,9 @@ Browser / PWA (Client)
 | `/api/auth` | POST | Vault user profile selection, Telegram OTP auth, device sessions |
 | `/api/assistant` | POST | Redacted AI assistant, multi-image vision OCR, local PDF text ingestion |
 | `/api/telegram` | POST | Telegram webhook for photos, voice notes, `/briefing`, `/reminders`, `/test` |
-| `/api/reminders` | GET / POST | Vercel Cron & client-triggered reminder and Chief of Staff sweeps |
+| `/api/reminders` | GET / POST | Secured cron-job.org heartbeat, Vercel, and owner-triggered reminder/birthday/expiry/briefing sweep |
+| `/api/reminders-morning` | GET | Vercel Hobby morning briefing backup |
+| `/api/reminders-evening` | GET | Vercel Hobby evening review backup |
 | `/api/audio` | GET / POST / DELETE | Encrypted audio streaming, chunked upload, and cleanup |
 | `/api/sync` | POST | Encrypted server-mirror mutation and snapshot synchronization |
 | `/api/alexa` | POST | Secure Alexa bridge for voice lookups |
