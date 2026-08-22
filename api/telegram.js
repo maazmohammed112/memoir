@@ -21,25 +21,57 @@ async function loadVault(profile) {
   return snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
 }
 
-const sensitiveLabel = /password|passcode|\bpin\b|cvv|security code|secret|token|card number|account number|ifsc|transaction password|login password/i;
-const financeRecord = item => String(item?.type || '').toLowerCase() === 'finance' || /\bbank\b|credit card|debit card/i.test(`${item?.title || ''} ${item?.note || ''}`);
 const cleanTelegramText = text => String(text || '').replace(/[#*_`>~[\]()]/g, '').trim();
 
 export function answerText(route, items) {
-  if (route.kind !== 'lookup') return cleanTelegramText(route.markdown || 'I could not find a matching Memoir record.');
-  const lines = [String(route.title || 'Memoir result').toUpperCase(), '']; let blocked = false; let returned = false;
+  if (route.kind !== 'lookup' || !route.matches?.length) {
+    const clean = cleanTelegramText(route.markdown || 'I could not find a matching Memoir record.');
+    return clean.replace(/\[\[PRIVATE_\d+\]\]/g, '').replace(/\(to be displayed [^)]+\)/gi, '').trim() || 'I could not find a matching record in your vault.';
+  }
+
+  const lines = [String(route.title || 'Memoir Vault Result').toUpperCase(), ''];
+  let returned = false;
+
   route.matches.forEach(match => {
-    const item = items.find(row => row.id === match.id); if (!item) return;
-    if (financeRecord(item)) { blocked = true; return; }
-    const fields = match.fields?.length ? match.fields : Object.keys(item.fields || {});
-    const safeFields = fields.map(field => Object.keys(item.fields || {}).find(key => key.toLowerCase() === String(field).toLowerCase())).filter(Boolean).filter(field => {
-      if (sensitiveLabel.test(field)) { blocked = true; return false; } return true;
+    const item = items.find(row => row.id === match.id);
+    if (!item) return;
+    const itemFields = item.fields || {};
+    const requested = (match.fields?.length && item.type !== 'Birthday' && item.type !== 'Login' && item.type !== 'Wi-Fi') ? match.fields : Object.keys(itemFields);
+    const validFields = requested.map(field => Object.keys(itemFields).find(key => key.toLowerCase() === String(field).toLowerCase())).filter(Boolean);
+
+    if (!validFields.length && !item.note) return;
+
+    lines.push(`${item.title} (${item.type || 'Memory'})`);
+
+    if (item.type === 'Birthday' && itemFields.Date) {
+      const rawDate = String(itemFields.Date).trim();
+      const parts = rawDate.split('-').map(Number);
+      const year = parts.length === 3 && parts[0] > 0 ? parts[0] : null;
+      const month = parts.length === 3 ? parts[1] : parts[0];
+      const day = parts.length === 3 ? parts[2] : parts[1];
+      if (month && day) {
+        const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const formattedDate = `${monthNames[month]} ${day}${year ? `, ${year}` : ''}`;
+        lines.push(`• Date: ${formattedDate} (${rawDate})`);
+      } else {
+        lines.push(`• Date: ${rawDate}`);
+      }
+    }
+
+    validFields.forEach(field => {
+      if (item.type === 'Birthday' && field === 'Date') return;
+      if (['Audio Recording', 'Audio Asset ID', 'Audio MIME type', 'Audio File name'].includes(field)) return;
+      lines.push(`• ${field}: ${String(itemFields[field])}`);
     });
-    if (!safeFields.length) return;
-    lines.push(item.title); safeFields.forEach(field => lines.push(`${field}: ${String(item.fields[field])}`)); lines.push(''); returned = true;
+
+    if (item.note) {
+      lines.push(`• Note: ${String(item.note).slice(0, 500)}`);
+    }
+    lines.push('');
+    returned = true;
   });
-  if (blocked) lines.push('Protected information was withheld. Telegram cannot reveal passwords, PINs, CVVs, secrets, card or bank details. Open the Memoir app to view them securely.');
-  if (!returned && !blocked) lines.push('No matching non-sensitive information was found.');
+
+  if (!returned) lines.push('No matching information was found in your vault.');
   return lines.join('\n').slice(0, 4000);
 }
 

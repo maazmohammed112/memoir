@@ -34,7 +34,7 @@ import FileBadge from 'lucide/dist/esm/icons/file-badge.mjs';
 import FileText from 'lucide/dist/esm/icons/file-text.mjs';
 import Gem from 'lucide/dist/esm/icons/gem.mjs';
 import House from 'lucide/dist/esm/icons/house.mjs';
-import Image from 'lucide/dist/esm/icons/image.mjs';
+import ImageIcon from 'lucide/dist/esm/icons/image.mjs';
 import Info from 'lucide/dist/esm/icons/info.mjs';
 import KeyRound from 'lucide/dist/esm/icons/key-round.mjs';
 import Landmark from 'lucide/dist/esm/icons/landmark.mjs';
@@ -78,7 +78,7 @@ const customBrandIcons = {
 const iconSet = {
   AlarmClock, AudioLines, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, Bell, BellRing, CakeSlice, Calendar, Camera,
   Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Clock,
-  CloudUpload, Copy, CreditCard, Download, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, House, Image, Info, KeyRound, Landmark,
+  CloudUpload, Copy, CreditCard, Download, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, House, Image: ImageIcon, Info, KeyRound, Landmark,
   LockKeyhole, LogOut, ListTodo, Mail, MessageCircle, Mic, Minus, NotebookText, Paperclip, Pencil, Plus, ReceiptText, Search,
   Send, Share2, ShieldAlert, ShieldCheck, Sparkles, Trash2, TriangleAlert, UploadCloud: CloudUpload, WandSparkles, Wifi, X, Zap,
 };
@@ -1558,7 +1558,7 @@ function todoReceiptText(item) {
 }
 async function todoReceiptBlob(item) {
   const rows = parseTodoItems(item); const width = 900; const lineHeight = 54; const height = 440 + rows.length * lineHeight; const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d');
-  const logo = new Image(); logo.src = '/brand/memoir-rhino-ui.png'; await logo.decode().catch(() => {});
+  const logo = typeof window !== 'undefined' && window.Image ? new window.Image() : document.createElement('img'); logo.src = '/brand/memoir-rhino-ui.png'; await logo.decode().catch(() => {});
   ctx.fillStyle = '#fffdf8'; ctx.fillRect(0, 0, width, height);
   const header = ctx.createLinearGradient(0, 0, width, 0); header.addColorStop(0, '#ff6b60'); header.addColorStop(.55, '#f32e8b'); header.addColorStop(1, '#a64add'); ctx.fillStyle = header; ctx.fillRect(0, 0, width, 12);
   ctx.globalAlpha = .055; ctx.strokeStyle = '#7a635d'; for (let y = 34; y < height; y += 24) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); } ctx.globalAlpha = 1;
@@ -2149,9 +2149,23 @@ let speechRecognizer = null;
 
 function compressImageFile(file) {
   return new Promise((resolve, reject) => {
+    if (!file) return reject(new Error('No file provided'));
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = () => resolve({
+        data: String(reader.result || ''),
+        mimeType: file.type || 'application/pdf',
+        name: file.name,
+        previewUrl: '',
+      });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = e => {
-      const img = new Image();
+      const img = typeof window !== 'undefined' && window.Image ? new window.Image() : document.createElement('img');
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const maxDim = 1200;
@@ -2169,7 +2183,7 @@ function compressImageFile(file) {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         resolve({
           data: dataUrl,
           mimeType: 'image/jpeg',
@@ -2177,8 +2191,15 @@ function compressImageFile(file) {
           previewUrl: dataUrl,
         });
       };
-      img.onerror = reject;
-      img.src = e.target.result;
+      img.onerror = () => {
+        resolve({
+          data: String(e.target.result || ''),
+          mimeType: file.type || 'image/jpeg',
+          name: file.name,
+          previewUrl: String(e.target.result || ''),
+        });
+      };
+      img.src = String(e.target.result || '');
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -2506,7 +2527,10 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
     const actions = answer.actions.map(action => rehydrateAction(action, privateValues)).filter(Boolean);
     if (actions.length) return { role: 'assistant', title: answer.title || 'Review vault changes', markdown: answer.markdown || 'Review these changes before I apply them.', actions };
   }
-  if (answer.kind !== 'lookup' || !answer.matches?.length) return { role: 'assistant', title: answer.title || 'Rhinous', markdown: answer.markdown || answer.message || 'I could not create a response.' };
+  if (answer.kind !== 'lookup' || !answer.matches?.length) {
+    const cleanMarkdown = String(answer.markdown || answer.message || 'I could not create a response.').replace(/\[\[PRIVATE_\d+\]\]/g, '').replace(/\(to be displayed [^)]+\)/gi, '').trim();
+    return { role: 'assistant', title: answer.title || 'Rhinous', markdown: cleanMarkdown };
+  }
   const fields = []; const audios = []; const documents = []; const resolvedTitles = []; let firstResolvedId = '';
   answer.matches.forEach(match => {
     const item = state.items.find(row => row.id === match.id); if (!item) return;
@@ -2514,11 +2538,19 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
     resolvedTitles.push(item.title);
     const attachment = audioAttachment(item); if (attachment) audios.push({ ...attachment, title: item.title });
     const docs = parseItemAttachments(item); if (docs.length) documents.push(...docs);
-    const requested = match.fields?.length ? match.fields : Object.keys(allFields(item));
-    requested.forEach(label => { const actual = Object.keys(allFields(item)).find(key => key.toLowerCase() === String(label).toLowerCase()); if (actual && !audioDataLabels.has(actual) && !audioMetadataLabels.has(actual) && !documentDataLabels.has(actual)) fields.push({ label: actual, value: allFields(item)[actual] }); });
+    const itemAllFields = allFields(item);
+    const requested = (match.fields?.length && item.type !== 'Birthday' && item.type !== 'Login' && item.type !== 'Wi-Fi') ? match.fields : Object.keys(itemAllFields);
+    requested.forEach(label => {
+      const actual = Object.keys(itemAllFields).find(key => key.toLowerCase() === String(label).toLowerCase());
+      if (actual && !audioDataLabels.has(actual) && !audioMetadataLabels.has(actual) && !documentDataLabels.has(actual)) {
+        let val = itemAllFields[actual];
+        fields.push({ label: actual, value: val });
+      }
+    });
   });
   if (firstResolvedId) state.lastResolvedItemId = firstResolvedId;
-  return fields.length || audios.length || documents.length ? { role: 'assistant', title: resolvedTitles.length === 1 ? resolvedTitles[0] : (answer.title || 'Saved information'), markdown: answer.markdown, fields, audios, documents } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
+  const cleanMarkdown = String(answer.markdown || '').replace(/\[\[PRIVATE_\d+\]\]/g, '').replace(/\(to be displayed [^)]+\)/gi, '').trim();
+  return fields.length || audios.length || documents.length ? { role: 'assistant', title: resolvedTitles.length === 1 ? resolvedTitles[0] : (answer.title || 'Saved information'), markdown: cleanMarkdown, fields, audios, documents } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
 }
 function protectPrivateInput(input) {
   let text = String(input || ''); const values = {}; let tokenIndex = 0;
