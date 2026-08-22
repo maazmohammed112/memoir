@@ -377,7 +377,28 @@ class VaultStore {
   async authRequest(action, extra = {}) {
     if (!this.auth?.currentUser) throw new Error('Sign in again to continue.');
     const token = await this.auth.currentUser.getIdToken();
-    const response = await fetch('/api/auth', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify({ action, ...extra }) });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    let response;
+    try {
+      response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: this.apiHeaders(token),
+        body: JSON.stringify({ action, ...extra }),
+        signal: controller.signal,
+      });
+    } catch (networkErr) {
+      if (networkErr.name === 'AbortError') {
+        const timeoutError = new Error('Sign-in request timed out. Please check your connection and tap Continue again.');
+        timeoutError.code = 'auth/timeout';
+        throw timeoutError;
+      }
+      const netError = new Error('Network connection was interrupted. Please tap Continue to retry.');
+      netError.code = 'auth/network-error';
+      throw netError;
+    } finally {
+      clearTimeout(timer);
+    }
     let result = {};
     try { result = await response.json(); } catch { /* handled below */ }
     if (!response.ok) {

@@ -550,7 +550,7 @@ function bindAuthGate() {
     const email = document.querySelector('#auth-email').value.trim(); const password = document.querySelector('#auth-password').value;
     try { await vaultStore.signIn(email, password); }
     catch (error) {
-      state.authError = error?.code === 'auth/unauthorized-owner' ? 'This Firebase login does not belong to the selected private account.' : /invalid-credential|wrong-password|user-not-found|invalid-email/i.test(error?.code || '') ? 'The password is incorrect. Please enter the approved Firebase password.' : error?.code === 'auth/otp-rate-limit' ? `Please wait ${error.retryAfter || 30} seconds before requesting another code.` : /network-request-failed/i.test(error?.code || '') ? 'Memoir could not reach Firebase. Check your connection and try again.' : error.message || 'Secure sign-in could not be completed.';
+      state.authError = error?.code === 'auth/unauthorized-owner' ? 'This Firebase login does not belong to the selected private account.' : /invalid-credential|wrong-password|user-not-found|invalid-email/i.test(error?.code || '') ? 'The password is incorrect. Please enter the approved Firebase password.' : error?.code === 'auth/otp-rate-limit' ? `Please wait ${error.retryAfter || 30} seconds before requesting another code.` : /network-request-failed|network-error|timeout|suspended/i.test(error?.message || error?.code || '') ? 'Network connection was interrupted. Please tap Continue securely to retry.' : error.message || 'Secure sign-in could not be completed.';
       shell();
     }
   });
