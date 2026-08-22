@@ -1078,8 +1078,25 @@ function homeView() {
       </article>
     `).join('')}</div>` : '';
 
+  const extensionItems = state.items.filter(item => /extension|chrome/i.test(String(item?.provenance?.source || item?.fields?.['Created via'] || '')) || Boolean(item.domain));
+  const extensionBannerHtml = `
+    <article class="guard-stat-card warning" style="margin:16px 0;cursor:pointer;border-color:rgba(16,185,129,0.3);background:linear-gradient(135deg,rgba(16,185,129,0.06),var(--surface))" data-view="extension">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="icon-wrap green" style="width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none">${icon('Globe')}</span>
+          <div>
+            <strong style="font-size:13px;color:var(--ink)">Chrome Extension & Browser Captures (${extensionItems.length})</strong>
+            <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">${extensionItems.length ? `${extensionItems.length} synced passwords, ACK numbers & application IDs from your browser.` : 'No browser captures yet. Install Memoir extension to auto-capture logins & application tokens.'}</p>
+          </div>
+        </div>
+        <button type="button" class="text-btn" data-view="extension" style="flex:none">Open Captures &rarr;</button>
+      </div>
+    </article>
+  `;
+
   return `<div class="hero-grid"><section class="hero"><img class="hero-rhino" src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Your private second brain</p><h2>Everything important, remembered beautifully.</h2><p>Save private details, retrieve only what you need, and never miss a meaningful moment.</p><button class="primary" data-add="memory">${icon('Plus')} Add a memory</button></section>
-  <div class="stat-grid"><article class="stat large"><span class="stat-symbol rose">${icon('ShieldCheck')}</span><div><strong>${memories().length}</strong><span>memories kept safe</span></div></article><article class="stat"><span class="stat-symbol violet">${icon('AlarmClock')}</span><div><strong>${upcomingReminders.length}</strong><span>upcoming reminders</span></div></article><article class="stat"><span class="stat-symbol green">${icon('Clipboard')}</span><div><strong>${clips().length}</strong><span>clipboard items</span></div></article></div></div>
+  <div class="stat-grid"><article class="stat large" data-view="vault" style="cursor:pointer"><span class="stat-symbol rose">${icon('ShieldCheck')}</span><div><strong>${memories().length}</strong><span>memories kept safe</span></div></article><article class="stat" data-view="extension" style="cursor:pointer"><span class="stat-symbol green">${icon('Globe')}</span><div><strong>${extensionItems.length}</strong><span>browser captures</span></div></article><article class="stat" data-view="reminders" style="cursor:pointer"><span class="stat-symbol violet">${icon('AlarmClock')}</span><div><strong>${upcomingReminders.length}</strong><span>upcoming reminders</span></div></article></div></div>
+  ${extensionBannerHtml}
   ${guardBannerHtml}
   ${expiriesHtml}
   ${upcomingReminders.length ? `<div class="section-head"><h2>Coming up</h2><button class="text-btn" data-view="reminders">All reminders</button></div><div class="dashboard-reminders">${upcomingReminders.slice(0, 3).map(item => reminderCard(item, true)).join('')}</div>` : ''}
@@ -1763,6 +1780,7 @@ function shortcutHandler(event) { if ((event.ctrlKey || event.metaKey) && event.
 function navigate(viewName) {
   document.querySelector('.notification-popover')?.remove();
   if (viewName === 'guard' || viewName === 'security') { state.vaultSection = 'security'; viewName = 'vault'; }
+  else if (viewName === 'extension' || viewName === 'captures' || viewName === 'browser-captures') { state.vaultSection = 'extension'; viewName = 'vault'; }
   else if (viewName === 'memories') { state.vaultSection = 'memories'; viewName = 'vault'; }
   if (viewName === 'todos' || viewName === 'reminders') { state.plannerSection = viewName; viewName = 'planner'; }
   if (viewName === 'audio' || viewName === 'clipboard') { state.captureSection = viewName; viewName = 'capture'; }
