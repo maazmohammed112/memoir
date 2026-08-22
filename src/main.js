@@ -52,6 +52,7 @@ import Pencil from 'lucide/dist/esm/icons/pencil.mjs';
 import Plus from 'lucide/dist/esm/icons/plus.mjs';
 import Search from 'lucide/dist/esm/icons/search.mjs';
 import ReceiptText from 'lucide/dist/esm/icons/receipt-text.mjs';
+import RefreshCw from 'lucide/dist/esm/icons/refresh-cw.mjs';
 import Send from 'lucide/dist/esm/icons/send.mjs';
 import Share2 from 'lucide/dist/esm/icons/share-2.mjs';
 import ShieldAlert from 'lucide/dist/esm/icons/shield-alert.mjs';
@@ -80,7 +81,7 @@ const iconSet = {
   AlarmClock, AudioLines, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, Bell, BellRing, CakeSlice, Calendar, Camera,
   Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Clock,
   CloudUpload, Copy, CreditCard, Download, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, Globe, House, Image: ImageIcon, Info, KeyRound, Landmark,
-  LockKeyhole, LogOut, ListTodo, Mail, MessageCircle, Mic, Minus, NotebookText, Paperclip, Pencil, Plus, ReceiptText, Search,
+  LockKeyhole, LogOut, ListTodo, Mail, MessageCircle, Mic, Minus, NotebookText, Paperclip, Pencil, Plus, ReceiptText, RefreshCw, Search,
   Send, Share2, ShieldAlert, ShieldCheck, Sparkles, Trash2, TriangleAlert, UploadCloud: CloudUpload, WandSparkles, Wifi, X, Zap,
 };
 
@@ -473,7 +474,71 @@ function syncLabel() { return state.status === 'synced' ? 'Synced' : state.statu
 function updateSyncUi() { const pill = document.querySelector('.sync-pill'); if (pill) pill.innerHTML = `<i class="sync-dot ${state.status === 'synced' ? '' : 'offline'}"></i>${syncLabel()}`; }
 function navHtml() { return nav.map(([id, glyph, label]) => `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-view="${id}">${glyph === 'Rhino' ? '<img class="nav-rhino" src="/brand/memoir-rhino-ui.png" alt="">' : icon(glyph)}<span>${label}</span></button>`).join(''); }
 
+const MAINTENANCE_MODE = true;
+
+function renderMaintenanceMode() {
+  if (modal.open) modal.close();
+  document.body.classList.add('auth-locked');
+  app.innerHTML = `<main class="maintenance-shell">
+    <div class="maintenance-card">
+      <div class="maintenance-brand">
+        <div class="maintenance-logo-wrapper">
+          <img src="/brand/memoir-rhino-ui.png" alt="Memoir Rhino" class="maintenance-rhino-logo">
+        </div>
+        <span class="maintenance-brand-title">memoir</span>
+      </div>
+      
+      <div class="maintenance-badge">
+        <span class="maintenance-pulse-dot"></span>
+        <span>System Status · Maintenance</span>
+      </div>
+      
+      <div class="maintenance-copy">
+        <h1>Memoir is currently undergoing maintenance.</h1>
+        <p>The vault infrastructure is temporarily offline while we perform scheduled system optimizations and database enhancements. Normal access will be restored shortly.</p>
+      </div>
+
+      <div class="maintenance-status-box">
+        <div class="maintenance-status-item">
+          <span class="status-label">Service</span>
+          <strong class="status-value">Vault Sync &amp; Assistant</strong>
+        </div>
+        <div class="maintenance-status-item">
+          <span class="status-label">Current Phase</span>
+          <strong class="status-value status-active">Applying Infrastructure Upgrades</strong>
+        </div>
+        <div class="maintenance-status-item">
+          <span class="status-label">Access</span>
+          <strong class="status-value">Temporarily Disabled</strong>
+        </div>
+      </div>
+
+      <div class="maintenance-actions">
+        <button type="button" class="primary maintenance-refresh-btn" id="maintenance-refresh-btn">
+          ${icon('RefreshCw')} Check Status
+        </button>
+      </div>
+
+      <div class="maintenance-footer">
+        <span>${icon('ShieldCheck')} Encrypted data remains secure and untouched throughout maintenance.</span>
+      </div>
+    </div>
+  </main>`;
+
+  document.querySelector('#maintenance-refresh-btn')?.addEventListener('click', () => {
+    const btn = document.querySelector('#maintenance-refresh-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="button-spinner"></span> Checking status…';
+      setTimeout(() => {
+        window.location.reload();
+      }, 700);
+    }
+  });
+}
+
 function shell() {
+  if (MAINTENANCE_MODE) { renderMaintenanceMode(); return; }
   if (state.auth.status !== 'signedIn') { renderAuthGate(); return; }
   const profile = activeProfile();
   document.body.classList.remove('auth-locked');
@@ -507,6 +572,7 @@ function shell() {
 }
 
 function renderAuthGate() {
+  if (MAINTENANCE_MODE) { renderMaintenanceMode(); return; }
   if (modal.open) modal.close();
   document.body.classList.add('auth-locked');
   const status = state.auth.status; const loading = ['checking', 'intro'].includes(status); const selecting = status === 'selectAccount'; const otp = ['otpPending', 'verifyingOtp', 'otpSuccess', 'deviceLimit'].includes(status); const profile = activeProfile();

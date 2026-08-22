@@ -1662,3 +1662,187 @@ body.auth-locked { overflow-x: hidden; overflow-y: auto; }
   .payment-card-meta { gap: 6px; padding-top: 8px; }
   .payment-card-meta strong { max-width: 76px; font-size: 6.5px; }
 }
+
+/* Modern Maintenance Mode */
+.maintenance-shell {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 25%, color-mix(in srgb, var(--accent, #e11d48) 7%, transparent), transparent 75%), var(--bg);
+}
+
+.maintenance-card {
+  width: min(500px, 100%);
+  padding: 42px 34px;
+  border: 1px solid var(--line);
+  border-radius: 32px;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(24px);
+  text-align: center;
+  animation: auth-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.maintenance-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.maintenance-logo-wrapper {
+  display: grid;
+  place-items: center;
+  width: 90px;
+  height: 90px;
+  border-radius: 26px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, var(--accent, #e11d48));
+  background: color-mix(in srgb, var(--surface) 80%, var(--bg));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+}
+
+.maintenance-rhino-logo {
+  width: 56px;
+  height: 44px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.2));
+  animation: rhino-pulse 3s ease-in-out infinite;
+}
+
+@keyframes rhino-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+
+.maintenance-brand-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+}
+
+.maintenance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  margin-bottom: 18px;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  color: #f59e0b;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.maintenance-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+  animation: dot-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.3); opacity: 1; }
+}
+
+.maintenance-copy h1 {
+  margin: 0 0 12px;
+  font-size: 23px;
+  line-height: 1.22;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+}
+
+.maintenance-copy p {
+  margin: 0 auto 26px;
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.maintenance-status-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  margin-bottom: 26px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  text-align: left;
+}
+
+.maintenance-status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.maintenance-status-item .status-label {
+  color: var(--muted);
+}
+
+.maintenance-status-item .status-value {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.maintenance-status-item .status-active {
+  color: #38bdf8;
+}
+
+.maintenance-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 22px;
+}
+
+.maintenance-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 170px;
+  padding: 12px 24px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 14px;
+}
+
+.maintenance-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.maintenance-footer svg {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+@media (max-width: 480px) {
+  .maintenance-card {
+    padding: 30px 18px;
+    border-radius: 24px;
+  }
+  .maintenance-copy h1 {
+    font-size: 19px;
+  }
+  .maintenance-copy p {
+    font-size: 12px;
+  }
+}
