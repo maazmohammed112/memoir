@@ -318,6 +318,33 @@
   background: #e5e7eb;
 }
 
+.memoir-dup-warning-box {
+  padding: 6px 10px;
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  border-radius: 8px;
+  font-size: 11px;
+  color: #b45309;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.memoir-btn-update {
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #d97706;
+  border: 1px solid #d97706;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: .15s;
+}
+
+.memoir-btn-update:hover {
+  background: #b45309;
+}
+
 .memoir-btn-save {
   padding: 6px 14px;
   border-radius: 8px;

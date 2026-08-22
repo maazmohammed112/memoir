@@ -33,6 +33,25 @@ function extractDomain(url) {
   }
 }
 
+async function syncItemToCloud(auth, op, item, id) {
+  try {
+    const targetUrl = auth.serverUrl || DEFAULT_SERVER_URL;
+    await fetch(`${targetUrl}/api/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid: auth.profile?.uid,
+        code: auth.code,
+        op,
+        id: id || item?.id,
+        item,
+      }),
+    });
+  } catch (e) {
+    console.warn('Memoir cloud sync queued locally:', e.message);
+  }
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   const handle = async () => {
     const state = await getStoredState();
@@ -102,7 +121,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (!domain) return { ok: true, matches: [] };
 
         const matching = state.capturedItems.filter(item => {
-          const itemDomain = extractDomain(item.url || item.fields?.['Website URL'] || item.title || '');
+          const itemDomain = extractDomain(item.url || item.fields?.['Website URL'] || item.domain || '');
           const title = String(item.title || '').toLowerCase();
           return itemDomain.includes(domain) || domain.includes(itemDomain) || title.includes(domain.split('.')[0]);
         });
@@ -110,56 +129,83 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return { ok: true, matches: matching };
       }
 
+      case 'CHECK_DUPLICATE': {
+        const { domain, username, docNumber } = request;
+        const existing = state.capturedItems.find(i => {
+          const matchDomain = (i.domain && domain && (i.domain.includes(domain) || domain.includes(i.domain)));
+          const userVal = i.fields?.['Username / ID'] || i.fields?.['Username'] || '';
+          const docVal = i.fields?.['Document number'] || i.fields?.['Reference number'] || '';
+          return matchDomain && ((username && userVal === username) || (docNumber && docVal === docNumber));
+        });
+        return { ok: true, duplicate: existing || null };
+      }
+
       case 'SAVE_CAPTURED_CREDENTIAL': {
         if (!state.auth.loggedIn) return { ok: false, error: 'Not logged in to Memoir' };
         
-        const { item } = request;
-        const newItem = {
-          id: 'ext-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
-          kind: 'memory',
-          type: item.type || 'Login',
-          title: item.title || 'Saved Record',
-          fields: item.fields || {},
-          note: item.note || `Captured by Memoir Chrome Extension from ${item.domain || 'web'}`,
-          url: item.url || '',
-          domain: item.domain || '',
-          pageTitle: item.pageTitle || '',
-          createdAt: new Date().toISOString(),
-          provenance: {
-            source: 'Chrome Extension',
-            domain: item.domain || '',
-            url: item.url || '',
-            pageTitle: item.pageTitle || '',
-            capturedDate: item.capturedDate || new Date().toLocaleDateString(),
-            capturedTime: item.capturedTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            createdAt: new Date().toISOString(),
-          },
-        };
+        const { item, updateExistingId } = request;
 
-        const updated = [newItem, ...state.capturedItems];
-        await setStoredCaptured(updated);
+        let finalItem;
+        let updatedList;
 
-        // Mirror directly into Firebase Firestore
-        try {
-          const targetUrl = state.auth.serverUrl || DEFAULT_SERVER_URL;
-          const syncRes = await fetch(`${targetUrl}/api/sync`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              uid: state.auth.profile?.uid,
-              code: state.auth.code,
-              op: 'put',
-              item: newItem,
-            }),
-          });
-          if (syncRes.ok) {
-            console.log('Successfully synced extension item to Firestore:', newItem.id);
+        if (updateExistingId) {
+          const existingIdx = state.capturedItems.findIndex(i => i.id === updateExistingId);
+          if (existingIdx !== -1) {
+            finalItem = {
+              ...state.capturedItems[existingIdx],
+              ...item,
+              id: updateExistingId,
+              fields: { ...state.capturedItems[existingIdx].fields, ...(item.fields || {}) },
+              updatedAt: new Date().toISOString(),
+            };
+            updatedList = [...state.capturedItems];
+            updatedList[existingIdx] = finalItem;
           }
-        } catch (e) {
-          console.warn('Memoir cloud sync queued locally:', e.message);
         }
 
-        return { ok: true, item: newItem };
+        if (!finalItem) {
+          finalItem = {
+            id: item.id || ('ext-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)),
+            kind: 'memory',
+            type: item.type || 'Login',
+            title: item.title || 'Saved Record',
+            fields: item.fields || {},
+            note: item.note || `Captured by Memoir Chrome Extension from ${item.domain || 'web'}`,
+            url: item.url || '',
+            domain: item.domain || '',
+            pageTitle: item.pageTitle || '',
+            createdAt: new Date().toISOString(),
+            provenance: {
+              source: 'Chrome Extension',
+              domain: item.domain || '',
+              url: item.url || '',
+              pageTitle: item.pageTitle || '',
+              capturedDate: item.capturedDate || new Date().toLocaleDateString(),
+              capturedTime: item.capturedTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              createdAt: new Date().toISOString(),
+            },
+          };
+          updatedList = [finalItem, ...state.capturedItems];
+        }
+
+        await setStoredCaptured(updatedList);
+        await syncItemToCloud(state.auth, 'put', finalItem);
+
+        return { ok: true, item: finalItem };
+      }
+
+      case 'UPDATE_CAPTURED_ITEM': {
+        if (!state.auth.loggedIn) return { ok: false, error: 'Not logged in' };
+        const { item } = request;
+        const idx = state.capturedItems.findIndex(i => i.id === item.id);
+        if (idx === -1) return { ok: false, error: 'Item not found' };
+
+        const updated = [...state.capturedItems];
+        updated[idx] = { ...updated[idx], ...item, updatedAt: new Date().toISOString() };
+        await setStoredCaptured(updated);
+        await syncItemToCloud(state.auth, 'put', updated[idx]);
+
+        return { ok: true, item: updated[idx] };
       }
 
       case 'GET_ALL_CAPTURED': {
@@ -169,7 +215,32 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'DELETE_CAPTURED': {
         const remaining = state.capturedItems.filter(i => i.id !== request.id);
         await setStoredCaptured(remaining);
+        await syncItemToCloud(state.auth, 'delete', null, request.id);
         return { ok: true };
+      }
+
+      case 'DEDUPLICATE_ITEMS': {
+        const seen = new Set();
+        const deduped = [];
+        const toDeleteIds = [];
+
+        state.capturedItems.forEach(item => {
+          const userOrDoc = item.fields?.['Username / ID'] || item.fields?.['Username'] || item.fields?.['Document number'] || item.fields?.['Reference number'] || item.title;
+          const key = `${item.domain || 'any'}::${userOrDoc || item.id}`;
+          if (seen.has(key)) {
+            toDeleteIds.push(item.id);
+          } else {
+            seen.add(key);
+            deduped.push(item);
+          }
+        });
+
+        await setStoredCaptured(deduped);
+        for (const id of toDeleteIds) {
+          await syncItemToCloud(state.auth, 'delete', null, id);
+        }
+
+        return { ok: true, removedCount: toDeleteIds.length, items: deduped };
       }
 
       default:

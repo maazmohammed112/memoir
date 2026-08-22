@@ -35,7 +35,6 @@
 
       const info = inspectInput(input);
       if (info.isPassword || info.isUsername || info.isCard || info.isAckOrApp || info.isIdentity) {
-        // Attach persistent inline Rhino button inside the input
         attachInlineRhinoBadge(input, info);
 
         input.addEventListener('focus', () => handleFieldFocus(input, info));
@@ -139,7 +138,6 @@
     document.body.appendChild(badge);
     updateBadgePosition(badge);
 
-    // Reposition on scroll/resize
     window.addEventListener('scroll', () => updateBadgePosition(badge), { passive: true });
     window.addEventListener('resize', () => updateBadgePosition(badge), { passive: true });
 
@@ -181,7 +179,6 @@
       <div class="memoir-dropdown-items">
     `;
 
-    // 1. Password Generator Option
     if (info && info.isPassword) {
       html += `
         <div class="memoir-dropdown-item memoir-gen-pwd-btn" id="memoir-action-gen-pwd">
@@ -194,7 +191,6 @@
       `;
     }
 
-    // 2. Matching items
     if (matches && matches.length) {
       matches.forEach((item, idx) => {
         const user = item.fields?.['Username / ID'] || item.fields?.['Username'] || item.fields?.['Document number'] || item.fields?.['Reference number'] || item.title || 'Saved Account';
@@ -218,7 +214,6 @@
       `;
     }
 
-    // 3. Quick Save Trigger
     html += `
       <div class="memoir-dropdown-item memoir-quick-save-btn" id="memoir-action-quick-save">
         <div class="memoir-item-icon">${SVGS.doc}</div>
@@ -234,7 +229,6 @@
     document.body.appendChild(dropdown);
     activeDropdown = dropdown;
 
-    // Explicit Close 'x' Button
     const closeBtn = dropdown.querySelector('#memoir-dropdown-close');
     if (closeBtn) {
       closeBtn.addEventListener('click', (e) => {
@@ -244,7 +238,6 @@
       });
     }
 
-    // Password Generator Action
     const genBtn = dropdown.querySelector('#memoir-action-gen-pwd');
     if (genBtn) {
       genBtn.addEventListener('click', (e) => {
@@ -265,7 +258,6 @@
       });
     }
 
-    // Quick Save Action
     const quickSaveBtn = dropdown.querySelector('#memoir-action-quick-save');
     if (quickSaveBtn) {
       quickSaveBtn.addEventListener('click', (e) => {
@@ -276,7 +268,6 @@
       });
     }
 
-    // Matches Selection
     dropdown.querySelectorAll('.memoir-dropdown-item[data-idx]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -288,7 +279,6 @@
       });
     });
 
-    // Close only when clicking outside dropdown & target input
     const handleOutside = (e) => {
       if (activeDropdown && !activeDropdown.contains(e.target) && e.target !== targetInput && !e.target.closest('.memoir-inline-save-btn')) {
         removeDropdown();
@@ -388,6 +378,13 @@
         }));
       }
     });
+
+    window.addEventListener('memoir-autofill-trigger', (e) => {
+      if (e.detail) {
+        const anyInput = document.querySelector('input:not([type="hidden"])') || document.body;
+        fillForm(anyInput, e.detail);
+      }
+    });
   }
 
   function triggerSmartCapture(contextElement) {
@@ -457,7 +454,7 @@
     const formattedTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
     lastCaptureTime = now;
-    showCaptureModal({
+    const itemToCapture = {
       type: itemType,
       title: itemTitle,
       domain: currentDomain,
@@ -476,12 +473,25 @@
         capturedTime: formattedTime,
         createdAt: nowIso,
       },
+    };
+
+    const usernameVal = capturedFields['Username / ID'] || capturedFields['Username'] || '';
+    const docVal = capturedFields['Document number'] || capturedFields['Reference number'] || '';
+
+    chrome.runtime.sendMessage({
+      action: 'CHECK_DUPLICATE',
+      domain: currentDomain,
+      username: usernameVal,
+      docNumber: docVal,
+    }, res => {
+      const existing = (res && res.ok && res.duplicate) ? res.duplicate : null;
+      showCaptureModal(itemToCapture, existing);
     });
   }
 
-  function showCaptureModal(item) {
-    const existing = document.querySelector('.memoir-capture-modal');
-    if (existing) existing.remove();
+  function showCaptureModal(item, existing) {
+    const existingModal = document.querySelector('.memoir-capture-modal');
+    if (existingModal) existingModal.remove();
 
     const prompt = document.createElement('div');
     prompt.className = 'memoir-capture-modal';
@@ -499,6 +509,15 @@
       `;
     });
 
+    let dupWarningHtml = '';
+    if (existing) {
+      dupWarningHtml = `
+        <div class="memoir-dup-warning-box">
+          <span>⚠️ Account already saved for ${escapeHtml(item.domain)}. Update existing or save as new?</span>
+        </div>
+      `;
+    }
+
     prompt.innerHTML = `
       <div class="memoir-capture-inner">
         <div class="memoir-capture-head">
@@ -511,6 +530,8 @@
           </div>
           <button type="button" class="memoir-capture-close" aria-label="Dismiss">&times;</button>
         </div>
+
+        ${dupWarningHtml}
 
         <div class="memoir-capture-edit-box">
           <label class="memoir-label">Title</label>
@@ -526,13 +547,10 @@
           <input type="text" id="memoir-cap-note" class="memoir-text-input" value="${escapeHtml(item.note)}" placeholder="Add context or reminder…">
         </div>
 
-        <div class="memoir-capture-meta-tag">
-          <span>${escapeHtml(item.pageTitle.slice(0, 38))}</span>
-        </div>
-
         <div class="memoir-capture-actions">
           <button type="button" class="memoir-btn-dismiss">Not now</button>
-          <button type="button" class="memoir-btn-save">Save to Vault</button>
+          ${existing ? `<button type="button" class="memoir-btn-update" id="memoir-btn-update-existing">Update Existing</button>` : ''}
+          <button type="button" class="memoir-btn-save">${existing ? 'Save New' : 'Save to Vault'}</button>
         </div>
       </div>
     `;
@@ -542,7 +560,7 @@
     prompt.querySelector('.memoir-capture-close').addEventListener('click', () => prompt.remove());
     prompt.querySelector('.memoir-btn-dismiss').addEventListener('click', () => prompt.remove());
     
-    prompt.querySelector('.memoir-btn-save').addEventListener('click', () => {
+    const saveAction = (updateId) => {
       const editedTitle = prompt.querySelector('#memoir-cap-title').value.trim() || item.title;
       const editedNote = prompt.querySelector('#memoir-cap-note').value.trim() || item.note;
 
@@ -555,19 +573,27 @@
       prompt.querySelector('.memoir-capture-body').innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;color:#10b981;font-weight:700;padding:6px 0;">
           <span>✓</span>
-          <span>Encrypted and saved to Memoir Vault!</span>
+          <span>${updateId ? 'Existing record updated & encrypted!' : 'Encrypted and saved to Memoir Vault!'}</span>
         </div>
       `;
       prompt.querySelector('.memoir-capture-actions').remove();
-      prompt.querySelectorAll('.memoir-capture-edit-box, .memoir-capture-meta-tag').forEach(el => el.remove());
+      prompt.querySelectorAll('.memoir-capture-edit-box, .memoir-dup-warning-box').forEach(el => el.remove());
 
       chrome.runtime.sendMessage({
         action: 'SAVE_CAPTURED_CREDENTIAL',
         item: finalItem,
+        updateExistingId: updateId || null,
       });
 
       setTimeout(() => prompt.remove(), 2200);
-    });
+    };
+
+    const updateBtn = prompt.querySelector('#memoir-btn-update-existing');
+    if (updateBtn) {
+      updateBtn.addEventListener('click', () => saveAction(existing.id));
+    }
+
+    prompt.querySelector('.memoir-btn-save').addEventListener('click', () => saveAction(null));
   }
 
   function escapeHtml(s) {

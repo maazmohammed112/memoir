@@ -91,16 +91,20 @@
         <div class="form-group">
           <label>Category</label>
           <select id="manual-type" class="select-input">
-            <option value="Government Document">Government Document</option>
             <option value="Login">Login Account</option>
+            <option value="Government Document">Government Document</option>
             <option value="Identity">Identity Document</option>
             <option value="Finance">Bank / Card</option>
             <option value="Personal">Personal Record</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Value / Number / ID</label>
-          <input type="text" id="manual-val" placeholder="e.g. RD1218185132439 or Username">
+          <label>Username / ID / ACK</label>
+          <input type="text" id="manual-user" placeholder="e.g. U18AJ22S0105 or RD1218185132439">
+        </div>
+        <div class="form-group">
+          <label>Password / Secret (Optional)</label>
+          <input type="password" id="manual-pwd" placeholder="••••••••">
         </div>
         <div class="form-group">
           <label>Note / Memo</label>
@@ -112,14 +116,69 @@
         </button>
       </div>
 
-      <!-- Active Site Matches -->
+      <!-- Main Navigation Tabs: Active Site vs All Saved -->
+      <div class="popup-tabs">
+        <button type="button" class="tab-btn active" id="tab-site">
+          <span>Active Site</span>
+        </button>
+        <button type="button" class="tab-btn" id="tab-all">
+          <span>All Saved (<span id="all-count">0</span>)</span>
+        </button>
+      </div>
+
+      <!-- Search Bar (Visible in All Saved tab or general) -->
+      <div class="search-box" id="popup-search-box" style="display:none;">
+        <input type="text" id="popup-search-input" placeholder="Search usernames, passwords, portals…">
+      </div>
+
+      <!-- Duplicate Alert Banner -->
+      <div id="duplicate-cleaner-banner" class="duplicate-banner" style="display:none;">
+        <div class="dup-text">
+          <span>⚠️ Similar / duplicate entries found.</span>
+        </div>
+        <button type="button" id="btn-clean-duplicates" class="btn-clean-dup">Clean</button>
+      </div>
+
+      <!-- Credentials List Section -->
       <div class="section-box">
         <div class="section-title">
-          <span>Active Site</span>
+          <span id="section-title-label">Active Site</span>
           <strong id="active-domain">current-site.com</strong>
         </div>
-        <div id="site-credentials-list" class="credentials-list">
-          <p class="empty-text">No matching logins for this tab</p>
+        <div id="credentials-list" class="credentials-list">
+          <p class="empty-text">Loading credentials…</p>
+        </div>
+      </div>
+
+      <!-- Edit Modal Container (Inline in Popup) -->
+      <div id="edit-item-modal" class="edit-modal-box" style="display:none;">
+        <div class="edit-modal-head">
+          <strong>Edit Record</strong>
+          <button type="button" id="btn-close-edit" class="close-btn">&times;</button>
+        </div>
+        <input type="hidden" id="edit-id">
+        <div class="form-group">
+          <label>Title</label>
+          <input type="text" id="edit-title">
+        </div>
+        <div class="form-group">
+          <label>Username / Document / ID</label>
+          <input type="text" id="edit-user">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <div class="input-with-eye">
+            <input type="password" id="edit-pwd">
+            <button type="button" id="btn-toggle-edit-pwd" class="eye-btn" title="Toggle password">👁️</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Note / Context</label>
+          <input type="text" id="edit-note">
+        </div>
+        <div class="edit-actions">
+          <button type="button" id="btn-cancel-edit" class="btn secondary">Cancel</button>
+          <button type="button" id="btn-save-edit" class="btn primary">Save Changes</button>
         </div>
       </div>
 
