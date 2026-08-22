@@ -37,14 +37,14 @@ export function answerText(route, items) {
     const item = items.find(row => row.id === match.id);
     if (!item) return;
     const itemFields = item.fields || {};
-    const requested = (match.fields?.length && item.type !== 'Birthday' && item.type !== 'Login' && item.type !== 'Wi-Fi') ? match.fields : Object.keys(itemFields);
+    const requested = match.fields?.length ? match.fields : Object.keys(itemFields);
     const validFields = requested.map(field => Object.keys(itemFields).find(key => key.toLowerCase() === String(field).toLowerCase())).filter(Boolean);
 
     if (!validFields.length && !item.note) return;
 
     lines.push(`${item.title} (${item.type || 'Memory'})`);
 
-    if (item.type === 'Birthday' && itemFields.Date) {
+    if (validFields.includes('Date') && item.type === 'Birthday' && itemFields.Date) {
       const rawDate = String(itemFields.Date).trim();
       const parts = rawDate.split('-').map(Number);
       const year = parts.length === 3 && parts[0] > 0 ? parts[0] : null;
@@ -65,7 +65,7 @@ export function answerText(route, items) {
       lines.push(`• ${field}: ${String(itemFields[field])}`);
     });
 
-    if (item.note) {
+    if (item.note && (!match.fields?.length || match.fields.length > 2)) {
       lines.push(`• Note: ${String(item.note).slice(0, 500)}`);
     }
     lines.push('');

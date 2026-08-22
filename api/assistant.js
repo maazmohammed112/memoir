@@ -9,18 +9,18 @@ Your scope includes all the user's saved memories, passwords, credentials, cards
 Be direct, helpful, and intelligent.
 
 CRITICAL INSTRUCTIONS FOR RETRIEVING INFORMATION (LOOKUPS):
-1. When the user asks about ANY saved item in their vault (e.g. "when is deepti birthday", "what is my wifi password", "show my sbi debit card", "what are my reminders", "passport number"):
-   - Return kind: "lookup".
-   - Under "matches", include the exact matching catalog item ID.
-   - For Birthday records, always match the birthday item and include all field names ["Date", "Relation", "Gift idea", "Wish note"].
-   - For Wi-Fi records, always match the Wi-Fi item and include all field names ["Network", "Password"].
-   - For Login records, always match the Login item and include all field names ["Username / ID", "Password"].
-   - For Finance / Card records, match the card item and include all field names.
-   - For Reminders, match the Reminder items and include ["Due at", "Status", "Repeat"].
-2. In your "markdown" response:
-   - Write a warm, natural, concise one-sentence introduction (e.g. "Here are the saved details for Deepti’s birthday.", "Here is the saved password for your Home Fiber Wi-Fi.", "Here are your saved SBI debit card details.").
+1. SPECIFIC FIELD REQUESTS:
+   - When the user asks for a SPECIFIC attribute or single field (e.g. "what is my SBI debit card CVV?", "what is the expiry date of my debit card?", "what is my invoice number?", "what is my document number?", "what is my passport number?", "when is deepti birthday?", "what is my wifi password?", "what is my EPFO password?"):
+     - Return kind: "lookup".
+     - Under "matches", set "id" to the matching item ID, and under "fields" list ONLY the specifically requested field(s) (e.g. ["CVV"], ["Expiry date"], ["Valid thru"], ["Invoice number"], ["Document Number"], ["Password"], ["Date"]). Do NOT include other unrelated fields when the user asked for one specific field.
+2. BROAD / ALL-DETAILS REQUESTS:
+   - When the user asks for the whole item or general details without naming a single specific field (e.g. "what is my SBI details?", "show my SBI debit card", "tell me about Deepti's birthday", "show my wifi details", "what are my reminders?"):
+     - Return kind: "lookup".
+     - Under "matches", include the item ID and ALL available field names for that record (or leave "fields" empty [] to indicate all fields).
+3. In your "markdown" response:
+   - Write a concise, natural, direct one-sentence introduction (e.g. "Here is your SBI debit card CVV.", "Here are your saved SBI debit card details.", "Here is the date for Deepti’s birthday.").
    - NEVER output raw token syntax like [[PRIVATE_N]] or "(to be displayed on-device)" in the markdown. The user's device resolves and presents decrypted fields automatically.
-3. If no record in the vault matches the user's request:
+4. If no record in the vault matches the user's request:
    - Return kind: "general" with a clear, polite explanation (e.g. "I couldn’t find an SBI card in your saved vault memories.").
 
 Use the conversation log to resolve follow-ups such as "only the password", "the other one", or "edit that" without starting over.
@@ -86,7 +86,7 @@ function normalize(answer, catalog) {
     const item = ids.get(String(match.id)); if (!item) return null;
     const allowed = new Map(item.fieldNames.map(field => [field.toLowerCase(), field]));
     let fields = (Array.isArray(match.fields) ? match.fields : []).map(field => allowed.get(String(field).toLowerCase())).filter(Boolean);
-    if (!fields.length || ['Birthday', 'Login', 'Wi-Fi', 'Finance', 'Identity', 'Government Document', 'Personal'].includes(item.type)) {
+    if (!fields.length) {
       fields = item.fieldNames;
     }
     return { id: item.id, fields };

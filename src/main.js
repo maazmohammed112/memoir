@@ -1214,7 +1214,9 @@ function assistantView() {
 function renderMessage(message, messageIndex = 0) {
   if (message.role === 'user') return `<div class="message user">${escapeHtml(message.text)}</div>`;
   if (message.fields?.length || message.audios?.length || message.documents?.length) {
-    const fields = message.fields || []; const fieldObject = Object.fromEntries(fields.map(field => [field.label, field.value])); const card = paymentCard(message.title || 'Saved card', fieldObject, true);
+    const fields = message.fields || []; const fieldObject = Object.fromEntries(fields.map(field => [field.label, field.value]));
+    const showCard = fields.length >= 3 && fieldObject['Card number'];
+    const card = showCard ? paymentCard(message.title || 'Saved card', fieldObject, true) : '';
     const docsMarkup = (message.documents || []).length ? `
       <div class="ai-documents-list">
         ${message.documents.map(doc => {
@@ -1232,7 +1234,7 @@ function renderMessage(message, messageIndex = 0) {
         }).join('')}
       </div>
     ` : '';
-    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}${(message.audios || []).map(audio => audioPlayerMarkup(audio, audio.title || 'Voice memo')).join('')}${docsMarkup}${fields.length ? `<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${fields.map((field, fieldIndex) => { const revealKey = `${messageIndex}:${fieldIndex}`; const visible = !state.hidden || state.assistantReveals.has(revealKey); return `<tr><td>${escapeHtml(field.label)}</td><td><span class="assistant-value ${visible ? 'visible' : 'protected'}">${visible ? escapeHtml(field.value) : '••••••••'}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-ai-reveal="${revealKey}" title="${visible ? 'Hide value' : 'Reveal value'}" aria-label="${visible ? 'Hide value' : 'Reveal value'}">${icon(visible ? 'Eye' : 'EyeOff')}</button><button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy">${icon('Copy')}</button></span></td></tr>`; }).join('')}</tbody></table>` : ''}</div>`;
+    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}${(message.audios || []).map(audio => audioPlayerMarkup(audio, audio.title || 'Voice memo')).join('')}${docsMarkup}${fields.length ? `<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${fields.map(field => `<tr><td><strong>${escapeHtml(field.label)}</strong></td><td><span class="assistant-value visible">${escapeHtml(field.value)}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy ${escapeHtml(field.label)}" aria-label="Copy ${escapeHtml(field.label)}">${icon('Copy')}</button></span></td></tr>`).join('')}</tbody></table>` : ''}</div>`;
   }
   if (message.actions?.length) {
     const isSmartCapture = message.actions.some(a => a.fields && (a.fields['Audio Transcript'] || a.fields['Expiry date'] || a.fields['Serial'] || a.fields['Brand'] || a.fields['Model']));
@@ -2733,7 +2735,7 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
     const attachment = audioAttachment(item); if (attachment) audios.push({ ...attachment, title: item.title });
     const docs = parseItemAttachments(item); if (docs.length) documents.push(...docs);
     const itemAllFields = allFields(item);
-    const requested = (match.fields?.length && item.type !== 'Birthday' && item.type !== 'Login' && item.type !== 'Wi-Fi') ? match.fields : Object.keys(itemAllFields);
+    const requested = match.fields?.length ? match.fields : Object.keys(itemAllFields);
     requested.forEach(label => {
       const actual = Object.keys(itemAllFields).find(key => key.toLowerCase() === String(label).toLowerCase());
       if (actual && !audioDataLabels.has(actual) && !audioMetadataLabels.has(actual) && !documentDataLabels.has(actual)) {
