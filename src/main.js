@@ -1801,15 +1801,15 @@ function birthdaysView() {
 function assistantView() {
   const emptyChatIntro = `
     <div class="assistant-welcome-card">
-      <div class="welcome-card-header">
-        <span class="assistant-sparkle-pill">${icon('Sparkles')} Vault Intelligence</span>
-        <span class="vault-index-chip">${vaultMemories().length} memories indexed</span>
+      <div class="assistant-welcome-hero">
+        <div class="assistant-brand-circle">
+          <img src="/brand/memoir-rhino-ui.png" alt="Rhinous">
+        </div>
+        <h2>Ask Rhinous</h2>
+        <p>Private vault intelligence. Ask for credentials, extract warranties from photos, or dictate reminders.</p>
       </div>
-      <h2>How can Rhinous assist you today?</h2>
-      <p>Ask for exact credentials, extract warranties from photos, manage to-do items, or dictate reminders naturally.</p>
       
       <div class="assistant-quick-prompts">
-        <p class="quick-prompts-label">Instant suggestions</p>
         <div class="quick-prompts-grid">
           ${[
             'What is my SBI card limit & expiry date?',
@@ -1817,10 +1817,10 @@ function assistantView() {
             'Show all my Wi-Fi router passwords',
             'Who has birthdays coming up this month?',
             'Create a to-do list for weekend groceries'
-          ].map((text, idx) => `
-            <button type="button" class="quick-prompt-btn" data-ask="${escapeHtml(text)}" style="animation-delay: ${idx * 60}ms">
-              <span class="prompt-arrow">&rarr;</span>
+          ].map((text) => `
+            <button type="button" class="quick-prompt-btn" data-ask="${escapeHtml(text)}">
               <span>${escapeHtml(text)}</span>
+              <span class="prompt-arrow">${icon('ArrowUpRight')}</span>
             </button>
           `).join('')}
         </div>
@@ -1908,7 +1908,30 @@ function navigate(viewName) {
   else if (viewName === 'memories') { state.vaultSection = 'memories'; viewName = 'vault'; }
   if (viewName === 'todos' || viewName === 'reminders') { state.plannerSection = viewName; viewName = 'planner'; }
   if (viewName === 'audio' || viewName === 'clipboard') { state.captureSection = viewName; viewName = 'capture'; }
-  state.view = viewName; state.query = ''; state.selectedMemoryId = null; shell(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  state.view = viewName;
+  state.query = '';
+  state.selectedMemoryId = null;
+
+  const shellEl = document.querySelector('.shell');
+  if (shellEl && state.auth.status === 'signedIn') {
+    document.querySelectorAll('.sidebar .nav-btn, .mobile-nav .nav-btn').forEach(btn => {
+      const targetView = btn.dataset.view;
+      btn.classList.toggle('active', targetView === state.view);
+    });
+    const topbarTitle = document.querySelector('.topbar h1');
+    if (topbarTitle) topbarTitle.textContent = titleForView();
+    const mainContent = document.querySelector('main.content');
+    if (mainContent) {
+      if (state.view === 'assistant') mainContent.classList.add('assistant-content');
+      else mainContent.classList.remove('assistant-content');
+    }
+    renderView();
+    if (window.scrollY > 120) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  } else {
+    shell();
+  }
 }
 function renderView() { const node = document.querySelector('#view'); if (node) node.innerHTML = currentView(); bindView(); }
 
