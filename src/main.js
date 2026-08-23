@@ -716,11 +716,11 @@ function bindAuthGate() {
 function skeleton() { return `<section class="vault-opening"><div class="vault-opening-head"><span class="vault-opening-mark"><img src="/brand/memoir-rhino-ui.png" alt=""></span><div><p class="eyebrow">Encrypted cloud vault</p><h2>Loading your memories…</h2><p>Downloading and decrypting this owner’s latest records. Cached memories will appear instantly on future visits.</p></div><span class="opening-live"><i></i> Secure sync</span></div><div class="opening-grid"><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article><article class="opening-card"><div class="skeleton opening-icon"></div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></article></div><div class="opening-list">${Array.from({ length: 4 }, () => `<div class="opening-row"><div class="skeleton opening-avatar"></div><div><div class="skeleton opening-line wide"></div><div class="skeleton opening-line"></div></div><div class="skeleton opening-action"></div></div>`).join('')}</div></section>`; }
 function currentView() { return ({ home: homeView, vault: vaultView, guard: guardView, assistant: assistantView, planner: plannerView, capture: captureView, birthdays: birthdaysView }[state.view] || homeView)(); }
 function memories() { return state.items.filter(item => item.kind !== 'clipboard' && !['Reminder', 'Notification', 'Todo'].includes(item.type)); }
-function vaultMemories() { return memories().filter(item => item.type !== 'Birthday' && item.type !== 'Audio' && !isBrowserCapture(item)); }
+function vaultMemories() { return memories().filter(item => item.type !== 'Birthday' && item.type !== 'Audio'); }
 function memoryFilterGroup(item) {
-  if (item.type === 'Finance') return 'banks';
-  if (['Identity', 'Government Document'].includes(item.type)) return 'documents';
-  if (item.type === 'Login') return 'logins';
+  if (item.type === 'Finance' || item.type === 'Card' || (typeof isCardRecord === 'function' && isCardRecord(item))) return 'banks';
+  if (['Identity', 'Government Document', 'Document'].includes(item.type)) return 'documents';
+  if (['Login', 'Password', 'Credential'].includes(item.type) || item.fields?.Password || item.fields?.['Username / ID']) return 'logins';
   if (item.type === 'Wi-Fi') return 'wifi';
   return 'notes';
 }
