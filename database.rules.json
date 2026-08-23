@@ -1,6 +1,32 @@
 {
   "rules": {
-    ".read": false,
-    ".write": false
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "secureVault": {
+      ".read": false,
+      ".write": false
+    },
+    "serverAuth": {
+      ".read": false,
+      ".write": false
+    },
+    "telegramActionQueue": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": false
+      }
+    },
+    "telegramLinks": {
+      ".read": false,
+      ".write": false
+    },
+    "reminderDeliveries": {
+      ".read": false,
+      ".write": false
+    }
   }
 }

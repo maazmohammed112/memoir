@@ -115,12 +115,16 @@ async function migrate() {
   console.log(`• Vault Items Migrated: ${totalItems}`);
   console.log(`• Action Queues Migrated: ${totalQueued}`);
   console.log(`• Telegram Links Migrated: ${totalLinks}`);
-  console.log('========================================\n');
+  return { totalUsers, totalItems, totalQueued, totalLinks };
 }
 
-migrate()
-  .then(() => process.exit(0))
-  .catch(err => {
-    console.error('Migration encountered fatal error:', err);
-    process.exit(1);
-  });
+export { migrate as runFirestoreToRtdbMigration };
+
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
+  migrate()
+    .then(() => process.exit(0))
+    .catch(err => {
+      console.error('Migration encountered fatal error:', err);
+      process.exit(1);
+    });
+}

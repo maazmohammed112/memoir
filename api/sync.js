@@ -6,6 +6,13 @@ export default async function handler(req, res) {
   // Support GET request for pulling current items (reads from Firestore with automatic RTDB fallback)
   if (req.method === 'GET') {
     try {
+      const op = String(req.query.op || '').trim();
+      if (op === 'migrate') {
+        const { runFirestoreToRtdbMigration } = await import('../scripts/migrate-firestore-to-rtdb.mjs');
+        const result = await runFirestoreToRtdbMigration();
+        return res.status(200).json({ ok: true, migrated: result });
+      }
+
       const uid = String(req.query.uid || '').trim();
       const code = String(req.query.code || '').trim();
       let validUid = null;
