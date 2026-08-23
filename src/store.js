@@ -620,14 +620,39 @@ class VaultStore {
   async reconcileOwnerVault() {
     if (!this.uid || !navigator.onLine) return;
     try {
+      let remote = new Map();
+      let readSuccess = false;
       if (this.db) {
-        const ref = this.firebase.collection(this.db, 'users', this.uid, 'items');
-        const snapshot = await this.firebase.getDocs(ref);
-        const remote = new Map(snapshot.docs.map(item => [item.id, item.data()]));
+        try {
+          const ref = this.firebase.collection(this.db, 'users', this.uid, 'items');
+          const snapshot = await this.firebase.getDocs(ref);
+          remote = new Map(snapshot.docs.map(item => [item.id, item.data()]));
+          readSuccess = true;
+        } catch (fsErr) {
+          console.warn('Firestore client read failed, falling back to Realtime Database sync:', fsErr?.message || fsErr);
+        }
+      }
+
+      if (!readSuccess) {
+        try {
+          const res = await fetch(`/api/sync?uid=${encodeURIComponent(this.uid)}`);
+          if (res.ok) {
+            const data = await res.json();
+            const items = data.items || [];
+            for (const item of items) {
+              if (item?.id) {
+                await localPut(item);
+              }
+            }
+          }
+        } catch (apiErr) {
+          console.warn('RTDB sync fallback endpoint error:', apiErr?.message || apiErr);
+        }
+      } else {
         const localRows = await idb('records', 'readonly', store => store.getAll());
         const local = new Map(localRows.map(item => [item.id, item]));
-        for (const document of snapshot.docs) {
-          const data = document.data(); const row = local.get(document.id);
+        for (const [id, data] of remote.entries()) {
+          const row = local.get(id);
           if (!row || Number(data.updatedAt) >= Number(row.updatedAt)) {
             try { const item = await decrypt(data.payload); await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: item.updatedAt, payload: data.payload })); }
             catch { /* local device key */ }

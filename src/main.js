@@ -474,7 +474,7 @@ function syncLabel() { return state.status === 'synced' ? 'Synced' : state.statu
 function updateSyncUi() { const pill = document.querySelector('.sync-pill'); if (pill) pill.innerHTML = `<i class="sync-dot ${state.status === 'synced' ? '' : 'offline'}"></i>${syncLabel()}`; }
 function navHtml() { return nav.map(([id, glyph, label]) => `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-view="${id}">${glyph === 'Rhino' ? '<img class="nav-rhino" src="/brand/memoir-rhino-ui.png" alt="">' : icon(glyph)}<span>${label}</span></button>`).join(''); }
 
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 
 function renderMaintenanceMode() {
   if (modal.open) modal.close();

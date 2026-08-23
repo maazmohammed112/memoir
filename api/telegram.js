@@ -13,13 +13,12 @@ const pollers = new Map();
 const sentMessageKeys = new Set();
 const hasAdminMirror = () => Boolean((process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_FILE) && process.env.VAULT_SERVER_KEY);
 
+import { readDecryptedVaultItems } from '../lib/realtimeVault.js';
+
 export const telegram = (profileOrUid, method, payload) => telegramRequest(profileOrUid, method, payload);
 
 async function loadVault(profile) {
-  const runtime = listRuntimeItems(profile.uid); if (runtime.length) return runtime;
-  if (!hasAdminMirror()) return [];
-  const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
-  return snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
+  return readDecryptedVaultItems(profile.uid);
 }
 
 const cleanTelegramText = text => String(text || '').replace(/[#*_`>~[\]()]/g, '').trim();
@@ -99,24 +98,53 @@ function rehydrateActions(actions, privateValues) {
 }
 
 async function persistQueuedActions(profile, queued) {
-  if (!hasAdminMirror() || !queued.length) return;
-  const collection = (await getAdmin()).firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
-  await Promise.all(queued.map(entry => collection.doc(entry.queueId).set({ payload: serverEncrypt(entry), createdAt: entry.createdAt })));
+  if (!queued.length) return;
+  try {
+    const admin = await getAdmin();
+    const updates = {};
+    queued.forEach(entry => {
+      updates[`telegramActionQueue/${profile.uid}/${entry.queueId}`] = { payload: serverEncrypt(entry), createdAt: entry.createdAt };
+    });
+    await admin.database().ref().update(updates);
+    const collection = admin.firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
+    Promise.all(queued.map(entry => collection.doc(entry.queueId).set({ payload: serverEncrypt(entry), createdAt: entry.createdAt }).catch(() => {}))).catch(() => {});
+  } catch (err) {
+    console.warn('Persist queued actions fallback:', err.message);
+  }
 }
 
 async function pullQueuedActions(profile) {
   const runtime = pullRuntimeActions(profile.uid);
-  if (!hasAdminMirror()) return runtime;
-  const snapshot = await (await getAdmin()).firestore().collection('telegramActionQueue').doc(profile.uid).collection('items').orderBy('createdAt').limit(100).get();
-  const persisted = snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
-  const seen = new Set(); return [...runtime, ...persisted].filter(entry => entry?.queueId && !seen.has(entry.queueId) && seen.add(entry.queueId));
+  try {
+    const admin = await getAdmin();
+    let entries = [];
+    const rtdbSnap = await admin.database().ref(`telegramActionQueue/${profile.uid}`).get().catch(() => null);
+    if (rtdbSnap && rtdbSnap.exists()) {
+      entries = Object.values(rtdbSnap.val() || {}).map(item => {
+        try { return typeof item === 'object' && item.payload ? serverDecrypt(item.payload) : item; } catch { return item; }
+      }).filter(Boolean);
+    } else {
+      const snapshot = await admin.firestore().collection('telegramActionQueue').doc(profile.uid).collection('items').orderBy('createdAt').limit(100).get().catch(() => ({ docs: [] }));
+      entries = snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
+    }
+    const seen = new Set();
+    return [...runtime, ...entries].filter(entry => entry?.queueId && !seen.has(entry.queueId) && seen.add(entry.queueId));
+  } catch {
+    return runtime;
+  }
 }
 
 async function acknowledgeQueuedActions(profile, ids) {
   acknowledgeRuntimeActions(profile.uid, ids);
-  if (!hasAdminMirror() || !ids?.length) return;
-  const collection = (await getAdmin()).firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
-  await Promise.all(ids.slice(0, 100).map(id => collection.doc(String(id)).delete()));
+  if (!ids?.length) return;
+  try {
+    const admin = await getAdmin();
+    const updates = {};
+    ids.forEach(id => { updates[`telegramActionQueue/${profile.uid}/${id}`] = null; });
+    await admin.database().ref().update(updates).catch(() => {});
+    const collection = admin.firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
+    Promise.all(ids.slice(0, 100).map(id => collection.doc(String(id)).delete().catch(() => {}))).catch(() => {});
+  } catch {}
 }
 
 async function sendToOwner(profile, text) { return telegram(profile, 'sendMessage', { chat_id: profile.telegramChatId, text: String(text || '').slice(0, 4000) }); }

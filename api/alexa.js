@@ -3,6 +3,7 @@ import { getAdmin } from '../lib/firebaseAdmin.js';
 import { serverDecrypt, serverEncrypt } from '../lib/serverCrypto.js';
 import { getUserByUid, listUserProfiles } from '../lib/users.js';
 import { listRuntimeItems, queueRuntimeActions } from '../lib/runtimeVault.js';
+import { readDecryptedVaultItems } from '../lib/realtimeVault.js';
 import { extractItemExpiry } from '../lib/expiryIntelligence.js';
 
 
@@ -32,30 +33,22 @@ function resolveUser(alexaUserId) {
 }
 
 async function loadVaultItems(profile) {
-  const runtime = listRuntimeItems(profile.uid);
-  if (runtime.length) return runtime;
-  if (!hasAdminMirror()) return [];
-  try {
-    const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
-    return snapshot.docs.map(doc => {
-      try { return serverDecrypt(doc.data().payload); }
-      catch { return null; }
-    }).filter(Boolean);
-  } catch (error) {
-    console.warn('[Alexa] Could not load vault mirror:', error?.message);
-    return [];
-  }
+  return readDecryptedVaultItems(profile.uid);
 }
 
 async function persistQueuedAction(profile, action) {
   const queued = queueRuntimeActions(profile.uid, [action], 'alexa');
-  if (hasAdminMirror() && queued.length) {
-    try {
-      const collection = (await getAdmin()).firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
-      await Promise.all(queued.map(entry => collection.doc(entry.queueId).set({ payload: serverEncrypt(entry), createdAt: entry.createdAt })));
-    } catch (error) {
-      console.warn('[Alexa] Could not persist action:', error?.message);
-    }
+  try {
+    const admin = await getAdmin();
+    const updates = {};
+    queued.forEach(entry => {
+      updates[`telegramActionQueue/${profile.uid}/${entry.queueId}`] = { payload: serverEncrypt(entry), createdAt: entry.createdAt };
+    });
+    await admin.database().ref().update(updates);
+    const collection = admin.firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
+    Promise.all(queued.map(entry => collection.doc(entry.queueId).set({ payload: serverEncrypt(entry), createdAt: entry.createdAt }).catch(() => {}))).catch(() => {});
+  } catch (error) {
+    console.warn('[Alexa] Could not persist action:', error?.message);
   }
   return queued;
 }

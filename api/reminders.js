@@ -1,6 +1,7 @@
 import { deviceIdFrom, getAdmin, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 import { serverDecrypt, serverEncrypt } from '../lib/serverCrypto.js';
 import { listRuntimeItems, markReminderDelivered, putRuntimeItem, queueRuntimeActions, reminderWasDelivered, replaceRuntimeItems } from '../lib/runtimeVault.js';
+import { readDecryptedVaultItems } from '../lib/realtimeVault.js';
 import { getUserByUid, listUserProfiles } from '../lib/users.js';
 import { telegram } from './telegram.js';
 import { EXPIRY_NOTIFICATION_OFFSETS, extractItemExpiry } from '../lib/expiryIntelligence.js';
@@ -67,28 +68,59 @@ function recordTimestamp(value) {
 }
 
 const scopedKey = (profile, key) => `${profile.uid}:${key}`;
-const deliveryRef = async (profile, key) => (await getAdmin()).firestore().collection('reminderDeliveries').doc(profile.uid).collection('items').doc(key);
+
 async function reserveDelivery(profile, key) {
-  const memoryKey = scopedKey(profile, key); if (reminderWasDelivered(memoryKey) || deliveryReservations.has(memoryKey)) return false; deliveryReservations.add(memoryKey);
-  if (!hasAdminMirror()) return true;
-  try { await (await deliveryRef(profile, key)).create({ status: 'sending', claimedAt: Date.now() }); return true; }
-  catch (error) { deliveryReservations.delete(memoryKey); if (error?.code === 6 || /already exists/i.test(error?.message || '')) return false; throw error; }
+  const memoryKey = scopedKey(profile, key);
+  if (reminderWasDelivered(memoryKey) || deliveryReservations.has(memoryKey)) return false;
+  deliveryReservations.add(memoryKey);
+  try {
+    const admin = await getAdmin();
+    const snap = await admin.database().ref(`reminderDeliveries/${profile.uid}/${key}`).get().catch(() => null);
+    if (snap && snap.exists()) {
+      deliveryReservations.delete(memoryKey);
+      return false;
+    }
+    await admin.database().ref(`reminderDeliveries/${profile.uid}/${key}`).set({ status: 'sending', claimedAt: Date.now() });
+    admin.firestore().collection('reminderDeliveries').doc(profile.uid).collection('items').doc(key).set({ status: 'sending', claimedAt: Date.now() }).catch(() => {});
+    return true;
+  } catch (error) {
+    deliveryReservations.delete(memoryKey);
+    return false;
+  }
 }
+
 async function finishDelivery(profile, key) {
-  const memoryKey = scopedKey(profile, key); markReminderDelivered(memoryKey); deliveryReservations.delete(memoryKey);
-  if (hasAdminMirror()) await (await deliveryRef(profile, key)).set({ status: 'sent', deliveredAt: Date.now() }, { merge: true });
+  const memoryKey = scopedKey(profile, key);
+  markReminderDelivered(memoryKey);
+  deliveryReservations.delete(memoryKey);
+  try {
+    const admin = await getAdmin();
+    await admin.database().ref(`reminderDeliveries/${profile.uid}/${key}`).update({ status: 'sent', deliveredAt: Date.now() });
+    admin.firestore().collection('reminderDeliveries').doc(profile.uid).collection('items').doc(key).set({ status: 'sent', deliveredAt: Date.now() }, { merge: true }).catch(() => {});
+  } catch {}
 }
+
 async function releaseDelivery(profile, key) {
   deliveryReservations.delete(scopedKey(profile, key));
-  if (hasAdminMirror()) await (await deliveryRef(profile, key)).delete().catch(() => {});
+  try {
+    const admin = await getAdmin();
+    await admin.database().ref(`reminderDeliveries/${profile.uid}/${key}`).remove().catch(() => {});
+    admin.firestore().collection('reminderDeliveries').doc(profile.uid).collection('items').doc(key).delete().catch(() => {});
+  } catch {}
 }
 
 async function queuePersistedAction(profile, action, source) {
   const queued = queueRuntimeActions(profile.uid, [action], source);
-  if (hasAdminMirror()) {
-    const collection = (await getAdmin()).firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
-    await Promise.all(queued.map(entry => collection.doc(entry.queueId).set({ payload: serverEncrypt(entry), createdAt: entry.createdAt })));
-  }
+  try {
+    const admin = await getAdmin();
+    const updates = {};
+    queued.forEach(entry => {
+      updates[`telegramActionQueue/${profile.uid}/${entry.queueId}`] = { payload: serverEncrypt(entry), createdAt: entry.createdAt };
+    });
+    await admin.database().ref().update(updates);
+    const collection = admin.firestore().collection('telegramActionQueue').doc(profile.uid).collection('items');
+    Promise.all(queued.map(entry => collection.doc(entry.queueId).set({ payload: serverEncrypt(entry), createdAt: entry.createdAt }).catch(() => {}))).catch(() => {});
+  } catch {}
 }
 
 async function sendReminder(profile, item, label, due) {
@@ -322,15 +354,7 @@ export function getZonedParts(timestamp = Date.now(), timeZone = process.env.APP
 }
 
 export async function loadAllVaultItems(profile) {
-  let items;
-  if (hasAdminMirror()) {
-    const snapshot = await (await getAdmin()).firestore().collection('secureVault').doc(profile.uid).collection('items').get();
-    items = snapshot.docs.map(doc => { try { return serverDecrypt(doc.data().payload); } catch { return null; } }).filter(Boolean);
-    replaceRuntimeItems(profile.uid, items);
-  } else {
-    items = listRuntimeItems(profile.uid);
-  }
-  return items;
+  return readDecryptedVaultItems(profile.uid);
 }
 
 export function generateMorningBriefing(profile, allItems, zonedNow) {
