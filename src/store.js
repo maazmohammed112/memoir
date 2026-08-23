@@ -620,50 +620,54 @@ class VaultStore {
   async reconcileOwnerVault() {
     if (!this.uid || !navigator.onLine) return;
     try {
-      let remote = new Map();
-      let readSuccess = false;
+      // 1. Pull server-decrypted items from /api/sync (which checks Firestore secureVault + RTDB)
+      try {
+        const token = await this.idToken();
+        const headers = token ? this.apiHeaders(token) : {};
+        const res = await fetch(`/api/sync?uid=${encodeURIComponent(this.uid)}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data.items) ? data.items : [];
+          for (const item of items) {
+            if (item?.id) {
+              await localPut(item);
+            }
+          }
+        }
+      } catch (apiErr) {
+        console.warn('API sync reconcile fallback:', apiErr?.message || apiErr);
+      }
+
+      // 2. Also check Firestore direct client collection if available
       if (this.db) {
         try {
           const ref = this.firebase.collection(this.db, 'users', this.uid, 'items');
           const snapshot = await this.firebase.getDocs(ref);
-          remote = new Map(snapshot.docs.map(item => [item.id, item.data()]));
-          readSuccess = true;
-        } catch (fsErr) {
-          console.warn('Firestore client read failed, falling back to Realtime Database sync:', fsErr?.message || fsErr);
-        }
-      }
-
-      if (!readSuccess) {
-        try {
-          const res = await fetch(`/api/sync?uid=${encodeURIComponent(this.uid)}`);
-          if (res.ok) {
-            const data = await res.json();
-            const items = data.items || [];
-            for (const item of items) {
-              if (item?.id) {
-                await localPut(item);
-              }
+          const remote = new Map(snapshot.docs.map(item => [item.id, item.data()]));
+          const localRows = await idb('records', 'readonly', store => store.getAll());
+          const local = new Map(localRows.map(item => [item.id, item]));
+          for (const [id, data] of remote.entries()) {
+            const row = local.get(id);
+            if (!row || Number(data.updatedAt) >= Number(row.updatedAt)) {
+              try {
+                const item = await decrypt(data.payload);
+                if (item?.id) await localPut(item);
+              } catch { /* local device key */ }
             }
           }
-        } catch (apiErr) {
-          console.warn('RTDB sync fallback endpoint error:', apiErr?.message || apiErr);
-        }
-      } else {
-        const localRows = await idb('records', 'readonly', store => store.getAll());
-        const local = new Map(localRows.map(item => [item.id, item]));
-        for (const [id, data] of remote.entries()) {
-          const row = local.get(id);
-          if (!row || Number(data.updatedAt) >= Number(row.updatedAt)) {
-            try { const item = await decrypt(data.payload); await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: item.updatedAt, payload: data.payload })); }
-            catch { /* local device key */ }
+          for (const row of localRows) {
+            const cloud = remote.get(row.id);
+            if (!cloud || Number(row.updatedAt) > Number(cloud.updatedAt)) {
+              await idb('queue', 'readwrite', store => store.put({ id: row.id, op: 'put', updatedAt: row.updatedAt, payload: row.payload }));
+            }
           }
-        }
-        for (const row of localRows) {
-          const cloud = remote.get(row.id);
-          if (!cloud || Number(row.updatedAt) > Number(cloud.updatedAt)) await idb('queue', 'readwrite', store => store.put({ id: row.id, op: 'put', updatedAt: row.updatedAt, payload: row.payload }));
+        } catch (fsErr) {
+          console.warn('Firestore direct client read skipped:', fsErr?.message || fsErr);
         }
       }
-    } catch { /* direct client read fallback */ }
+    } catch (err) {
+      console.warn('Reconciliation error:', err?.message || err);
+    }
     this.items = await localList();
     await this.sanitizeItemProvenance();
     this.emit();
@@ -834,6 +838,7 @@ class VaultStore {
 
   async mirrorSnapshot() {
     try {
+      if (!this.items || !this.items.length) return;
       const token = await this.idToken(); if (!token) return;
       await fetch('/api/sync', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify({ op: 'snapshot', items: this.items }) });
     } catch { /* the encrypted Firebase vault remains the source of truth */ }
