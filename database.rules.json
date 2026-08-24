@@ -1,12 +1,18 @@
 {
   "rules": {
     "users": {
-      "$uid": {
-        ".read": "auth != null && auth.uid == $uid",
-        ".write": "auth != null && auth.uid == $uid"
-      }
+      ".read": false,
+      ".write": false
     },
     "secureVault": {
+      ".read": false,
+      ".write": false
+    },
+    "secureAudio": {
+      ".read": false,
+      ".write": false
+    },
+    "secureDocuments": {
       ".read": false,
       ".write": false
     },
@@ -15,16 +21,26 @@
       ".write": false
     },
     "telegramActionQueue": {
-      "$uid": {
-        ".read": "auth != null && auth.uid == $uid",
-        ".write": false
-      }
+      ".read": false,
+      ".write": false
     },
     "telegramLinks": {
       ".read": false,
       ".write": false
     },
     "reminderDeliveries": {
+      ".read": false,
+      ".write": false
+    },
+    "telegramMessageDeliveries": {
+      ".read": false,
+      ".write": false
+    },
+    "verifiedSessions": {
+      ".read": false,
+      ".write": false
+    },
+    "migrationStatus": {
       ".read": false,
       ".write": false
     }

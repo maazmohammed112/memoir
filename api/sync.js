@@ -1,59 +1,29 @@
 import { deviceIdFrom, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 import { deleteVaultItem, linkTelegramChat, readDecryptedVaultItems, replaceVaultSnapshot, writeVaultItem } from '../lib/realtimeVault.js';
-import { getUserByCode, getUserByUid } from '../lib/users.js';
+import { getUserByUid } from '../lib/users.js';
 
 export default async function handler(req, res) {
-  // Support GET request for pulling current items (reads from Firestore with automatic RTDB fallback)
+  // Authenticated pull for the current owner. RTDB is the primary source.
   if (req.method === 'GET') {
     try {
-      const op = String(req.query.op || '').trim();
-      if (op === 'migrate') {
-        const { runFirestoreToRtdbMigration } = await import('../scripts/migrate-firestore-to-rtdb.mjs');
-        const result = await runFirestoreToRtdbMigration();
-        return res.status(200).json({ ok: true, migrated: result });
-      }
-
-      const uid = String(req.query.uid || '').trim();
-      const code = String(req.query.code || '').trim();
-      let validUid = null;
-      if (code) {
-        const u = getUserByCode(code);
-        if (u) validUid = u.uid;
-      }
-      if (uid && (!validUid || validUid === uid)) validUid = uid;
-      if (!validUid) return res.status(200).json({ ok: true, items: [] });
-      const items = await readDecryptedVaultItems(validUid);
-      return res.status(200).json({ ok: true, items: items || [] });
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      const identity = await verifyOwnerToken(token, deviceIdFrom(req));
+      const requestedUid = String(req.query.uid || identity.uid).trim();
+      if (requestedUid !== identity.uid) return res.status(403).json({ error: 'Owner isolation check failed.' });
+      const items = await readDecryptedVaultItems(identity.uid);
+      return res.status(200).json({ ok: true, source: 'realtime-database', items: items || [] });
     } catch (err) {
-      console.warn('GET /api/sync fallback:', err.message);
-      return res.status(200).json({ ok: true, items: [] });
+      console.warn('GET /api/sync failed:', err.message);
+      return res.status(err?.status || 503).json({ ok: false, error: err?.message || 'Vault sync is temporarily unavailable.' });
     }
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
-    let uid = null;
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     const body = req.body || {};
-    if (token) {
-      try {
-        const identity = await verifyOwnerToken(token, deviceIdFrom(req));
-        uid = identity?.uid;
-      } catch (err) {
-        console.warn('Identity token verification failed:', err.message);
-      }
-    }
-    if (!uid && body.code) {
-      const user = getUserByCode(body.code);
-      if (user && (!body.uid || user.uid === body.uid)) {
-        uid = user.uid;
-      }
-    }
-    if (!uid && body.uid) {
-      const user = getUserByUid(body.uid);
-      if (user) uid = user.uid;
-    }
-    if (!uid) return res.status(200).json({ ok: true, mirrored: 'guest-offline' });
+    const identity = await verifyOwnerToken(token, deviceIdFrom(req));
+    const uid = identity.uid;
 
     const chatId = getUserByUid(uid)?.telegramChatId;
     if (chatId) await linkTelegramChat(chatId, uid);
@@ -81,6 +51,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, mirrored: 'realtime-database' });
   } catch (error) {
     console.error('Secure sync failed:', error?.message);
-    return res.status(200).json({ ok: true, mirrored: 'runtime-fallback' });
+    return res.status(error?.status || 503).json({ ok: false, error: error?.message || 'Secure sync is temporarily unavailable.' });
   }
 }

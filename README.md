@@ -58,7 +58,7 @@ No demo records are included. Every displayed record belongs to the currently se
 
 ### Voice Memo & Audio Vault
 - **In-App Voice Recording**: Client-side recording with `MediaRecorder` and live speech-to-text transcript preview.
-- **AES-256-GCM Encrypted Storage**: Audio is chunked and stored in Firestore under `secureAudio` per owner.
+- **AES-256-GCM Encrypted Storage**: Audio is stored owner-isolated in Realtime Database under `secureAudio`; Cloudflare R2 is used when configured, with Firestore retained as a best-effort recovery mirror.
 - **Dedicated Audio Tab**: HTML5 audio player with transcription retry support, edit capabilities, and reminder linking.
 - **Telegram Voice Note Ingestion**: Voice messages sent to Telegram are automatically downloaded, encrypted, transcribed, and added to your Audio tab.
 
@@ -104,12 +104,12 @@ Browser / PWA (Client)
         └── /api/sync: AES-256-GCM server automation mirror
 ```
 
-Authentication challenges, rate limits, and device sessions use an encrypted server-only Realtime Database record. This keeps Telegram OTP available when Firestore reaches its daily quota. Verified sessions are also mirrored to Firestore when it is healthy so client security rules remain enforced.
+Realtime Database is the primary cloud store for vault records, audio/document metadata and chunks, Telegram queues, delivery claims, authentication challenges, rate limits, and device sessions. Firestore remains a best-effort recovery mirror while healthy. All RTDB vault paths are server-only; the browser accesses them through authenticated, owner-isolated APIs.
 
 ### Encryption Layers
 1. **Client-Side Master Vault (AES-GCM 256-bit)**:
    - Key derived client-side via PBKDF2-SHA-256 with 100,000 iterations.
-   - Firestore `users/{uid}/items` receives only encrypted ciphertexts.
+   - Realtime Database `users/{uid}/items` receives only encrypted ciphertexts; Firestore may receive an encrypted recovery mirror.
 2. **Server Automation Mirror (AES-256-GCM)**:
    - Stored in `secureVault/{uid}/items` encrypted with `VAULT_SERVER_KEY`.
    - Enables headless Telegram bot replies, voice processing, and reminder sweeps when the browser is closed.
@@ -229,15 +229,31 @@ Headless automation reads the server-encrypted mirror, not browser IndexedDB. `F
 
 ---
 
-## 📁 Database Schema (Firestore)
+## 📁 Database Architecture
+
+### Realtime Database — primary, server-only
+
+- `users/{uid}/items/{itemId}` — Client-compatible encrypted vault records.
+- `secureVault/{uid}/items/{itemId}` — Server-encrypted automation mirror.
+- `secureAudio/{uid}/items/{audioId}` — Encrypted audio metadata/chunks, or encrypted R2 metadata.
+- `secureDocuments/{uid}/items/{documentId}` — Encrypted document metadata/chunks, or encrypted R2 metadata.
+- `verifiedSessions/{uid}/sessions/{authTime}` — Bound device sessions.
+- `telegramActionQueue/{uid}/{queueId}` — Telegram-originating mutations.
+- `reminderDeliveries/{uid}/{deliveryId}` — Delivery and deduplication claims.
+- `serverAuth/{uid}` — Encrypted OTP challenges and security limits.
+
+The browser cannot directly read or write these paths. Firebase Admin accesses them from authenticated server APIs. Deploy `database.rules.json` after changes.
+
+### Firestore — recovery mirror
 
 - `users/{uid}/items/{itemId}` — Client-side encrypted vault records.
 - `secureVault/{uid}/items/{itemId}` — Server-encrypted automation mirror.
-- `secureAudio/{uid}/items/{audioId}` — Encrypted audio metadata with `chunks` subcollection.
+- `secureAudio/{uid}/items/{audioId}` — Best-effort encrypted audio metadata/chunk recovery mirror.
+- `secureDocuments/{uid}/items/{documentId}` — Best-effort encrypted document metadata/chunk recovery mirror.
 - `verifiedSessions/{uid}/sessions/{authTime}` — Firestore mirror of active bound device sessions for client security rules.
 - `telegramActionQueue/{uid}/items/{queueId}` — Action queue for mutations originating from Telegram.
 - `reminderDeliveries/{uid}/items/{deliveryId}` — Atomic delivery and deduplication keys.
 
-### Realtime Database (server-only)
+### Verified migration
 
-- `serverAuth/{uid}` — AES-256-GCM encrypted OTP challenge, request/verification limits, and device-session state. Deploy `database.rules.json` so browser clients cannot read or write this path; Firebase Admin continues to access it from server APIs.
+Run `node scripts/migrate-firestore-to-rtdb.mjs` from a securely configured server environment. The migration is merge-only and resumable: it does not delete Firestore data, verifies every copied path using deterministic fingerprints, and writes a completion report at `migrationStatus/firestoreToRtdbV2` only after verification succeeds.

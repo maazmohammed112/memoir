@@ -20,6 +20,7 @@ server.post('/api/assistant', assistant);
 server.post('/api/auth', auth);
 server.post('/api/telegram', telegram);
 server.post('/api/sync', sync);
+server.get('/api/sync', sync);
 server.post('/api/reminders', reminders);
 server.get('/api/reminders', reminders);
 server.get('/api/reminders-morning', reminders);

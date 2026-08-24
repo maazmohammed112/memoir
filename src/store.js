@@ -8,6 +8,7 @@ const firebaseConfig = {
   messagingSenderId: '256886953432',
   appId: '1:256886953432:web:10db422f21939a90f6cead',
   measurementId: 'G-E4CM9P974R',
+  databaseURL: 'https://personalvault-20c1f-default-rtdb.firebaseio.com',
 };
 
 const DB_VERSION = 2;
@@ -200,6 +201,7 @@ class VaultStore {
   db = null;
   auth = null;
   listener = null;
+  syncPollTimer = null;
   connectionPromise = null;
   firebaseReadyPromise = null;
   expiryTimer = null;
@@ -607,7 +609,6 @@ class VaultStore {
       await this.reconcileOwnerVault();
       this.flush().catch(() => {});
       this.listen();
-      this.mirrorSnapshot().catch(() => {});
       this.status = 'synced';
       this.emit();
     } catch (error) {
@@ -620,7 +621,7 @@ class VaultStore {
   async reconcileOwnerVault() {
     if (!this.uid || !navigator.onLine) return;
     try {
-      // 1. Pull server-decrypted items from /api/sync (which checks Firestore secureVault + RTDB)
+      // Pull owner-isolated records from the RTDB-primary server sync API.
       try {
         const token = await this.idToken();
         const headers = token ? this.apiHeaders(token) : {};
@@ -633,38 +634,20 @@ class VaultStore {
               await localPut(item);
             }
           }
+          if (items.length) {
+            const remoteIds = new Set(items.map(item => item?.id).filter(Boolean));
+            const pending = await idb('queue', 'readonly', store => store.getAll());
+            const pendingIds = new Set((pending || []).map(change => change.id));
+            const localRows = await idb('records', 'readonly', store => store.getAll());
+            for (const row of localRows) {
+              if (!remoteIds.has(row.id) && !pendingIds.has(row.id)) await localRemove(row.id);
+            }
+          }
         }
       } catch (apiErr) {
         console.warn('API sync reconcile fallback:', apiErr?.message || apiErr);
       }
 
-      // 2. Also check Firestore direct client collection if available
-      if (this.db) {
-        try {
-          const ref = this.firebase.collection(this.db, 'users', this.uid, 'items');
-          const snapshot = await this.firebase.getDocs(ref);
-          const remote = new Map(snapshot.docs.map(item => [item.id, item.data()]));
-          const localRows = await idb('records', 'readonly', store => store.getAll());
-          const local = new Map(localRows.map(item => [item.id, item]));
-          for (const [id, data] of remote.entries()) {
-            const row = local.get(id);
-            if (!row || Number(data.updatedAt) >= Number(row.updatedAt)) {
-              try {
-                const item = await decrypt(data.payload);
-                if (item?.id) await localPut(item);
-              } catch { /* local device key */ }
-            }
-          }
-          for (const row of localRows) {
-            const cloud = remote.get(row.id);
-            if (!cloud || Number(row.updatedAt) > Number(cloud.updatedAt)) {
-              await idb('queue', 'readwrite', store => store.put({ id: row.id, op: 'put', updatedAt: row.updatedAt, payload: row.payload }));
-            }
-          }
-        } catch (fsErr) {
-          console.warn('Firestore direct client read skipped:', fsErr?.message || fsErr);
-        }
-      }
     } catch (err) {
       console.warn('Reconciliation error:', err?.message || err);
     }
@@ -710,43 +693,13 @@ class VaultStore {
   }
 
   listen() {
-    if (!this.db || !this.uid) return;
+    if (!this.uid) return;
     this.listener?.();
-    try {
-      const ref = this.firebase.collection(this.db, 'users', this.uid, 'items');
-      this.listener = this.firebase.onSnapshot(ref, { includeMetadataChanges: false }, async snapshot => {
-        let hasChanges = false;
-        for (const change of snapshot.docChanges()) {
-          if (change.type === 'removed') {
-            await localRemove(change.doc.id);
-            hasChanges = true;
-            continue;
-          }
-          const remote = change.doc.data();
-          if (!remote) continue;
-          try {
-            const item = await decrypt(remote.payload);
-            if (item && item.id) {
-              await idb('records', 'readwrite', store => store.put({ id: item.id, updatedAt: remote.updatedAt || item.updatedAt || Date.now(), payload: remote.payload }));
-              hasChanges = true;
-            }
-          } catch (e) {
-            console.warn('Remote snapshot record decrypt failed:', e?.message || e);
-          }
-        }
-        if (hasChanges || !this.items.length) {
-          this.items = await localList();
-          this.status = 'synced';
-          this.emit();
-        }
-      }, () => {
-        this.status = 'synced';
-        this.emit();
-      });
-    } catch {
-      this.status = 'synced';
-      this.emit();
-    }
+    clearInterval(this.syncPollTimer);
+    this.syncPollTimer = setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine && this.session.status === 'signedIn') this.reconcileOwnerVault().catch(() => {});
+    }, 30000);
+    this.listener = () => { clearInterval(this.syncPollTimer); this.syncPollTimer = null; };
   }
 
   async save(item) {
@@ -760,7 +713,6 @@ class VaultStore {
     
     // Background cloud sync - instantaneous UI return
     this.flush().catch(() => {});
-    this.mirror({ op: 'put', id: next.id, item: next, payload, updatedAt: now }).catch(() => {});
     return next;
   }
 
@@ -775,7 +727,6 @@ class VaultStore {
     this.items = [...saved, ...this.items.filter(item => !saved.some(next => next.id === item.id))].sort((a, b) => b.updatedAt - a.updatedAt);
     this.emit();
     this.flush().catch(() => {});
-    saved.forEach(item => this.mirror({ op: 'put', id: item.id, item, updatedAt: item.updatedAt }).catch(() => {}));
     return saved;
   }
 
@@ -786,7 +737,6 @@ class VaultStore {
     await idb('queue', 'readwrite', store => store.put({ id, op: 'delete', updatedAt: Date.now() }));
     this.emit();
     this.flush().catch(() => {});
-    this.mirror({ op: 'delete', id }).catch(() => {});
   }
 
   async flush() {
@@ -809,15 +759,6 @@ class VaultStore {
           }
         } catch { /* fallback to direct */ }
 
-        if (!synced && this.db) {
-          try {
-            const target = this.firebase.doc(this.db, 'users', this.uid, 'items', change.id);
-            if (change.op === 'delete') await this.firebase.deleteDoc(target);
-            else await this.firebase.setDoc(target, { payload: change.payload, updatedAt: change.updatedAt, encryption: 'AES-256-GCM', recordType: 'encrypted-vault-item' });
-            synced = true;
-          } catch { /* queued */ }
-        }
-
         if (synced) {
           await idb('queue', 'readwrite', store => store.delete(change.id));
         }
@@ -828,21 +769,6 @@ class VaultStore {
   }
 
   async idToken() { return this.auth?.currentUser?.uid === this.profile?.uid && this.session.status === 'signedIn' ? this.auth.currentUser.getIdToken() : null; }
-
-  async mirror(change) {
-    try {
-      const token = await this.idToken(); if (!token) return;
-      await fetch('/api/sync', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify(change) });
-    } catch { /* background mirror retried on next change */ }
-  }
-
-  async mirrorSnapshot() {
-    try {
-      if (!this.items || !this.items.length) return;
-      const token = await this.idToken(); if (!token) return;
-      await fetch('/api/sync', { method: 'POST', headers: this.apiHeaders(token), body: JSON.stringify({ op: 'snapshot', items: this.items }) });
-    } catch { /* the encrypted Firebase vault remains the source of truth */ }
-  }
 
   async pullTelegramActions() {
     try {
