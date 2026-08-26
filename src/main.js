@@ -68,6 +68,7 @@ import Wifi from 'lucide/dist/esm/icons/wifi.mjs';
 import X from 'lucide/dist/esm/icons/x.mjs';
 import Zap from 'lucide/dist/esm/icons/zap.mjs';
 import { vaultStore } from './store.js';
+import { cleanLegacyPrivateValue, hasPrivateToken, stripCorruptedFields } from './vaultIntegrity.js';
 
 const nav = [
   ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['assistant', 'Rhino', 'Rhinous'],

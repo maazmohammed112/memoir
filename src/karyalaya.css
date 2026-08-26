@@ -51,6 +51,26 @@
   position: relative;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 2s ease, color 2s ease;
+}
+
+/* ── Time-aware office lighting (IST) ──────────────────────────────── */
+/* Morning 9 AM – 12 PM: Bright warm sunrise */
+.karyalaya-shell[data-office-period="morning"] { background: #fdf5e2; }
+/* Afternoon 12 PM – 5 PM: Neutral productive */
+.karyalaya-shell[data-office-period="afternoon"] { background: var(--md-bg); }
+/* Evening 5 PM – 9 PM: Warm amber sunset */
+.karyalaya-shell[data-office-period="evening"] { background: #ede0c8; }
+/* Night 9 PM – 9 AM: Dark office with lamp pools */
+.karyalaya-shell[data-office-period="night"] {
+  --md-bg: #1e1b28;
+  --md-ink: #e8dfd0;
+  --md-ink-muted: #9a9099;
+  --md-border: #3a3649;
+  --md-border-light: #35313f;
+  --md-surface: #252231;
+  --md-surface-card: #2a2738;
+  background: #1e1b28;
 }
 
 /* SVG Vector Icon Utility */
