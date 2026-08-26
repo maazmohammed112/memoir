@@ -465,20 +465,21 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    if (!token) return res.status(401).json({ error: 'Missing identity token' });
+    const body = req.body || {};
+    const cleanCatalog = safeCatalog(body.catalog);
+
+    if (!token) {
+      const fallback = localAssistantFallback(body.query, cleanCatalog);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json(fallback);
+    }
     try {
       await verifyOwnerToken(token, deviceIdFrom(req));
     } catch (authErr) {
-      if (authErr?.status === 401 || authErr?.code === 'auth/otp-required') {
-        const body = req.body || {};
-        const cleanCatalog = safeCatalog(body.catalog);
-        const fallback = localAssistantFallback(body.query, cleanCatalog);
-        res.setHeader('Cache-Control', 'no-store');
-        return res.status(200).json(fallback);
-      }
-      throw authErr;
+      const fallback = localAssistantFallback(body.query, cleanCatalog);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json(fallback);
     }
-    const body = req.body || {};
     if (!String(body.query || '').trim() && !body.image && !body.audio && !body.images?.length && !body.documentText) {
       return res.status(400).json({ error: 'A query, document, image, or audio input is required' });
     }

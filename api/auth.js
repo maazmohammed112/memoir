@@ -268,16 +268,21 @@ export default async function handler(req, res) {
     if (action === 'select-account') return res.status(200).json(await selectAccount(req, req.body?.code));
     const deviceId = deviceIdFrom(req); const deviceName = deviceNameFrom(req);
     if (!deviceId) return res.status(400).json({ error: 'This browser could not create a secure device identity.', code: 'auth/device-required' });
-    const identity = await verifyApprovedToken(req);
     if (action === 'status') {
-      const session = await withDeadline(verifiedSessionFor(identity, deviceId), 'Secure session verification timed out.');
-      const expiresAt = Number(session?.expiresAt || session?.expiresAtMs || 0);
-      if (session && expiresAt > Date.now()) {
-        const mirrorRef = (await getAdmin()).firestore().collection('verifiedSessions').doc(identity.uid).collection('sessions').doc(String(identity.auth_time));
-        await withDeadline(mirrorRef.set({ ...session, authTime: Number(identity.auth_time), expiresAt: new Date(expiresAt) }, { merge: true }), 'Firestore session mirror timed out.', 2000).catch(() => {});
+      try {
+        const identity = await verifyApprovedToken(req);
+        const session = await withDeadline(verifiedSessionFor(identity, deviceId), 'Secure session verification timed out.').catch(() => null);
+        const expiresAt = Number(session?.expiresAt || session?.expiresAtMs || 0);
+        if (session && expiresAt > Date.now()) {
+          const mirrorRef = (await getAdmin()).firestore().collection('verifiedSessions').doc(identity.uid).collection('sessions').doc(String(identity.auth_time));
+          await withDeadline(mirrorRef.set({ ...session, authTime: Number(identity.auth_time), expiresAt: new Date(expiresAt) }, { merge: true }), 'Firestore session mirror timed out.', 2000).catch(() => {});
+        }
+        return res.status(200).json({ verified: Boolean(session), expiresAt });
+      } catch {
+        return res.status(200).json({ verified: false, expiresAt: 0 });
       }
-      return res.status(200).json({ verified: Boolean(session), expiresAt });
     }
+    const identity = await verifyApprovedToken(req);
     if (action === 'request') {
       const result = await requestOtp(identity);
       console.info(`[auth:${traceId}] OTP delivered in ${Date.now() - startedAt}ms`);

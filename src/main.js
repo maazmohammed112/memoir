@@ -1,5 +1,7 @@
 import './styles.css';
 import './brand.css';
+import './karyalaya.css';
+import { configureKaryalaya, renderKaryalayaTheme, updateKaryalayaVault, getThemePreference, showExperienceSwitcherModal, offerThemeChoiceOnce } from './karyalaya.js';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import ArrowLeft from 'lucide/dist/esm/icons/arrow-left.mjs';
@@ -73,6 +75,7 @@ const nav = [
 ];
 const typeIcons = { Login: 'KeyRound', Finance: 'Landmark', Identity: 'BadgeCheck', 'Government Document': 'FileBadge', Personal: 'NotebookText', Audio: 'AudioLines', Todo: 'ListTodo', Birthday: 'CakeSlice', Reminder: 'AlarmClock', Notification: 'BellRing', 'Wi-Fi': 'Wifi', Clipboard: 'Clipboard' };
 const customBrandIcons = {
+  Workspace: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   WhatsApp: '<path fill="currentColor" d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24m4.52 11.53c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.03-1.25-.75-.67-1.26-1.5-1.41-1.75-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.44.06-.67.31-.23.25-.87.85-.87 2.08 0 1.23.89 2.42 1.02 2.59.13.17 1.76 2.69 4.27 3.77.6.26 1.06.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.17-.48-.29"/>',
   Telegram: '<path fill="currentColor" d="m20.665 3.717-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l-.313 4.693c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/>',
   Instagram: '<rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>',
@@ -103,6 +106,7 @@ const state = {
 };
 
 marked.setOptions({ gfm: true, breaks: true });
+configureKaryalaya({ ask: askKaryalaya });
 localStorage.removeItem('memoir-theme');
 document.body.classList.remove('dark');
 
@@ -542,6 +546,15 @@ function shell() {
   if (state.auth.status !== 'signedIn') { renderAuthGate(); return; }
   const profile = activeProfile();
   document.body.classList.remove('auth-locked');
+
+  const activeTheme = getThemePreference();
+  if (activeTheme === 'karyalaya') {
+    document.body.classList.remove('dark');
+    renderKaryalayaTheme(app, profile, state.items);
+    return;
+  }
+
+  document.body.classList.remove('karyalaya-active');
   app.innerHTML = `<div class="shell">
     <aside class="sidebar">
       <button class="brand" data-view="home"><span class="brand-mark"><img src="/brand/pwa-192.png" alt=""></span><span>memoir</span></button>
@@ -555,6 +568,7 @@ function shell() {
         <div class="top-actions">
           <div class="global-search"><span>${icon('Search')}</span><input id="global-search" name="search" aria-label="Search everything" placeholder="Search everything…" autocomplete="off"><span class="key-hint">⌘ K</span></div>
           <span class="sync-pill"><i class="sync-dot ${state.status === 'synced' ? '' : 'offline'}"></i>${syncLabel()}</span>
+          <button class="header-karyalaya-runner" id="header-theme-switcher" title="Change workspace experience" aria-label="Change workspace experience">${icon('Workspace')} <span class="theme-label">Workspace</span></button>
           <button class="header-rhino-runner" id="header-rhino-assistant" title="Open Rhinous" aria-label="Open Rhinous assistant"><span class="rhino-track" aria-hidden="true"></span><span class="header-rhino-launch" aria-hidden="true"><img src="/brand/memoir-rhino-ui.png" alt=""></span><i></i><i></i><i></i></button>
           <button class="round-btn mobile-search" id="mobile-search-button" title="Search everything">${icon('Search')}</button>
           <button class="round-btn notification-trigger" id="notification-center" title="Notifications" aria-label="Notifications">${icon('BellRing')}<span class="notification-badge" hidden></span></button>
@@ -569,6 +583,7 @@ function shell() {
   </div>`;
   bindShell();
   checkWhatsNewAnnouncement();
+  offerThemeChoiceOnce(() => shell());
 }
 
 function renderAuthGate() {
@@ -2009,6 +2024,7 @@ function bindShell() {
   document.querySelector('#mobile-search-button')?.addEventListener('click', openMobileSearch);
   document.querySelector('#notification-center')?.addEventListener('click', () => toggleNotificationCenter());
   document.querySelector('#header-rhino-assistant')?.addEventListener('click', () => navigate('assistant'));
+  document.querySelector('#header-theme-switcher')?.addEventListener('click', () => showExperienceSwitcherModal(newTheme => shell()));
   document.addEventListener('keydown', shortcutHandler, { once: true });
   bindView();
   updateNotificationBadge();
@@ -3463,8 +3479,54 @@ async function retryAudioTranscription(id) {
     state.view = 'assistant'; shell(); await askAssistant('Retry transcription for this saved audio memory');
   } catch (error) { toast(error?.message || 'Transcription retry could not start'); }
 }
-
-
+async function askKaryalaya(query, floorHistory = []) {
+  const cleanQuery = String(query || '').trim();
+  if (!cleanQuery) return { title: 'Azhar', markdown: 'Tell me what you need from your vault.' };
+  const protectedInput = protectPrivateInput(cleanQuery);
+  const catalog = state.items.filter(item => item.type !== 'Notification').map(item => {
+    const provenance = item?.provenance || {};
+    const context = [item.domain, provenance.domain, provenance.pageTitle, item.note].filter(Boolean).join(' · ');
+    return {
+      id: item.id,
+      type: category(item),
+      title: context ? `${item.title} (${context})` : item.title,
+      fieldNames: Object.keys(allFields(item)),
+    };
+  });
+  const history = floorHistory.slice(-10).map(entry => ({
+    role: entry.role === 'user' ? 'user' : 'assistant',
+    text: String(entry.role === 'user' ? entry.text : `${entry.title || ''}. ${entry.markdown || ''}`).replace(/[#*_]/g, '').slice(0, 1200),
+  }));
+  try {
+    const identityToken = await vaultStore.idToken();
+    const response = await fetch('/api/assistant', {
+      method: 'POST',
+      headers: vaultStore.apiHeaders(identityToken),
+      body: JSON.stringify({
+        provider: state.provider,
+        query: protectedInput.text,
+        catalog,
+        history,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Calcutta',
+        now: new Date().toISOString(),
+      }),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const answer = await response.json();
+    const message = buildAssistantMessage(answer, cleanQuery, protectedInput.values);
+    if (message.actions?.length) {
+      await confirmAssistantActions(message.actions);
+      return { title: message.title || 'Vault changes reviewed', markdown: 'The requested changes were shown in a secure review before being applied.', fields: [] };
+    }
+    return message;
+  } catch (error) {
+    const fallback = localRoute(cleanQuery);
+    if (fallback) return fallback;
+    let detail = error?.message || 'The assistant service could not be reached.';
+    try { detail = JSON.parse(detail)?.error || detail; } catch {}
+    throw new Error(detail);
+  }
+}
 
 async function askAssistant(query) {
   const attachments = Array.isArray(state.chatAttachments) && state.chatAttachments.length ? [...state.chatAttachments] : (state.chatAttachment ? [state.chatAttachment] : []);
@@ -3952,7 +4014,6 @@ async function purgeExpiredNotifications() {
   for (const item of expired) await vaultStore.remove(item.id);
 }
 
-let lastRuntimeMirror = 0;
 let isAutomationRunning = false;
 async function runBackgroundAutomation() {
   if (state.auth.status !== 'signedIn' || isAutomationRunning) return;
@@ -3961,7 +4022,6 @@ async function runBackgroundAutomation() {
     if (navigator.onLine && !await vaultStore.ensureActiveSession()) return;
     await autoCompleteExpiredReminders(); await purgeExpiredNotifications();
     if (navigator.onLine) {
-      if (Date.now() - lastRuntimeMirror > 5 * 60000) { lastRuntimeMirror = Date.now(); vaultStore.mirrorSnapshot(); }
       try { const token = await vaultStore.idToken(); if (token) await fetch('/api/reminders', { method: 'POST', headers: vaultStore.apiHeaders(token, false) }); } catch { /* the next interval retries */ }
       await applyTelegramActions();
     }
@@ -3979,17 +4039,21 @@ vaultStore.subscribe((items, status, session) => {
   const nextProfileUid = state.auth.profile?.uid || '';
   if (nextProfileUid !== currentProfileUid) { currentProfileUid = nextProfileUid; state.messages = []; state.assistantLog = nextProfileUid ? loadAssistantLog(nextProfileUid) : []; }
   if (state.auth.status === 'signedIn') state.authError = '';
-  if (wasSignedIn && state.auth.status === 'signedIn' && document.querySelector('.shell')) {
-    updateSyncUi();
-    const isEditingInput = document.activeElement && document.activeElement.matches('[data-todo-amount], input, textarea');
-    if (!document.querySelector('.detail')) {
-      if (!isEditingInput) renderView();
-      else {
-        document.querySelectorAll('.todo-card').forEach(card => {
-          const editBtn = card.querySelector('[data-todo-edit]');
-          const itemId = editBtn?.dataset?.todoEdit;
-          if (itemId) refreshTodoCardDom(itemId);
-        });
+  if (wasSignedIn && state.auth.status === 'signedIn' && (document.querySelector('.shell') || document.querySelector('.karyalaya-shell'))) {
+    if (document.querySelector('.karyalaya-shell')) {
+      updateKaryalayaVault(items, status);
+    } else {
+      updateSyncUi();
+      const isEditingInput = document.activeElement && document.activeElement.matches('[data-todo-amount], input, textarea');
+      if (!document.querySelector('.detail')) {
+        if (!isEditingInput) renderView();
+        else {
+          document.querySelectorAll('.todo-card').forEach(card => {
+            const editBtn = card.querySelector('[data-todo-edit]');
+            const itemId = editBtn?.dataset?.todoEdit;
+            if (itemId) refreshTodoCardDom(itemId);
+          });
+        }
       }
     }
   }
