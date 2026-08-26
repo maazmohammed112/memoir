@@ -788,7 +788,29 @@ function lookupVaultLocally(queryText, vaultItems = []) {
   }
 
   if (bestMatch) {
-    const entries = Object.entries(bestMatch.fields || {}).map(([k, v]) => `• ${k}: ${v}`).join('\n');
+    let entries = Object.entries(bestMatch.fields || {}).map(([k, v]) => `• ${k}: ${v}`).join('\n');
+    if (bestMatch.type === 'Birthday' || bestMatch.fields?.Date) {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(bestMatch.fields?.Date || ''));
+      if (match) {
+        const year = Number(match[1]); const month = Number(match[2]); const day = Number(match[3]);
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        let occ = new Date(today.getFullYear(), month - 1, Math.min(day, new Date(today.getFullYear(), month, 0).getDate()));
+        if (occ < today) occ = new Date(today.getFullYear() + 1, month - 1, Math.min(day, new Date(today.getFullYear() + 1, month, 0).getDate()));
+        const daysAway = Math.round((occ - today) / 86400000);
+        const when = daysAway === 0 ? 'Today! 🎉' : daysAway === 1 ? 'Tomorrow' : `in ${daysAway} days`;
+        const nextDate = occ.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        const turningAge = year > 0 ? occ.getFullYear() - year : null;
+        let ageStr = '';
+        if (year > 0) {
+          let y = today.getFullYear() - year; let m = today.getMonth() - (month - 1); let d = today.getDate() - day;
+          if (d < 0) { m -= 1; d += new Date(today.getFullYear(), today.getMonth(), 0).getDate(); }
+          if (m < 0) { y -= 1; m += 12; }
+          ageStr = `${y} year${y === 1 ? '' : 's'}, ${m} month${m === 1 ? '' : 's'}, ${d} day${d === 1 ? '' : 's'}`;
+        }
+        entries = `• Next Birthday: ${nextDate} (${when})${turningAge ? `\n• Turning Age: ${turningAge} years old` : ''}${ageStr ? `\n• Current Age: ${ageStr}` : ''}\n${entries}`;
+      }
+    }
     return {
       title: bestMatch.title,
       type: bestMatch.type,
@@ -879,6 +901,7 @@ export async function sendMdMessage(rawText, vaultItems = []) {
         method: 'POST',
         headers: vaultStore.apiHeaders(identityToken),
         body: JSON.stringify({
+          provider: localStorage.getItem('memoir-provider') || 'gemini',
           query: text,
           catalog,
           history: [],
@@ -889,16 +912,31 @@ export async function sendMdMessage(rawText, vaultItems = []) {
 
       if (res.ok) {
         const data = await res.json();
-        if (data.markdown) {
-          resultOutput = data.markdown;
-          copyData = data.markdown;
-        } else if (data.matches?.length) {
+        if (data.matches?.length) {
           const mItem = activeItems.find(i => i.id === data.matches[0].id);
           if (mItem) {
-            const fieldsText = Object.entries(mItem.fields || {}).map(([k, v]) => `• ${k}: ${v}`).join('\n');
+            let fieldsText = Object.entries(mItem.fields || {}).map(([k, v]) => `• ${k}: ${v}`).join('\n');
+            if (mItem.type === 'Birthday' || mItem.fields?.Date) {
+              const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(mItem.fields?.Date || ''));
+              if (match) {
+                const year = Number(match[1]); const month = Number(match[2]); const day = Number(match[3]);
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                let occ = new Date(today.getFullYear(), month - 1, Math.min(day, new Date(today.getFullYear(), month, 0).getDate()));
+                if (occ < today) occ = new Date(today.getFullYear() + 1, month - 1, Math.min(day, new Date(today.getFullYear() + 1, month, 0).getDate()));
+                const daysAway = Math.round((occ - today) / 86400000);
+                const when = daysAway === 0 ? 'Today! 🎉' : daysAway === 1 ? 'Tomorrow' : `in ${daysAway} days`;
+                const nextDate = occ.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                const turningAge = year > 0 ? occ.getFullYear() - year : null;
+                fieldsText = `• Next Birthday: ${nextDate} (${when})${turningAge ? `\n• Turning Age: ${turningAge} years old` : ''}\n${fieldsText}`;
+              }
+            }
             resultOutput = `[Matched "${mItem.title}"]\n${fieldsText}`;
             copyData = fieldsText;
           }
+        } else if (data.markdown) {
+          resultOutput = data.markdown;
+          copyData = data.markdown;
         }
       }
     } catch {}
@@ -1008,7 +1046,12 @@ function renderCommandDeck(vaultItems = []) {
         ${tab === 'terminal' ? `
           <div class="md-terminal-container">
             <div class="md-terminal-meta">
-              <span class="md-meta-live"><i></i> live · pty pty-god (AZHAR · God Orchestrator)</span>
+              <span class="md-meta-live"><i></i> live · pty-god (AZHAR · Orchestrator)</span>
+              <div class="md-provider-selector" style="display:inline-flex; align-items:center; gap:4px; margin-left:auto; margin-right:8px">
+                <button type="button" class="md-btn-mini ${(localStorage.getItem('memoir-provider') || 'gemini') === 'gemini' ? 'active' : ''}" data-md-provider="gemini" style="padding:2px 6px; font-size:9.5px; border-radius:4px; ${(localStorage.getItem('memoir-provider') || 'gemini') === 'gemini' ? 'background:#2c2825;color:#fff;font-weight:bold' : ''}">Gemini</button>
+                <button type="button" class="md-btn-mini ${(localStorage.getItem('memoir-provider') || 'gemini') === 'mistral' ? 'active' : ''}" data-md-provider="mistral" style="padding:2px 6px; font-size:9.5px; border-radius:4px; ${(localStorage.getItem('memoir-provider') || 'gemini') === 'mistral' ? 'background:#2c2825;color:#fff;font-weight:bold' : ''}">Mistral</button>
+                <button type="button" class="md-btn-mini ${(localStorage.getItem('memoir-provider') || 'gemini') === 'other' ? 'active' : ''}" data-md-provider="other" style="padding:2px 6px; font-size:9.5px; border-radius:4px; ${(localStorage.getItem('memoir-provider') || 'gemini') === 'other' ? 'background:#2c2825;color:#fff;font-weight:bold' : ''}">Other</button>
+              </div>
               <button class="md-btn-mini" id="md-clear-logs-btn">${mdIcon('trash')} Clear</button>
             </div>
             <div class="md-terminal-output" id="md-terminal-output">
@@ -1601,6 +1644,30 @@ function bindDeckSubEvents(vaultItems) {
     mdState.logs = [{ type: 'info', text: 'Terminal log cleared.' }];
     saveChatLogs(mdState.logs);
     renderTerminalOutput();
+  });
+
+  // AI Provider Switcher
+  document.querySelectorAll('[data-md-provider]').forEach(btn => {
+    btn.onclick = () => {
+      sound.playBlip();
+      const chosen = btn.dataset.mdProvider;
+      localStorage.setItem('memoir-provider', chosen);
+      document.querySelectorAll('[data-md-provider]').forEach(b => {
+        const isMatch = b.dataset.mdProvider === chosen;
+        b.classList.toggle('active', isMatch);
+        b.style.fontWeight = isMatch ? 'bold' : 'normal';
+        b.style.background = isMatch ? '#2c2825' : '#fff';
+        b.style.color = isMatch ? '#fff' : '#2c2825';
+      });
+      mdState.logs.push({
+        type: 'agent',
+        name: '👑 AZHAR (Supreme God Orchestrator)',
+        text: `AI Intelligence provider set to **${chosen.toUpperCase()}** (with automatic model fallback).`,
+        copyable: false,
+      });
+      saveChatLogs(mdState.logs);
+      renderTerminalOutput();
+    };
   });
 
   // Quick Action Buttons

@@ -211,6 +211,11 @@
 .answer-table td:nth-child(2){color:var(--ink);min-width:110px;word-break:break-word}
 .answer-table td:last-child{width:1%;white-space:nowrap;text-align:right}
 .field-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px}
+.ai-birthday-banner{display:flex;align-items:center;gap:12px;margin:10px 0;padding:12px 14px;border:1px solid rgba(243,46,139,0.25);border-radius:14px;background:linear-gradient(135deg,rgba(255,118,89,0.08),rgba(243,46,139,0.08))}
+.ai-birthday-banner .icon-wrap{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:none;background:#fee2e2;color:#e11d48}
+.ai-birthday-details{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.ai-birthday-details strong{font-size:13px;font-weight:700;color:var(--ink)}
+.ai-birthday-details small{font-size:11px;color:var(--muted)}
 .browser-provenance-box{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface2)}
 .browser-provenance-head{display:flex;align-items:center;gap:10px}
 .browser-provenance-head>div{flex:1;min-width:0}
