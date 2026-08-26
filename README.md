@@ -1,5 +1,7 @@
 # Memoir — Encrypted Personal Vault & Autonomous Chief of Staff
 
+> Third-party source acknowledgements are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 Memoir is a mobile-first, local-first personal memory vault for credentials, banking records, government documents, warranties, personal notes, clipboard history, birthdays, voice memos, and smart reminders. It combines encrypted offline storage, owner-isolated Firebase synchronization, the vault-scoped **Rhinous** assistant, on-device multimodal capture (multi-image & local PDF parsing), an autonomous Telegram Chief of Staff, and installable PWA support.
 
 No demo records are included. Every displayed record belongs to the currently selected and authenticated owner.
@@ -38,6 +40,14 @@ No demo records are included. Every displayed record belongs to the currently se
 - **Complete Credential & Field Resolution**: When asking for passwords, Wi-Fi keys, or birthdays, Rhinous retrieves the exact, complete record fields (e.g. `Date: August 22, 1995 (1995-08-22)`, `Network`, `Password`) directly to the authenticated owner.
 - **Temporal Calendar Awareness**: Understands user local time (`Asia/Calcutta`), day-of-week context, and handles recurring reminders naturally.
 - **Redacted Privacy Catalog**: The AI model only receives anonymized title/type metadata; sensitive payload decryption occurs exclusively on device.
+
+### 5. Dual Workspace Experience
+- **Rhino remains the default** focused vault interface. A first-use workspace chooser lets the owner opt into Karyalaya without changing storage, permissions, or encryption.
+- **Karyalaya AI Floor** provides a two-axis pannable pixel operations floor, a horizontally scrollable agent roster, and four focused data sections: Overview, Vault, Planner, and Agents.
+- **One orchestration channel**: Azhar chat stays directly beneath the floor and roster instead of living in a separate tab. Azhar assigns real requests to the appropriate specialist and returns the final structured response in the same conversation.
+- **Shared production data**: both workspaces subscribe to the same live RTDB-primary vault. Firestore remains the recovery archive and best-effort mirror; there is no separate theme database and no demo dataset.
+- **Secure structured results**: Markdown is sanitized, exact fields retain per-field copy controls, and sensitive values are masked until explicitly revealed.
+- **Runtime-only floor activity**: Karyalaya does not persist plaintext assistant messages or secrets in browser local storage. Idle agents take visual coffee, snack, water, and break-room routines; real user requests interrupt those routines and update specialist status.
 
 ---
 
