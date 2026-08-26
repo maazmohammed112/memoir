@@ -1,0 +1,953 @@
+/* ==========================================================================
+   KARYALAYA — MUNDER DIFFLIN AUTHENTIC PIXEL OFFICE DESIGN SYSTEM
+   Pixel-art office simulation inspired by chaitanyagiri/munder-difflin
+   Features:
+   - Authentic retro cream/sage aesthetic (#fcf8ec, #9fb3a3, #2c2825)
+   - God Agent Azhar in Boss Office with Real Rhino branding
+   - 2D Horizontal & Vertical Touch Navigation (Pan & Zoom)
+   - Real-Time Autonomous Walking Agents (60fps Game Loop)
+   - Multi-agent PTY terminal, memory graph, tasks, and telemetry
+   - Structured Output Cards with 1-Click Copy Buttons
+   - Floor Agent Click HUD Modal / Tooltip
+   - Zero-Overlap Mobile UI with Safe Dock Padding
+   ========================================================================== */
+
+:root {
+  --md-bg: #fcf8ec;
+  --md-surface: #fffef7;
+  --md-surface-card: #f7f1de;
+  --md-surface-elevated: #ede4cc;
+  --md-border: #2c2825;
+  --md-border-light: #d4c8af;
+  --md-border-dark: #1b1816;
+  
+  --md-ink: #231f1d;
+  --md-ink-muted: #6b6357;
+  --md-ink-faint: #9c9180;
+  
+  --md-gold: #f5e39b;
+  --md-gold-border: #d4b445;
+  --md-cyan: #0284c7;
+  --md-emerald: #16a34a;
+  --md-rose: #e11d48;
+  --md-violet: #7c3aed;
+  --md-amber: #d97706;
+  
+  --md-font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  --md-font-retro: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --md-shadow-retro: 3px 3px 0px #2c2825;
+  --md-shadow-card: 4px 4px 0px rgba(44, 40, 37, 0.15);
+}
+
+/* Base Shell for Munder Difflin Theme */
+.karyalaya-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--md-bg);
+  color: var(--md-ink);
+  font-family: var(--md-font-retro);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* SVG Vector Icon Utility */
+.md-svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  flex-shrink: 0;
+}
+
+.md-svg svg {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Top Command Header Bar (Responsive & Non-Overlapping) */
+.md-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: #fffef7;
+  border-bottom: 2px solid var(--md-border);
+  padding: 8px clamp(10px, 2vw, 18px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.md-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.md-rhino-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--md-surface-card);
+  border: 1.5px solid var(--md-border);
+  padding: 4px 8px;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0px var(--md-border);
+  text-decoration: none;
+  color: var(--md-ink);
+  cursor: pointer;
+}
+
+.md-rhino-badge img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.md-rhino-badge strong {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.md-boss-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1.5px solid var(--md-border);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--md-ink);
+}
+
+.md-tag-god {
+  font-size: 9.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+  background: #f59e0b;
+  color: #000;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid #000;
+  letter-spacing: 0.04em;
+}
+
+.md-tag-idle {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--md-emerald);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.md-boss-tagline {
+  font-size: 11px;
+  color: var(--md-ink-muted);
+  font-weight: 500;
+}
+
+.md-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.md-btn-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: #fff;
+  border: 1.5px solid var(--md-border);
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--md-ink);
+  cursor: pointer;
+  box-shadow: 2px 2px 0px var(--md-border);
+  transition: transform 0.1s, box-shadow 0.1s;
+  white-space: nowrap;
+}
+
+.md-btn-tool:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--md-border);
+}
+
+.md-btn-tool:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px var(--md-border);
+}
+
+.md-btn-tool.active-yellow {
+  background: var(--md-gold);
+}
+
+/* Main Layout: Left Office Floor + Right PTY Terminal */
+.md-main-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 520px;
+  gap: 16px;
+  padding: 12px clamp(8px, 1.8vw, 18px);
+  max-width: 1800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Left Floor View Area */
+.md-floor-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Retro Office Canvas Box */
+.md-floor-frame {
+  position: relative;
+  background: #fff;
+  border: 2.5px solid var(--md-border);
+  border-radius: 8px;
+  box-shadow: var(--md-shadow-retro);
+  overflow: hidden;
+  height: clamp(500px, 66vh, 740px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Canvas Viewport with 2D Touch Pan / Zoom */
+.md-canvas-wrap {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #9fb3a3; /* Munder Difflin sage floor */
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.md-canvas-wrap:active {
+  cursor: grabbing;
+}
+
+#md-office-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  transition: transform 0.05s linear;
+}
+
+/* Floating Action Overlay on Floor */
+.md-floor-toolbar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 10;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.md-floor-toolbar > * {
+  pointer-events: auto;
+}
+
+.md-floor-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.md-chip {
+  padding: 4px 8px;
+  background: rgba(255, 254, 247, 0.95);
+  border: 1.5px solid var(--md-border);
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  box-shadow: 2px 2px 0px var(--md-border);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 2D Horizontal & Vertical Navigation Pad */
+.md-floor-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255, 254, 247, 0.95);
+  border: 1.5px solid var(--md-border);
+  padding: 2px 4px;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0px var(--md-border);
+}
+
+.md-pan-btn {
+  padding: 3px 6px;
+  background: #fff;
+  border: 1px solid var(--md-border);
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+}
+
+.md-pan-btn:active {
+  transform: translate(1px, 1px);
+}
+
+/* Agent Info Overlay Card (HUD on Canvas) */
+.md-agent-hud-card {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  max-width: 380px;
+  background: #fffef7;
+  border: 2px solid var(--md-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 4px 4px 0px var(--md-border);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: mdPopIn 0.15s ease-out;
+}
+
+@keyframes mdPopIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.md-hud-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.md-hud-header strong {
+  font-size: 12.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.md-hud-desc {
+  font-size: 11px;
+  color: var(--md-ink-muted);
+  line-height: 1.4;
+}
+
+.md-hud-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* Right Command Center Deck */
+.md-command-deck {
+  display: flex;
+  flex-direction: column;
+  background: #fffef7;
+  border: 2.5px solid var(--md-border);
+  border-radius: 8px;
+  box-shadow: var(--md-shadow-retro);
+  overflow: hidden;
+  height: clamp(500px, 66vh, 740px);
+}
+
+/* Munder Difflin Tab Bar */
+.md-tab-bar {
+  display: flex;
+  background: #f7f1de;
+  border-bottom: 2px solid var(--md-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.md-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.md-tab-btn {
+  padding: 7px 11px;
+  border: 0;
+  border-right: 1.5px solid var(--md-border);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--md-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+
+.md-tab-btn:hover {
+  background: #ede4cc;
+}
+
+.md-tab-btn.active {
+  background: var(--md-gold);
+  border-bottom: 2px solid var(--md-gold);
+  margin-bottom: -2px;
+  box-shadow: inset 0 -2px 0 #3b3014;
+}
+
+/* Panel Body */
+.md-panel-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Terminal View */
+.md-terminal-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  min-height: 0;
+}
+
+.md-terminal-meta {
+  padding: 5px 10px;
+  background: #fcf8ec;
+  border-bottom: 1.5px solid var(--md-border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  font-family: var(--md-font-mono);
+  color: var(--md-ink-muted);
+}
+
+.md-meta-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--md-ink);
+}
+
+.md-meta-live i {
+  width: 7px;
+  height: 7px;
+  background: var(--md-emerald);
+  display: inline-block;
+}
+
+.md-terminal-output {
+  flex: 1;
+  padding: 10px 12px;
+  overflow-y: auto;
+  font-family: var(--md-font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #222;
+  background: #ffffff;
+}
+
+.md-log-entry {
+  margin-bottom: 8px;
+}
+
+.md-log-bullet {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--md-ink-muted);
+}
+
+.md-shell-cmd {
+  color: var(--md-ink-muted);
+  font-style: italic;
+  margin: 3px 0 5px;
+  padding-left: 12px;
+}
+
+.md-user-prompt-line {
+  color: #b91c1c;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+/* Structured Agent Reply Box with Copy Action */
+.md-agent-reply-box {
+  background: #fcf8ec;
+  border: 1.5px solid #2c2825;
+  border-left: 4px solid #f59e0b;
+  padding: 8px 10px;
+  margin: 6px 0;
+  border-radius: 4px;
+  box-shadow: 2px 2px 0px rgba(0,0,0,0.08);
+  position: relative;
+}
+
+.md-reply-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--md-border-light);
+  padding-bottom: 3px;
+}
+
+.md-reply-header strong {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--md-ink);
+}
+
+.md-copy-btn {
+  padding: 2px 6px;
+  background: #fff;
+  border: 1px solid var(--md-border);
+  border-radius: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.md-copy-btn:hover {
+  background: var(--md-gold);
+}
+
+.md-reply-body {
+  font-size: 11px;
+  white-space: pre-wrap;
+  color: var(--md-ink);
+  line-height: 1.5;
+}
+
+/* Prompt Queue & Input Area */
+.md-prompt-area {
+  border-top: 2px solid var(--md-border);
+  background: #fcf8ec;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.md-context-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--md-font-mono);
+  font-size: 10px;
+  color: var(--md-ink-muted);
+}
+
+.md-ctx-meter {
+  color: #0284c7;
+  font-weight: 700;
+}
+
+.md-perm-hint {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.md-input-box {
+  background: #ffffff;
+  border: 1.5px solid var(--md-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.md-queue-label {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--md-ink-faint);
+  letter-spacing: 0.05em;
+}
+
+.md-textarea {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  font-family: var(--md-font-mono);
+  font-size: 11.5px;
+  color: var(--md-ink);
+  background: transparent;
+  resize: none;
+  min-height: 42px;
+}
+
+.md-input-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-top: 1px solid #eee;
+  padding-top: 4px;
+}
+
+.md-input-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.md-btn-mini {
+  padding: 3px 7px;
+  border: 1px solid var(--md-border);
+  border-radius: 4px;
+  background: #f7f1de;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.md-btn-mini:hover {
+  background: #ede4cc;
+}
+
+.md-btn-send {
+  padding: 4px 12px;
+  background: #231f1d;
+  color: #fff;
+  border: 1px solid #000;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.md-btn-send:hover {
+  background: #000;
+}
+
+/* Bottom Agent Roster Bar */
+.md-bottom-roster {
+  background: #fffef7;
+  border-top: 2px solid var(--md-border);
+  padding: 8px clamp(8px, 1.8vw, 18px);
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.md-agent-card {
+  min-width: 155px;
+  background: #fff;
+  border: 2px solid var(--md-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  gap: 7px;
+  box-shadow: 2px 2px 0px var(--md-border);
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  flex-shrink: 0;
+}
+
+.md-agent-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 3px 3px 0px var(--md-border);
+}
+
+.md-agent-card.selected {
+  background: #fefce8;
+  border-color: #d97706;
+  box-shadow: 3px 3px 0px #d97706;
+}
+
+.md-agent-avatar-thumb {
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid var(--md-border);
+  border-radius: 4px;
+  background: #f7f1de;
+  display: grid;
+  place-items: center;
+  font-size: 10.5px;
+  font-weight: 900;
+  flex-shrink: 0;
+  position: relative;
+  image-rendering: pixelated;
+}
+
+.md-agent-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.md-agent-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.md-agent-name-row strong {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--md-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.md-agent-harness {
+  font-size: 9px;
+  color: var(--md-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 1px 0 3px;
+}
+
+.md-talk-btn {
+  padding: 2px 6px;
+  border: 1px solid var(--md-border);
+  background: #fcf8ec;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.md-talk-btn:hover {
+  background: #ede4cc;
+}
+
+/* ==========================================================================
+   THEME SELECTION MODAL WITH RHINO LOGO & MUNDER DIFFLIN
+   ========================================================================== */
+
+.md-theme-modal {
+  width: min(560px, calc(100% - 20px));
+  background: #fffef7;
+  border: 3px solid #2c2825;
+  border-radius: 12px;
+  color: var(--md-ink);
+  padding: 20px;
+  box-shadow: 6px 6px 0px #2c2825;
+}
+
+.md-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.md-modal-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.md-modal-header img {
+  width: 26px;
+  height: 26px;
+}
+
+.md-theme-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.md-theme-card {
+  padding: 14px;
+  border: 2px solid var(--md-border);
+  border-radius: 8px;
+  background: #fcf8ec;
+  cursor: pointer;
+  box-shadow: 3px 3px 0px var(--md-border);
+  transition: transform 0.1s, box-shadow 0.1s;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.md-theme-card:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px var(--md-border);
+}
+
+.md-theme-card.selected {
+  background: #fffef7;
+  border-color: #d97706;
+  box-shadow: 4px 4px 0px #d97706;
+}
+
+.md-theme-icon {
+  width: 40px;
+  height: 40px;
+  border: 1.5px solid var(--md-border);
+  border-radius: 6px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 2px 2px 0px var(--md-border);
+}
+
+.md-theme-card h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.md-theme-card p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--md-ink-muted);
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   MOBILE RESPONSIVENESS & TOUCH CONTROLS (NON-OVERLAPPING)
+   ========================================================================== */
+
+.md-mobile-dock {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  .md-main-layout {
+    grid-template-columns: 1fr;
+    padding-bottom: 12px;
+  }
+
+  .md-floor-frame,
+  .md-command-deck {
+    height: 52vh;
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 768px) {
+  .md-header {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .md-rhino-badge strong {
+    font-size: 11px;
+  }
+
+  .md-boss-tagline {
+    display: none;
+  }
+
+  .md-main-layout {
+    padding: 6px;
+    gap: 10px;
+  }
+
+  .md-floor-frame {
+    height: 48vh;
+    min-height: 380px;
+  }
+
+  .md-theme-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .md-bottom-roster {
+    padding-bottom: 76px;
+  }
+
+  .md-mobile-dock {
+    display: flex;
+    position: fixed;
+    bottom: calc(6px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(390px, calc(100vw - 16px));
+    background: #fffef7;
+    border: 2px solid var(--md-border);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+    box-shadow: 4px 4px 0px var(--md-border);
+    z-index: 60;
+  }
+
+  .md-mobile-dock-btn {
+    flex: 1;
+    height: 42px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--md-ink-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 9.5px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .md-mobile-dock-btn.active {
+    background: var(--md-gold);
+    color: var(--md-ink);
+    border: 1.5px solid var(--md-border);
+  }
+}
