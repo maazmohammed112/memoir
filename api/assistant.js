@@ -1,8 +1,9 @@
 import { deviceIdFrom, verifyOwnerToken } from '../lib/firebaseAdmin.js';
 
 const coolingDown = new Map();
-const geminiModels = (process.env.GEMINI_MODELS || 'gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash,gemini-2.5-flash-lite').split(',');
-const mistralModels = (process.env.MISTRAL_MODELS || 'mistral-small-latest,ministral-8b-latest,open-mistral-nemo,mistral-medium-latest,ministral-3b-latest').split(',');
+const geminiModels = (process.env.GEMINI_MODELS || 'gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-2.5-flash-lite,gemini-3-flash,gemini-2.0-flash,gemini-1.5-flash').split(',');
+const mistralModels = (process.env.MISTRAL_MODELS || 'ministral-3b-2512,ministral-8b-2512,mistral-small-2603,mistral-medium-latest,mistral-small-latest,open-mistral-nemo').split(',');
+const openrouterModels = (process.env.OPENROUTER_MODELS || 'openrouter/free,nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free,cohere/north-mini-code:free,nvidia/nemotron-3.5-lightning:free,nvidia/nemotron-3-super-120b-a12b:free,google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free,poolside/laguna-xs-2.1:free,z-ai/glm-5.2:free,minimax/minimax-m2.7:free,minimax/minimax-m3:free').split(',');
 
 const SYSTEM = `You are Rhinous, the private, smart, highly capable intelligence layer for Memoir, a personal vault.
 Your scope includes all the user's saved memories, passwords, credentials, cards, documents, Wi-Fi, clipboard items, to-do lists, birthdays, reminders, and vault organization.
@@ -18,7 +19,8 @@ CRITICAL INSTRUCTIONS FOR RETRIEVING INFORMATION (LOOKUPS):
      - Return kind: "lookup".
      - Under "matches", include the item ID and ALL available field names for that record (or leave "fields" empty [] to indicate all fields).
 3. In your "markdown" response:
-   - Write a concise, natural, direct one-sentence introduction (e.g. "Here is your SBI debit card CVV.", "Here are your saved SBI debit card details.", "Here is the date for Deepti’s birthday.").
+   - Write a concise, natural, direct one-sentence introduction (e.g. "Here is your SBI debit card CVV.", "Here are your saved SBI debit card details.", "Here is the saved birthday record for Deepti.").
+   - CRITICAL ZERO-KNOWLEDGE RULE: You do NOT have decrypted values (passwords, PINs, card numbers, or exact birthdates) in the catalog. NEVER guess, invent, fabricate, or state specific dates, days left, calculations, or secrets in your markdown text. The user's device resolves, decrypts, and mathematically calculates days left on-device.
    - NEVER output raw token syntax like [[PRIVATE_N]] or "(to be displayed on-device)" in the markdown. The user's device resolves and presents decrypted fields automatically.
 4. If no record in the vault matches the user's request:
    - Return kind: "general" with a clear, polite explanation (e.g. "I couldn’t find an SBI card in your saved vault memories.").
@@ -85,10 +87,18 @@ function safeHistory(history) {
   })).filter(entry => entry.text.trim());
 }
 function parseJson(text) {
-  const clean = String(text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  let clean = String(text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const codeBlockMatch = /```(?:json)?\s*([\s\S]*?)\s*```/i.exec(clean);
+  if (codeBlockMatch) clean = codeBlockMatch[1].trim();
   const start = clean.indexOf('{'); const end = clean.lastIndexOf('}');
-  if (start < 0 || end < start) throw new Error('Model returned no JSON object');
-  return JSON.parse(clean.slice(start, end + 1));
+  if (start < 0 || end < start) {
+    return { kind: 'general', title: 'Rhinous Assistant', markdown: clean || 'I processed your request.', matches: [], actions: [] };
+  }
+  try {
+    return JSON.parse(clean.slice(start, end + 1));
+  } catch {
+    return { kind: 'general', title: 'Rhinous Assistant', markdown: clean || 'I processed your request.', matches: [], actions: [] };
+  }
 }
 function normalize(answer, catalog) {
   const ids = new Map(catalog.map(item => [item.id, item]));
@@ -130,18 +140,76 @@ function isClearlyOffTopic(query) {
 }
 
 async function withFallback(provider, task) {
-  const models = provider === 'mistral' ? mistralModels : geminiModels;
+  const models = provider === 'mistral' ? mistralModels : provider === 'openrouter' ? openrouterModels : geminiModels;
   let lastError;
   for (const raw of models) {
     const model = raw.trim(); if (!model || (coolingDown.get(`${provider}:${model}`) || 0) > Date.now()) continue;
     try { return { result: await task(model), model }; }
     catch (error) {
       lastError = error; const status = Number(error?.status || error?.statusCode || 0);
-      if ([404, 429, 500, 502, 503, 504].includes(status) || /quota|rate|limit|overload|not found/i.test(error?.message || '')) { coolingDown.set(`${provider}:${model}`, Date.now() + (status === 429 ? 60000 : 15000)); continue; }
+      if ([400, 403, 404, 429, 500, 502, 503, 504].includes(status) || /quota|rate|limit|overload|not found|only available/i.test(error?.message || '')) {
+        coolingDown.set(`${provider}:${model}`, Date.now() + (status === 429 ? 60000 : 20000));
+        continue;
+      }
       throw error;
     }
   }
   throw lastError || new Error(`No ${provider} model is currently available`);
+}
+
+async function callOpenRouter(prompt, images = null) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error('OpenRouter is not configured');
+
+  const allImages = Array.isArray(images) ? images : (images?.data ? [images] : []);
+  let content = prompt;
+  if (allImages.length) {
+    content = [{ type: 'text', text: prompt }];
+    allImages.forEach(img => {
+      const cleanBase64 = String(img.data || '').replace(/^data:[^;]+;base64,/, '').trim();
+      const dataUrl = `data:${img.mimeType || 'image/jpeg'};base64,${cleanBase64}`;
+      content.push({ type: 'image_url', image_url: { url: dataUrl } });
+    });
+  }
+
+  return withFallback('openrouter', async model => {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://memoir-vert.vercel.app',
+        'X-Title': 'Memoir Personal Vault',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.15,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      let parsedErr = errText;
+      try {
+        const json = JSON.parse(errText);
+        parsedErr = json.error?.message || errText;
+      } catch {}
+      const err = new Error(`OpenRouter (${model}): ${parsedErr}`);
+      err.status = res.status;
+      throw err;
+    }
+
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content;
+    const parsed = Array.isArray(text) ? text.map(part => part.text || '').join('') : text;
+    if (!parsed) throw new Error(`OpenRouter model ${model} returned empty response`);
+    return parsed;
+  });
 }
 
 async function callGemini(contents) {
@@ -356,33 +424,73 @@ ${JSON.stringify(cleanCatalog)}`;
     return callMistral(promptText, allImages);
   };
 
+  const tryOpenRouter = async () => {
+    return callOpenRouter(promptText, allImages);
+  };
+
+  const isOther = activeProvider === 'other' || activeProvider === 'openrouter';
+  const isMistral = activeProvider === 'mistral';
+
   try {
-  if (activeProvider === 'mistral') {
-    try {
-      response = await tryMistral();
-    } catch (e) {
-      console.warn('Mistral failed, attempting Gemini fallback:', e?.message);
+    if (isOther) {
       try {
-        response = await tryGemini();
-        activeProvider = 'gemini';
-      } catch (geminiError) {
-        throw e;
+        response = await tryOpenRouter();
+        activeProvider = 'other';
+      } catch (e) {
+        console.warn('OpenRouter failed, attempting Gemini fallback:', e?.message);
+        try {
+          response = await tryGemini();
+          activeProvider = 'gemini';
+        } catch (geminiErr) {
+          console.warn('Gemini fallback failed, attempting Mistral fallback:', geminiErr?.message);
+          try {
+            response = await tryMistral();
+            activeProvider = 'mistral';
+          } catch (mistralErr) {
+            throw e;
+          }
+        }
       }
-    }
-  } else {
-    try {
-      response = await tryGemini();
-      activeProvider = 'gemini';
-    } catch (e) {
-      console.warn('Gemini failed, attempting Mistral fallback:', e?.message);
+    } else if (isMistral) {
       try {
         response = await tryMistral();
         activeProvider = 'mistral';
-      } catch (mistralError) {
-        throw e;
+      } catch (e) {
+        console.warn('Mistral failed, attempting Gemini fallback:', e?.message);
+        try {
+          response = await tryGemini();
+          activeProvider = 'gemini';
+        } catch (geminiErr) {
+          console.warn('Gemini fallback failed, attempting OpenRouter fallback:', geminiErr?.message);
+          try {
+            response = await tryOpenRouter();
+            activeProvider = 'other';
+          } catch (orErr) {
+            throw e;
+          }
+        }
+      }
+    } else {
+      // Default: Gemini
+      try {
+        response = await tryGemini();
+        activeProvider = 'gemini';
+      } catch (e) {
+        console.warn('Gemini failed, attempting Mistral fallback:', e?.message);
+        try {
+          response = await tryMistral();
+          activeProvider = 'mistral';
+        } catch (mistralErr) {
+          console.warn('Mistral fallback failed, attempting OpenRouter fallback:', mistralErr?.message);
+          try {
+            response = await tryOpenRouter();
+            activeProvider = 'other';
+          } catch (orErr) {
+            throw e;
+          }
+        }
       }
     }
-  }
   } catch (error) {
     if (audio?.data) return voiceMemoFallback(audioTranscript, userTz, now, activeProvider);
     console.warn('AI models failed, using deterministic local assistant engine:', error?.message || error);

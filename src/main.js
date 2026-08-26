@@ -1975,16 +1975,24 @@ function assistantView() {
 
   const placeholderText = attachments.length ? `Notes for ${attachments.length} attachment${attachments.length > 1 ? 's' : ''} or tap Send to extract…` : 'Ask Rhinous or dictate memory/reminder…';
 
-  return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div>${attachmentMarkup}${voiceIndicator}<form class="chat-form" id="chat-form"><input type="file" id="chat-camera-input" accept="image/*" capture="environment" multiple hidden><input type="file" id="chat-upload-input" accept="image/*,application/pdf" multiple hidden><input type="file" id="chat-audio-input" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac" hidden><div class="chat-input-row"><button type="button" class="chat-media-btn" id="chat-camera-btn" title="Snap photo of document/warranty (up to 5)">${icon('Camera')}</button><button type="button" class="chat-media-btn" id="chat-upload-btn" title="Upload images or invoices (up to 5)">${icon('Paperclip')}</button><button type="button" class="chat-media-btn" id="chat-audio-upload-btn" title="Upload an audio recording">${icon('AudioLines')}</button><button type="button" class="chat-media-btn ${state.isRecordingVoice ? 'recording' : ''}" id="chat-voice-btn" title="Record a voice memo">${icon('Mic')}</button><input id="chat-query" name="chat-query" aria-label="Ask Rhinous assistant" autocomplete="off" placeholder="${escapeHtml(placeholderText)}"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></div></form></section>
+  return `<div class="assistant-layout"><section class="chat"><div class="chat-head"><img class="assistant-logo" src="/brand/memoir-rhino-ui.png" alt=""><div><strong>Rhinous</strong><small>Private vault intelligence</small></div><button class="chat-clear" id="clear-chat" title="Clear conversation" aria-label="Clear conversation">${icon('Eraser')}</button><div class="provider-switch"><button class="${state.provider === 'gemini' ? 'active' : ''}" data-provider="gemini">Gemini</button><button class="${state.provider === 'mistral' ? 'active' : ''}" data-provider="mistral">Mistral</button><button class="${state.provider === 'other' ? 'active' : ''}" data-provider="other">Other</button></div></div><div class="messages" id="messages">${messages}${state.chatLoading ? chatSkeleton() : ''}</div>${attachmentMarkup}${voiceIndicator}<form class="chat-form" id="chat-form"><input type="file" id="chat-camera-input" accept="image/*" capture="environment" multiple hidden><input type="file" id="chat-upload-input" accept="image/*,application/pdf" multiple hidden><input type="file" id="chat-audio-input" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac" hidden><div class="chat-input-row"><button type="button" class="chat-media-btn" id="chat-camera-btn" title="Snap photo of document/warranty (up to 5)">${icon('Camera')}</button><button type="button" class="chat-media-btn" id="chat-upload-btn" title="Upload images or invoices (up to 5)">${icon('Paperclip')}</button><button type="button" class="chat-media-btn" id="chat-audio-upload-btn" title="Upload an audio recording">${icon('AudioLines')}</button><button type="button" class="chat-media-btn ${state.isRecordingVoice ? 'recording' : ''}" id="chat-voice-btn" title="Record a voice memo">${icon('Mic')}</button><input id="chat-query" name="chat-query" aria-label="Ask Rhinous assistant" autocomplete="off" placeholder="${escapeHtml(placeholderText)}"><button class="send" aria-label="Send">${icon('ArrowUp')}</button></div></form></section>
   <aside class="panel"><p class="eyebrow">Smart Multi-Modal</p><h3>Capture, snap & transcribe</h3><div class="suggestions">${['Snap up to 5 warranty cards/invoices to auto-extract', 'Dictate: “Remember my appliance warranty with 2 years validity”', 'Remind me to renew my passport tomorrow at 6 PM', 'Give me only my EPFO password'].map(text => `<button class="suggestion" data-ask="${escapeHtml(text)}">${escapeHtml(text)}</button>`).join('')}</div><div class="privacy-line">${icon('ShieldCheck')}<span>Smart Capture extracts structured records on device. Credentials stay encrypted in your isolated vault.</span></div></aside></div>`;
 }
 
 function renderMessage(message, messageIndex = 0) {
   if (message.role === 'user') return `<div class="message user">${escapeHtml(message.text)}</div>`;
-  if (message.fields?.length || message.audios?.length || message.documents?.length) {
+  if (message.fields?.length || message.audios?.length || message.documents?.length || message.birthdayInfo) {
     const fields = message.fields || []; const fieldObject = Object.fromEntries(fields.map(field => [field.label, field.value]));
     const showCard = fields.length >= 3 && fieldObject['Card number'];
     const card = showCard ? paymentCard(message.title || 'Saved card', fieldObject, true) : '';
+    const birthdayCard = message.birthdayInfo ? `
+      <div class="ai-birthday-banner">
+        <span class="icon-wrap">${icon('CakeSlice')}</span>
+        <div class="ai-birthday-details">
+          <strong>${escapeHtml(message.birthdayInfo.nextText)}</strong>
+          <small>${escapeHtml(message.birthdayInfo.dateText)}${message.birthdayInfo.ageText ? ` · ${escapeHtml(message.birthdayInfo.ageText)}` : ''}</small>
+        </div>
+      </div>` : '';
     const docsMarkup = (message.documents || []).length ? `
       <div class="ai-documents-list">
         ${message.documents.map(doc => {
@@ -2002,7 +2010,7 @@ function renderMessage(message, messageIndex = 0) {
         }).join('')}
       </div>
     ` : '';
-    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${card}${(message.audios || []).map(audio => audioPlayerMarkup(audio, audio.title || 'Voice memo')).join('')}${docsMarkup}${fields.length ? `<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${fields.map(field => `<tr><td><strong>${escapeHtml(field.label)}</strong></td><td><span class="assistant-value visible">${escapeHtml(field.value)}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy ${escapeHtml(field.label)}" aria-label="Copy ${escapeHtml(field.label)}">${icon('Copy')}</button></span></td></tr>`).join('')}</tbody></table>` : ''}</div>`;
+    return `<div class="message bot"><strong>${escapeHtml((message.title || 'Saved information').toUpperCase())}</strong>${message.markdown ? safeMarkdown(message.markdown) : ''}${birthdayCard}${card}${(message.audios || []).map(audio => audioPlayerMarkup(audio, audio.title || 'Voice memo')).join('')}${docsMarkup}${fields.length ? `<table class="answer-table"><thead><tr><th>Field</th><th>Value</th><th></th></tr></thead><tbody>${fields.map(field => `<tr><td><strong>${escapeHtml(field.label)}</strong></td><td><span class="assistant-value visible">${escapeHtml(field.value)}</span></td><td><span class="field-actions">${externalLinkButton(field.value, `Open ${field.label}`)}<button class="copy-field" data-copy="${escapeHtml(field.value)}" title="Copy ${escapeHtml(field.label)}" aria-label="Copy ${escapeHtml(field.label)}">${icon('Copy')}</button></span></td></tr>`).join('')}</tbody></table>` : ''}</div>`;
   }
   if (message.actions?.length) {
     const isSmartCapture = message.actions.some(a => a.fields && (a.fields['Audio Transcript'] || a.fields['Expiry date'] || a.fields['Serial'] || a.fields['Brand'] || a.fields['Model']));
@@ -3733,6 +3741,7 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
     return { role: 'assistant', title: answer.title || 'Rhinous', markdown: cleanMarkdown };
   }
   const fields = []; const audios = []; const documents = []; const resolvedTitles = []; let firstResolvedId = '';
+  let birthdayInfo = null;
   answer.matches.forEach(match => {
     const item = state.items.find(row => row.id === match.id); if (!item) return;
     if (!firstResolvedId) firstResolvedId = item.id;
@@ -3748,10 +3757,37 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
         fields.push({ label: actual, value: val });
       }
     });
+
+    if (!birthdayInfo && (item.type === 'Birthday' || item.fields?.Date)) {
+      const next = nextBirthday(item);
+      const nextAge = nextBirthdayAge(item);
+      const currentAgeVal = currentAgeText(item);
+      const formattedDate = formatDate(item.fields?.Date);
+      if (next) {
+        const whenText = next.daysAway === 0 ? 'Today! 🎉' : next.daysAway === 1 ? 'Tomorrow' : `in ${next.daysAway} days`;
+        const nextDateFormatted = next.occurrence.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        birthdayInfo = {
+          title: item.title,
+          nextText: `Next Birthday: ${nextDateFormatted} (${whenText})`,
+          dateText: `Born: ${formattedDate}`,
+          ageText: nextAge ? `Turning ${nextAge} (${currentAgeVal})` : currentAgeVal,
+          daysAway: next.daysAway,
+        };
+      }
+    }
   });
   if (firstResolvedId) state.lastResolvedItemId = firstResolvedId;
-  const cleanMarkdown = String(answer.markdown || '').replace(/\[\[PRIVATE_\d+\]\]/g, '').replace(/\(to be displayed [^)]+\)/gi, '').trim();
-  return fields.length || audios.length || documents.length ? { role: 'assistant', title: resolvedTitles.length === 1 ? resolvedTitles[0] : (answer.title || 'Saved information'), markdown: cleanMarkdown, fields, audios, documents } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
+  let cleanMarkdown = String(answer.markdown || '').replace(/\[\[PRIVATE_\d+\]\]/g, '').replace(/\(to be displayed [^)]+\)/gi, '').trim();
+
+  // If birthday item was matched, sanitize any hallucinated LLM dates/days-remaining
+  if (birthdayInfo && resolvedTitles.length) {
+    const hasHallucinatedCalculations = /(\b\d+\s+days?\s+(left|away|remaining|until)|is on (January|February|March|April|May|June|July|August|September|October|November|December)\b)/i.test(cleanMarkdown);
+    if (hasHallucinatedCalculations) {
+      cleanMarkdown = `Here is the saved birthday record for **${resolvedTitles[0]}**.\n\n• **${birthdayInfo.nextText}**\n• **${birthdayInfo.dateText}**${birthdayInfo.ageText ? `\n• **Age:** ${birthdayInfo.ageText}` : ''}`;
+    }
+  }
+
+  return fields.length || audios.length || documents.length || birthdayInfo ? { role: 'assistant', title: resolvedTitles.length === 1 ? resolvedTitles[0] : (answer.title || 'Saved information'), markdown: cleanMarkdown, fields, audios, documents, birthdayInfo } : localRoute(query) || { role: 'assistant', markdown: 'I found the record, but not that exact field.' };
 }
 function protectPrivateInput(input) {
   let text = String(input || ''); const values = {}; let tokenIndex = 0;
@@ -3884,10 +3920,27 @@ function localRoute(query) {
     entries = entries.slice(0, 1);
   }
   const attachment = audioAttachment(item);
-  entries = entries.filter(([label]) => !audioDataLabels.has(label) && !audioMetadataLabels.has(label));
   state.lastResolvedItemId = item.id;
   const requestedFields = entries.map(([label]) => label);
-  return { role: 'assistant', title: item.title, markdown: `Matched **${item.title}** in your encrypted vault. Values were resolved only on this device.`, fields: entries.map(([label, value]) => ({ label, value })), ...(attachment ? { audios: [{ ...attachment, title: item.title }] } : {}), _lookupHint: { id: item.id, fields: requestedFields } };
+  let birthdayInfo = null;
+  if (item.type === 'Birthday' || item.fields?.Date) {
+    const next = nextBirthday(item);
+    const nextAge = nextBirthdayAge(item);
+    const currentAgeVal = currentAgeText(item);
+    const formattedDate = formatDate(item.fields?.Date);
+    if (next) {
+      const whenText = next.daysAway === 0 ? 'Today! 🎉' : next.daysAway === 1 ? 'Tomorrow' : `in ${next.daysAway} days`;
+      const nextDateFormatted = next.occurrence.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      birthdayInfo = {
+        title: item.title,
+        nextText: `Next Birthday: ${nextDateFormatted} (${whenText})`,
+        dateText: `Born: ${formattedDate}`,
+        ageText: nextAge ? `Turning ${nextAge} (${currentAgeVal})` : currentAgeVal,
+        daysAway: next.daysAway,
+      };
+    }
+  }
+  return { role: 'assistant', title: item.title, markdown: `Matched **${item.title}** in your encrypted vault. Values were resolved only on this device.`, fields: entries.map(([label, value]) => ({ label, value })), ...(attachment ? { audios: [{ ...attachment, title: item.title }] } : {}), ...(birthdayInfo ? { birthdayInfo } : {}), _lookupHint: { id: item.id, fields: requestedFields } };
 }
 function scrollChat() { requestAnimationFrame(() => { const node = document.querySelector('#messages'); if (node) node.scrollTop = node.scrollHeight; }); }
 function generateBirthdayMessage(id) { const item = state.items.find(row => row.id === id); state.view = 'assistant'; shell(); askAssistant(`Write a warm, natural birthday message for the person in my saved birthday record titled "${item.title}". Do not reveal or request any private vault values.`); }
