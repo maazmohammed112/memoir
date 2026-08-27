@@ -27,7 +27,34 @@
 .icon-btn-mini{width:30px;height:30px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;background:var(--surface2);color:var(--muted);transition:.2s cubic-bezier(0.16,1,0.3,1);cursor:pointer}
 .icon-btn-mini .icon{width:14px;height:14px}
 .icon-btn-mini:hover{color:var(--rose);border-color:var(--rose);background:var(--surface);transform:translateY(-1px)}
-.share-modal{max-width:540px}
+.share-modal{
+  width:min(540px,calc(100vw - 20px));
+  max-width:calc(100vw - 20px);
+  max-height:calc(100dvh - 20px);
+  overflow:hidden;
+  overscroll-behavior:contain;
+}
+.share-modal .modal-inner{
+  width:100%;
+  max-width:100%;
+  max-height:calc(100dvh - 20px);
+  min-width:0;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.share-modal .modal-head{width:100%;min-width:0;gap:10px}
+.share-modal .modal-head>div{min-width:0;max-width:calc(100% - 46px);flex:1}
+.share-modal .modal-head>div>div{min-width:0;max-width:100%}
+.share-modal .modal-head .icon-wrap,.share-modal .modal-close{flex:none}
+.share-modal .modal-head h2{
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  line-height:1.18;
+}
+.share-modal *{max-width:100%}
 
 .share-section-heading{display:flex;align-items:center;justify-content:space-between;margin:12px 0 6px}
 .share-badge-hint{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:8px;background:rgba(139,92,246,0.1);color:var(--violet)}
@@ -42,7 +69,7 @@
 .share-doc-info strong{display:block;font-size:11.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .share-doc-info small{display:block;font-size:9.5px;color:var(--muted);margin-top:1px}
 
-.share-field-list{display:grid;gap:8px;margin:8px 0 14px;max-height:220px;overflow-y:auto;padding-right:4px}
+.share-field-list{display:grid;gap:8px;margin:8px 0 14px;max-height:220px;overflow-x:hidden;overflow-y:auto;padding-right:4px;overscroll-behavior:contain}
 .share-field-item{display:flex;align-items:center;gap:12px;padding:11px 15px;border:1px solid var(--line);border-radius:14px;background:var(--surface2);cursor:pointer;transition:.18s}
 .share-field-item:hover{border-color:var(--rose);background:var(--surface)}
 .share-field-item input[type="checkbox"]{width:17px;height:17px;accent-color:var(--rose);cursor:pointer;margin:0}
@@ -61,16 +88,21 @@
   line-height:1.55;
   white-space:pre-wrap;
   word-break:break-word;
+  overflow-wrap:anywhere;
+  width:100%;
+  max-width:100%;
   max-height:150px;
+  overflow-x:hidden;
   overflow-y:auto;
   margin:10px 0 14px;
   box-shadow:inset 0 1px 2px rgba(0,0,0,0.03);
 }
 
-.share-platform-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+.share-platform-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:6px;min-width:0}
 @media(max-width:480px){.share-platform-grid{grid-template-columns:repeat(2,1fr)}}
 
 .platform-btn{
+  min-width:0;
   min-height:44px;
   padding:10px 14px;
   border-radius:13px;
@@ -1019,6 +1051,13 @@ input, textarea {
   transform: translateY(-1px);
   box-shadow: 0 10px 24px rgba(17,17,20,0.25), inset 0 1px rgba(255,255,255,0.12);
   color: #fff;
+}
+.platform-btn{white-space:normal;overflow-wrap:anywhere;text-align:center}
+@media(max-width:480px){
+  .share-modal{width:calc(100vw - 14px);max-width:calc(100vw - 14px);max-height:calc(100dvh - 14px);border-radius:20px}
+  .share-modal .modal-inner{max-height:calc(100dvh - 14px);padding:18px 15px}
+  .share-modal .modal-head h2{font-size:17px;margin-bottom:10px}
+  .share-section-heading{align-items:flex-start;gap:8px}
 }
 .karyalaya-badge-pulse {
   width: 7px;
