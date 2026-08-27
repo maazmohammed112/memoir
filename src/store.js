@@ -1,4 +1,5 @@
 import { ACCOUNT_PROFILES as SHARED_ACCOUNT_PROFILES, accountProfileByCode, accountProfileByUid, profileMatchesUser } from '../lib/accountProfiles.js';
+import { preferCleanVaultItem } from './vaultIntegrity.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyAVkrZbrhbumrbBz8cAgM1PSW8wxqKM_Zs',
@@ -359,7 +360,7 @@ class VaultStore {
     const expiresAt = targetExpiresAt > Date.now() ? targetExpiresAt : authenticatedAt + SESSION_LENGTH;
     this.uid = user.uid;
     this.items = await localList();
-    this.status = 'synced';
+    this.status = navigator.onLine ? 'connecting' : 'offline';
     this.session = { status: 'signedIn', email: this.profile.email, expiresAt, message: '', profile: this.profile };
     this.scheduleExpiry(expiresAt);
     await this.sanitizeItemProvenance();
@@ -629,9 +630,10 @@ class VaultStore {
         if (res.ok) {
           const data = await res.json();
           const items = Array.isArray(data.items) ? data.items : [];
+          const localById = new Map((await localList()).map(item => [item.id, item]));
           for (const item of items) {
             if (item?.id) {
-              await localPut(item);
+              await localPut(preferCleanVaultItem(localById.get(item.id), item));
             }
           }
           if (items.length) {

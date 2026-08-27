@@ -61,7 +61,7 @@
 .karyalaya-shell[data-office-period="afternoon"] { background: var(--md-bg); }
 /* Evening 5 PM – 9 PM: Warm amber sunset */
 .karyalaya-shell[data-office-period="evening"] { background: #ede0c8; }
-/* Night 9 PM – 9 AM: Dark office with lamp pools */
+/* Night 11 PM – 9 AM: Dark office with lamp pools */
 .karyalaya-shell[data-office-period="night"] {
   --md-bg: #1e1b28;
   --md-ink: #e8dfd0;

@@ -68,7 +68,7 @@ import Wifi from 'lucide/dist/esm/icons/wifi.mjs';
 import X from 'lucide/dist/esm/icons/x.mjs';
 import Zap from 'lucide/dist/esm/icons/zap.mjs';
 import { vaultStore } from './store.js';
-import { cleanLegacyPrivateValue, hasPrivateToken, stripCorruptedFields } from './vaultIntegrity.js';
+import { cleanLegacyPrivateValue, hasPrivateToken, sanitizeAssistantAction } from './vaultIntegrity.js';
 
 const nav = [
   ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['assistant', 'Rhino', 'Rhinous'],
@@ -167,6 +167,7 @@ function titleForView() {
 function category(item) { return item.kind === 'clipboard' ? 'Clipboard' : item.type || 'Personal'; }
 function itemIcon(item) { return typeIcons[category(item)] || 'Gem'; }
 function allFields(item) { return item.fields || {}; }
+function visibleFields(item) { return Object.fromEntries(Object.entries(allFields(item)).map(([label, value]) => [label, cleanLegacyPrivateValue(value)])); }
 function provenanceOf(item) {
   const source = String(item?.provenance?.source || item?.fields?.['Created via'] || item?.fields?.['Audio Source'] || 'Memoir app');
   const isTelegram = /telegram/i.test(source);
@@ -1674,7 +1675,7 @@ function vaultRow(item) {
 
 
 function detailMarkup(item) {
-  const fields = allFields(item);
+  const fields = visibleFields(item);
   const attachment = audioAttachment(item);
   const audioPlayer = audioPlayerMarkup(attachment, 'Voice Memo Audio');
   const documents = parseItemAttachments(item);
@@ -2642,13 +2643,15 @@ function openEditor(item = null, initialType = 'Personal') {
   const renderFields = () => {
     const type = document.querySelector('#memory-type').value;
     const names = [...new Set([...(fieldMap[type] || []), ...Object.keys(item?.fields || {})])].filter(n => !documentDataLabels.has(n));
-    document.querySelector('#dynamic-fields').innerHTML = `<div class="field-grid">${names.map(name => memoryFieldInput(name, item?.fields?.[name] || '')).join('')}</div><div id="custom-memory-fields"></div><button type="button" class="ghost add-custom-field" id="add-custom-field">${icon('Plus')} Add custom field</button>${type === 'Government Document' || type === 'Identity' ? `<p class="document-field-help">${icon('ShieldCheck')} Add an HTTPS Google Drive, OneDrive, or other private cloud link. Memoir stores the link as an encrypted field and Rhinous can retrieve it by document name.</p>` : ''}`;
+    document.querySelector('#dynamic-fields').innerHTML = `<div class="field-grid">${names.map(name => memoryFieldInput(name, cleanLegacyPrivateValue(item?.fields?.[name]))).join('')}</div><div id="custom-memory-fields"></div><button type="button" class="ghost add-custom-field" id="add-custom-field">${icon('Plus')} Add custom field</button>${type === 'Government Document' || type === 'Identity' ? `<p class="document-field-help">${icon('ShieldCheck')} Add an HTTPS Google Drive, OneDrive, or other private cloud link. Memoir stores the link as an encrypted field and Rhinous can retrieve it by document name.</p>` : ''}`;
     document.querySelector('#add-custom-field').onclick = () => document.querySelector('#custom-memory-fields').insertAdjacentHTML('beforeend', `<div class="custom-memory-field"><label>Field name<input data-custom-label maxlength="100" placeholder="e.g. Application number"></label><label>Field value<input data-custom-value maxlength="5000" placeholder="Enter the protected value"></label></div>`);
   };
   renderFields(); document.querySelector('#memory-type').onchange = renderFields;
   document.querySelector('#memory-form').onsubmit = async event => {
     event.preventDefault();
-    const fields = {};
+    // Preserve unresolved legacy placeholders in storage until another synced copy can
+    // recover them, but never render those tokens into editable inputs or overwrite them.
+    const fields = Object.fromEntries(Object.entries(item?.fields || {}).filter(([, value]) => hasPrivateToken(value)));
     document.querySelectorAll('[data-field]').forEach(input => { if (input.value.trim()) fields[input.dataset.field] = input.value.trim(); });
     document.querySelectorAll('.custom-memory-field').forEach(row => {
       const label = row.querySelector('[data-custom-label]').value.trim();
@@ -3516,6 +3519,18 @@ async function askAssistant(query) {
   renderView();
   scrollChat();
 
+  if (!hasAttachments && isSavedLookupRequest(cleanQuery)) {
+    const local = localRoute(cleanQuery);
+    if (local) {
+      state.messages.push(local);
+      state.chatLoading = false;
+      persistAssistantLog();
+      renderView();
+      scrollChat();
+      return;
+    }
+  }
+
   if (!hasAttachments && /\b(today('?s)? agenda|daily briefing|my agenda|what is on my agenda|my schedule today|briefing for today)\b/i.test(cleanQuery)) {
     const upcoming = reminders().filter(r => reminderStatus(r) === 'upcoming');
     const upcomingBirthdays = memories().filter(m => m.type === 'Birthday' && (nextBirthday(m)?.daysAway ?? 999) <= 14);
@@ -3700,7 +3715,7 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
     resolvedTitles.push(item.title);
     const attachment = audioAttachment(item); if (attachment) audios.push({ ...attachment, title: item.title });
     const docs = parseItemAttachments(item); if (docs.length) documents.push(...docs);
-    const itemAllFields = allFields(item);
+    const itemAllFields = visibleFields(item);
     const requested = match.fields?.length ? match.fields : Object.keys(itemAllFields);
     requested.forEach(label => {
       const actual = Object.keys(itemAllFields).find(key => key.toLowerCase() === String(label).toLowerCase());
@@ -3744,7 +3759,7 @@ function buildAssistantMessage(answer, query, privateValues = {}) {
 function protectPrivateInput(input) {
   let text = String(input || ''); const values = {}; let tokenIndex = 0;
   const remember = value => { const token = `[[PRIVATE_${tokenIndex++}]]`; values[token] = String(value).trim(); return token; };
-  const knownValues = state.items.flatMap(item => Object.values(allFields(item))).map(String).filter(value => value.trim().length >= 3).sort((a, b) => b.length - a.length);
+  const knownValues = state.items.flatMap(item => Object.values(allFields(item))).map(String).filter(value => value.trim().length >= 3 && !hasPrivateToken(value)).sort((a, b) => b.length - a.length);
   knownValues.forEach(value => { if (text.includes(value)) text = text.split(value).join(remember(value)); });
   const isMutation = /\b(add|create|save|remember|edit|update|change|replace|delete|remove|forget)\b/i.test(text);
   const labels = ['debit card number', 'credit card number', 'application number', 'account number', 'document number', 'reference number', 'soft copy link', 'drive link', 'eid', 'imei', 'imei2', 'username / id', 'username', 'atm pin', 'wifi password', 'wi-fi password', 'password', 'passcode', 'security code', 'cvv', 'pin', 'ifsc code', 'expiry date', 'expiry', 'issued date', 'purchase date', 'network', 'ssid', 'date', 'relation', 'gift idea', 'wish note', 'content', 'value', 'note'];
@@ -3772,10 +3787,7 @@ function assistantLogKey(uid = localStorage.getItem('memoir-selected-profile')) 
 function loadAssistantLog(uid) { try { const value = JSON.parse(localStorage.getItem(assistantLogKey(uid)) || '[]'); return Array.isArray(value) ? value.slice(-12) : []; } catch { return []; } }
 function persistAssistantLog() { state.assistantLog = assistantHistory(state.messages); localStorage.setItem(assistantLogKey(state.auth.profile?.uid), JSON.stringify(state.assistantLog)); }
 function rehydrateAction(action, privateValues) {
-  if (!action || !['create', 'update', 'delete'].includes(action.op)) return null;
-  const restore = value => Object.entries(privateValues).reduce((text, [token, secret]) => text.split(token).join(secret), String(value || ''));
-  const fields = Object.fromEntries(Object.entries(action.fields || {}).map(([label, value]) => [restore(label).slice(0, 100), restore(value).slice(0, 4000)]).filter(([label]) => label));
-  return { op: action.op, id: String(action.id || ''), type: restore(action.type).slice(0, 40), title: restore(action.title).slice(0, 160), note: restore(action.note).slice(0, 2000), fields };
+  return sanitizeAssistantAction(action, privateValues, state.items.find(item => item.id === action?.id) || null);
 }
 function assistantActionName(action) { return action.title || state.items.find(item => item.id === action.id)?.title || 'Saved memory'; }
 async function confirmAssistantActions(actions) {
@@ -3795,11 +3807,13 @@ async function confirmAssistantActions(actions) {
       if (action.op === 'create') {
         const type = action.type || 'Personal';
         const record = { kind: type === 'Clipboard' ? 'clipboard' : 'memory', type, title: action.title || (type === 'Reminder' ? 'Untitled reminder' : 'Untitled memory'), note: action.note || '', fields: action.fields || {} };
+        if (Object.values(record.fields).some(hasPrivateToken)) continue;
         await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : type === 'Todo' ? normalizeTodoRecord(record) : record); applied += 1;
       } else if (action.op === 'update') {
         const item = state.items.find(row => row.id === action.id); if (!item) continue;
         const type = action.type || item.type;
-        const record = { ...item, kind: type === 'Clipboard' ? 'clipboard' : 'memory', type, title: action.title || item.title, note: action.note || item.note || '', fields: { ...allFields(item), ...(action.fields || {}) } };
+        const record = { ...item, kind: type === 'Clipboard' ? 'clipboard' : 'memory', type, title: action.title || item.title, note: action.note || item.note || '', fields: { ...item.fields, ...(action.fields || {}) } };
+        if (Object.values(record.fields).some(hasPrivateToken)) continue;
         await vaultStore.save(type === 'Reminder' ? normalizeReminderRecord(record) : type === 'Todo' ? normalizeTodoRecord(record) : record); applied += 1;
       } else if (action.op === 'delete' && state.items.some(row => row.id === action.id)) { const item = state.items.find(row => row.id === action.id); await deleteAudioAssetForItem(item); await vaultStore.remove(action.id); applied += 1; }
     }
@@ -3864,7 +3878,7 @@ function localRoute(query) {
   if (ranked[1] && ranked[0].score - ranked[1].score < 8 && ranked[0].item.id !== state.lastResolvedItemId) {
     return { role: 'assistant', title: 'Choose the exact memory', markdown: `I found more than one possible match: **${ranked.slice(0, 3).map(row => row.item.title).join('**, **')}**. Please include the exact title so I never expose the wrong record.` };
   }
-  const item = ranked[0].item; let entries = Object.entries(allFields(item)); const patterns = fieldIntentPatterns(needle);
+  const item = ranked[0].item; let entries = Object.entries(visibleFields(item)); const patterns = fieldIntentPatterns(needle);
   if (patterns.length) {
     const exact = entries.filter(([label]) => patterns.some(pattern => pattern.test(label)));
     if (exact.length) entries = exact;

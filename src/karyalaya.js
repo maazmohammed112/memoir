@@ -18,6 +18,7 @@
  */
 
 import { vaultStore } from './store.js';
+import { cleanLegacyPrivateValue, hasPrivateToken } from './vaultIntegrity.js';
 
 const THEME_PREF_KEY = 'memoir_theme_preference_v2';
 const SOUND_MUTE_KEY = 'kf_sound_muted_v1';
@@ -301,7 +302,30 @@ export const mdState = {
   zoomScale: 1.0,
   animLoopId: null,
   mobileView: 'floor', // floor | deck
+  scheduleMinute: -1,
 };
+
+const DAY_NAMES = ['MAZ', 'AARAV', 'ZOYA', 'GURPREET', 'DAVID', 'FATIMA', 'RHEA'];
+const NIGHT_NAMES = ['MAZ', 'KABIR', 'SANA', 'IMRAN', 'NISHA', 'ARJUN', 'MEERA'];
+function istOfficeSchedule() {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+  const hour = Number(parts.find(part => part.type === 'hour')?.value || 0), minute = Number(parts.find(part => part.type === 'minute')?.value || 0), total = hour * 60 + minute;
+  const shift = total >= 540 && total < 1380 ? 'day' : 'night';
+  const period = total >= 540 && total < 720 ? 'morning' : total < 1020 ? 'afternoon' : total < 1380 ? 'evening' : 'night';
+  const breakName = shift === 'day' && total >= 720 && total < 765 ? 'Lunch break' : shift === 'night' && total >= 60 && total < 90 ? 'Night meal break' : [630, 990, 210].some(start => total >= start && total < start + 15) ? 'Tea break' : '';
+  return { hour, minute, total, shift, period, breakName, label: `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')} IST` };
+}
+function applyOfficeSchedule(force = false) {
+  const schedule = istOfficeSchedule();
+  if (!force && mdState.scheduleMinute === schedule.total) return schedule;
+  mdState.scheduleMinute = schedule.total;
+  const names = schedule.shift === 'day' ? DAY_NAMES : NIGHT_NAMES;
+  mdState.agents.forEach((agent,index) => { agent.name = names[index]; if (index === 0) { agent.title = 'Marzyam · Floor Manager'; agent.roleTag = schedule.shift === 'day' ? 'Day Operations' : 'Night Operations'; } });
+  const shell = document.querySelector('.karyalaya-shell'); if (shell) shell.dataset.officePeriod = schedule.period;
+  document.querySelectorAll('[data-office-clock]').forEach(node => { node.textContent = `${schedule.shift === 'day' ? 'DAY' : 'NIGHT'} SHIFT · ${schedule.label}${schedule.breakName ? ` · ${schedule.breakName}` : ''}`; });
+  if (schedule.breakName) mdState.agents.slice(1).forEach((agent,index) => { if (agent.status !== 'working') { agent.targetPos = { x: 470 + (index % 3) * 28, y: 330 + Math.floor(index / 3) * 30 }; agent.speech = schedule.breakName.toLowerCase(); agent.speechTimer = 240; } });
+  return schedule;
+}
 
 function escapeHtml(val = '') {
   return String(val).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
@@ -370,6 +394,7 @@ function triggerAutonomousOfficeRoutine() {
 
 // 60FPS Game Simulation Loop with Strict Boundaries
 function updateSimulation() {
+  applyOfficeSchedule();
   routineTimer++;
   if (routineTimer >= ROUTINE_INTERVAL) {
     routineTimer = 0;
@@ -788,7 +813,17 @@ function lookupVaultLocally(queryText, vaultItems = []) {
   }
 
   if (bestMatch) {
-    let entries = Object.entries(bestMatch.fields || {}).map(([k, v]) => `• ${k}: ${v}`).join('\n');
+    let safeEntries = Object.entries(bestMatch.fields || {}).map(([k, v]) => [k, cleanLegacyPrivateValue(v)]).filter(([, v]) => v !== '');
+    const fieldPatterns = [];
+    if (/password|passcode/.test(needle)) fieldPatterns.push(/password|passcode/i);
+    if (/username|user id/.test(needle)) fieldPatterns.push(/username|user id/i);
+    if (/cvv|security code/.test(needle)) fieldPatterns.push(/cvv|security code/i);
+    if (/\bpin\b/.test(needle)) fieldPatterns.push(/\bpin\b/i);
+    if (/card number/.test(needle)) fieldPatterns.push(/card number/i);
+    if (/account number/.test(needle)) fieldPatterns.push(/account number/i);
+    if (/ifsc/.test(needle)) fieldPatterns.push(/ifsc/i);
+    if (fieldPatterns.length) { const exact = safeEntries.filter(([label]) => fieldPatterns.some(pattern => pattern.test(label))); if (exact.length) safeEntries = exact; }
+    let entries = safeEntries.map(([k, v]) => `• ${k}: ${v}`).join('\n');
     if (bestMatch.type === 'Birthday' || bestMatch.fields?.Date) {
       const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(bestMatch.fields?.Date || ''));
       if (match) {
@@ -915,7 +950,9 @@ export async function sendMdMessage(rawText, vaultItems = []) {
         if (data.matches?.length) {
           const mItem = activeItems.find(i => i.id === data.matches[0].id);
           if (mItem) {
-            let fieldsText = Object.entries(mItem.fields || {}).map(([k, v]) => `• ${k}: ${v}`).join('\n');
+            const requested = data.matches[0].fields || [];
+            const fieldsTextEntries = Object.entries(mItem.fields || {}).map(([k,v])=>[k,cleanLegacyPrivateValue(v)]).filter(([k,v])=>v!==''&&(!requested.length||requested.some(label=>String(label).toLowerCase()===k.toLowerCase())));
+            let fieldsText = fieldsTextEntries.map(([k, v]) => `• ${k}: ${v}`).join('\n');
             if (mItem.type === 'Birthday' || mItem.fields?.Date) {
               const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(mItem.fields?.Date || ''));
               if (match) {
@@ -1165,7 +1202,7 @@ function renderCommandDeck(vaultItems = []) {
                     <span style="font-size:9.5px; background:#f5e39b; padding:1px 6px; border-radius:3px; border:1px solid #2c2825">${escapeHtml(item.type || 'Personal')}</span>
                   </div>
                   <div style="font-size:10.5px; color:#555; margin-top:4px">
-                    ${Object.entries(item.fields || {}).map(([k, v]) => `<span>${escapeHtml(k)}: <strong>${escapeHtml(v)}</strong></span>`).join(' · ')}
+                    ${Object.entries(item.fields || {}).map(([k, v]) => [k, cleanLegacyPrivateValue(v)]).filter(([,v])=>v!=='').map(([k, v]) => `<span>${escapeHtml(k)}: <strong>${escapeHtml(v)}</strong></span>`).join(' · ')}
                   </div>
                 </div>
               `).join('')}
@@ -1274,8 +1311,9 @@ export function renderKaryalayaTheme(containerNode, profile, vaultItems = []) {
   document.body.classList.remove('auth-locked');
   document.body.classList.add('karyalaya-active');
 
+  const officeSchedule = applyOfficeSchedule(true);
   containerNode.innerHTML = `
-    <div class="karyalaya-shell">
+    <div class="karyalaya-shell" data-office-period="${officeSchedule.period}">
       <!-- Top Header Bar with Real Rhino Badge -->
       <header class="md-header">
         <div class="md-header-left">
@@ -1285,10 +1323,10 @@ export function renderKaryalayaTheme(containerNode, profile, vaultItems = []) {
           </button>
 
           <div class="md-boss-pill">
-            <span>👑 AZHAR</span>
+            <span>MAZ</span>
             <span class="md-tag-god">GOD</span>
             <span class="md-tag-idle">■ idle</span>
-            <span class="md-boss-tagline">Azhar runs the floor</span>
+            <span class="md-boss-tagline">Marzyam runs the floor</span>
           </div>
         </div>
 
@@ -1310,6 +1348,7 @@ export function renderKaryalayaTheme(containerNode, profile, vaultItems = []) {
               <div class="md-floor-chips">
                 <span class="md-chip">🏢 FLOOR 01</span>
                 <span class="md-chip">🧠 MEMORY: ${vaultItems.length || 0}</span>
+                <span class="md-chip" data-office-clock>${officeSchedule.shift.toUpperCase()} SHIFT · ${officeSchedule.label}${officeSchedule.breakName ? ` · ${officeSchedule.breakName}` : ''}</span>
               </div>
               <!-- 2D Horizontal & Vertical Pan / Zoom Pad -->
               <div class="md-floor-nav-controls">
@@ -1715,7 +1754,7 @@ function bindDeckSubEvents(vaultItems) {
               <span style="font-size:9.5px; background:#f5e39b; padding:1px 6px; border-radius:3px; border:1px solid #2c2825">${escapeHtml(item.type || 'Personal')}</span>
             </div>
             <div style="font-size:10.5px; color:#555; margin-top:4px">
-              ${Object.entries(item.fields || {}).map(([k, v]) => `<span>${escapeHtml(k)}: <strong>${escapeHtml(v)}</strong></span>`).join(' · ')}
+              ${Object.entries(item.fields || {}).map(([k, v]) => [k, cleanLegacyPrivateValue(v)]).filter(([,v])=>v!=='').map(([k, v]) => `<span>${escapeHtml(k)}: <strong>${escapeHtml(v)}</strong></span>`).join(' · ')}
             </div>
           </div>
         `).join('') || '<div style="color:#777; padding:10px">No matching memory records.</div>';

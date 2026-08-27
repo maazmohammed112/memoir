@@ -122,11 +122,10 @@ function normalize(answer, catalog) {
       const safeValue = type === 'Todo' && safeLabel === 'Todo items' && Array.isArray(value) ? JSON.stringify(value) : String(value);
       return [safeLabel, safeValue.slice(0, 4000)];
     }).filter(([label]) => label));
-    // SECURITY: Drop ALL sensitive fields from AI actions. Passwords, PINs, CVVs and card
-    // numbers must NEVER be written by the model — they are resolved client-side only via
-    // protectPrivateInput / rehydrateAction.
+    // Sensitive values may only travel back as placeholders created by the client.
+    // Any literal model-generated secret is rejected before it reaches the browser.
     const sensitive = /password|passcode|pin|cvv|security code|card number|account number/i;
-    Object.entries(fields).forEach(([label, value]) => { if (sensitive.test(label) && value) delete fields[label]; });
+    Object.entries(fields).forEach(([label, value]) => { if (sensitive.test(label) && value && !/\[\[PRIVATE_\d+\]\]/.test(value)) delete fields[label]; });
     return { op, id: op === 'create' ? '' : id, type, title: String(raw?.title || ids.get(id)?.title || '').slice(0, 160), note: String(raw?.note || '').slice(0, 2000), fields };
   }).filter(Boolean);
   const requestedKind = String(answer.kind || '');
