@@ -1,0 +1,6 @@
+interface:
+  display_name: "Agentation Feedback"
+  short_description: "Implement precise visual annotations in Memoir"
+  default_prompt: "Use $agentation-feedback to implement these Agentation annotations accurately."
+policy:
+  allow_implicit_invocation: true

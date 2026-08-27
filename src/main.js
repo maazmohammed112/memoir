@@ -71,6 +71,12 @@ import Zap from 'lucide/dist/esm/icons/zap.mjs';
 import { vaultStore } from './store.js';
 import { cleanLegacyPrivateValue, hasPrivateToken, sanitizeAssistantAction } from './vaultIntegrity.js';
 
+if (import.meta.env.DEV && window.matchMedia('(pointer: fine)').matches) {
+  import('./agentation-dev.js').then(({ mountAgentation }) => mountAgentation()).catch(error => {
+    console.warn('Agentation development overlay could not start:', error?.message || error);
+  });
+}
+
 const nav = [
   ['home', 'House', 'Home'], ['vault', 'Gem', 'Memories'], ['assistant', 'Rhino', 'Rhinous'],
   ['planner', 'ListTodo', 'Planner'], ['capture', 'AudioLines', 'Capture'], ['birthdays', 'CakeSlice', 'Birthdays'],
