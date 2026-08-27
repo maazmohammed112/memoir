@@ -18,7 +18,7 @@
  */
 
 import { vaultStore } from './store.js';
-import { cleanLegacyPrivateValue, hasPrivateToken } from './vaultIntegrity.js';
+import { cleanLegacyPrivateValue } from './vaultIntegrity.js';
 
 const THEME_PREF_KEY = 'memoir_theme_preference_v2';
 const SOUND_MUTE_KEY = 'kf_sound_muted_v1';
@@ -273,12 +273,12 @@ export const MD_AGENTS = [
 function loadChatLogs() {
   try {
     const saved = localStorage.getItem(CHAT_STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) return JSON.parse(saved).map(log => ({ ...log, name: String(log?.name || '').replace(/[👑⭐✨]/gu, '').replace(/Supreme God Orchestrator/gi, 'Orchestrator').trim() }));
   } catch {}
   return [
     { type: 'info', text: 'A SessionStart fired (session restarted) and I have 1 inbox message. Let me read it.' },
     { type: 'cmd', text: 'Ran 1 shell command: node tests/auth-flow.test.mjs' },
-    { type: 'info', text: 'Supreme God Agent AZHAR orchestrating 6 specialized agents. Direct queries route through Rhinous intelligence & on-device zero-knowledge decryption.' },
+    { type: 'info', text: 'Lead Agent AZHAR orchestrating 6 specialized agents. Direct queries route through Rhinous intelligence and on-device zero-knowledge decryption.' },
   ];
 }
 
@@ -833,7 +833,7 @@ function lookupVaultLocally(queryText, vaultItems = []) {
         let occ = new Date(today.getFullYear(), month - 1, Math.min(day, new Date(today.getFullYear(), month, 0).getDate()));
         if (occ < today) occ = new Date(today.getFullYear() + 1, month - 1, Math.min(day, new Date(today.getFullYear() + 1, month, 0).getDate()));
         const daysAway = Math.round((occ - today) / 86400000);
-        const when = daysAway === 0 ? 'Today! 🎉' : daysAway === 1 ? 'Tomorrow' : `in ${daysAway} days`;
+        const when = daysAway === 0 ? 'Today' : daysAway === 1 ? 'Tomorrow' : `in ${daysAway} days`;
         const nextDate = occ.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
         const turningAge = year > 0 ? occ.getFullYear() - year : null;
         let ageStr = '';
@@ -849,6 +849,7 @@ function lookupVaultLocally(queryText, vaultItems = []) {
     return {
       title: bestMatch.title,
       type: bestMatch.type,
+      entries: safeEntries,
       fields: entries || 'No additional plaintext fields.',
       raw: bestMatch,
     };
@@ -899,7 +900,7 @@ export async function sendMdMessage(rawText, vaultItems = []) {
 
   mdState.logs.push({
     type: 'agent',
-    name: '👑 AZHAR (Supreme God Orchestrator)',
+    name: 'AZHAR · ORCHESTRATOR',
     text: `Analyzing directive. Delegating task to ${delegate.name} (${taskTag})...`,
     copyable: false,
   });
@@ -915,11 +916,17 @@ export async function sendMdMessage(rawText, vaultItems = []) {
   // Execute Search (Local Semantic Decryption + Backend /api/assistant AI)
   let resultOutput = '';
   let copyData = '';
-  const activeItems = (Array.isArray(vaultItems) && vaultItems.length) ? vaultItems : (window.__MEMOIR_ITEMS__ || vaultStore?.items || []);
+  let resultFields = [];
+  let resultTitle = '';
+  const liveItems = Array.isArray(vaultStore?.items) ? vaultStore.items : [];
+  const syncedItems = Array.isArray(window.__MEMOIR_ITEMS__) ? window.__MEMOIR_ITEMS__ : [];
+  const activeItems = liveItems.length ? liveItems : syncedItems.length ? syncedItems : (Array.isArray(vaultItems) ? vaultItems : []);
   const localMatch = lookupVaultLocally(text, activeItems);
 
   if (localMatch) {
-    resultOutput = `[Vault Query Match: "${localMatch.title}" (${localMatch.type})]\n${localMatch.fields}`;
+    resultTitle = localMatch.title;
+    resultFields = localMatch.entries || [];
+    resultOutput = `Matched ${localMatch.title} in your encrypted vault.`;
     copyData = localMatch.fields;
   } else {
     // Attempt Backend /api/assistant Call
@@ -962,13 +969,15 @@ export async function sendMdMessage(rawText, vaultItems = []) {
                 let occ = new Date(today.getFullYear(), month - 1, Math.min(day, new Date(today.getFullYear(), month, 0).getDate()));
                 if (occ < today) occ = new Date(today.getFullYear() + 1, month - 1, Math.min(day, new Date(today.getFullYear() + 1, month, 0).getDate()));
                 const daysAway = Math.round((occ - today) / 86400000);
-                const when = daysAway === 0 ? 'Today! 🎉' : daysAway === 1 ? 'Tomorrow' : `in ${daysAway} days`;
+                const when = daysAway === 0 ? 'Today' : daysAway === 1 ? 'Tomorrow' : `in ${daysAway} days`;
                 const nextDate = occ.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
                 const turningAge = year > 0 ? occ.getFullYear() - year : null;
                 fieldsText = `• Next Birthday: ${nextDate} (${when})${turningAge ? `\n• Turning Age: ${turningAge} years old` : ''}\n${fieldsText}`;
               }
             }
             resultOutput = `[Matched "${mItem.title}"]\n${fieldsText}`;
+            resultTitle = mItem.title;
+            resultFields = fieldsTextEntries;
             copyData = fieldsText;
           }
         } else if (data.markdown) {
@@ -994,13 +1003,15 @@ export async function sendMdMessage(rawText, vaultItems = []) {
       type: 'agent',
       name: `${delegate.name} (${taskTag})`,
       text: resultOutput,
+      title: resultTitle,
+      fields: resultFields,
       copyable: !!copyData,
       copyText: copyData || resultOutput,
     });
 
     mdState.logs.push({
       type: 'agent',
-      name: '👑 AZHAR (Supreme God Orchestrator)',
+      name: 'AZHAR · ORCHESTRATOR',
       text: `Operation complete and verified on-device. Zero data leaks.`,
       copyable: false,
     });
@@ -1034,7 +1045,9 @@ function renderTerminalOutput() {
             <strong>${escapeHtml(log.name)}</strong>
             ${log.copyable ? `<button class="md-copy-btn" data-copy-idx="${idx}">${mdIcon('copy')} Copy</button>` : ''}
           </div>
+          ${log.title ? `<div class="md-result-title">${escapeHtml(log.title)}</div>` : ''}
           <div class="md-reply-body">${escapeHtml(log.text)}</div>
+          ${Array.isArray(log.fields) && log.fields.length ? `<div class="md-result-table">${log.fields.map(([label, value], fieldIndex) => `<div class="md-result-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><button type="button" class="md-field-copy" data-copy-log="${idx}" data-copy-field="${fieldIndex}" aria-label="Copy ${escapeHtml(label)}" title="Copy ${escapeHtml(label)}">${mdIcon('copy')}</button></div>`).join('')}</div>` : ''}
         </div>
       `;
     }
@@ -1051,6 +1064,16 @@ function renderTerminalOutput() {
         btn.innerHTML = `${mdIcon('check')} Copied!`;
         setTimeout(() => { btn.innerHTML = `${mdIcon('copy')} Copy`; }, 1500);
       }
+    };
+  });
+  out.querySelectorAll('[data-copy-log][data-copy-field]').forEach(btn => {
+    btn.onclick = async () => {
+      const field = mdState.logs[Number(btn.dataset.copyLog)]?.fields?.[Number(btn.dataset.copyField)];
+      if (!field) return;
+      await navigator.clipboard.writeText(String(field[1]));
+      btn.classList.add('copied');
+      btn.innerHTML = mdIcon('check');
+      setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = mdIcon('copy'); }, 1200);
     };
   });
 
@@ -1159,13 +1182,13 @@ function renderCommandDeck(vaultItems = []) {
         <!-- 4. ASK ME TAB -->
         ${tab === 'ask' ? `
           <div style="padding:14px; font-size:12px; overflow-y:auto; flex:1; background:#fff">
-            <h4 style="margin:0 0 10px; font-weight:800">💬 1-CLICK DIRECTIVES FOR AZHAR</h4>
+            <h4 style="margin:0 0 10px; font-weight:800">DIRECTIVES FOR AZHAR</h4>
             <div style="display:flex; flex-direction:column; gap:6px">
-              <button class="md-btn-tool" style="text-align:left; justify-content:flex-start" data-quick-prompt="what is my wifi password?">🔐 "What is my Wi-Fi password?"</button>
-              <button class="md-btn-tool" style="text-align:left; justify-content:flex-start" data-quick-prompt="run a zero-knowledge security audit">🛡️ "Run a zero-knowledge security audit"</button>
-              <button class="md-btn-tool" style="text-align:left; justify-content:flex-start" data-quick-prompt="show my SBI debit card details">💳 "Show my SBI debit card details"</button>
-              <button class="md-btn-tool" style="text-align:left; justify-content:flex-start" data-quick-prompt="what are my reminders and tasks?">📋 "What are my reminders and tasks?"</button>
-              <button class="md-btn-tool" style="text-align:left; justify-content:flex-start" data-quick-prompt="gather team for masala chai break">☕ "Gather team for masala chai break"</button>
+              <button class="md-btn-tool" style="text-align:left; justify-content:flex-start" data-quick-prompt="what is my wifi password?">${mdIcon('memory')} "What is my Wi-Fi password?"</button>
+              <button class="md-btn-tool" style="text-align:left; justify-content:flex-start" data-quick-prompt="run a zero-knowledge security audit">${mdIcon('monitor')} "Run a zero-knowledge security audit"</button>
+              <button class="md-btn-tool" style="text-align:left; justify-content:flex-start" data-quick-prompt="show my SBI debit card details">${mdIcon('files')} "Show my SBI debit card details"</button>
+              <button class="md-btn-tool" style="text-align:left; justify-content:flex-start" data-quick-prompt="what are my reminders and tasks?">${mdIcon('tasks')} "What are my reminders and tasks?"</button>
+              <button class="md-btn-tool" style="text-align:left; justify-content:flex-start" data-quick-prompt="gather team for masala chai break">${mdIcon('coffee')} "Gather team for masala chai break"</button>
             </div>
           </div>
         ` : ''}
@@ -1216,7 +1239,7 @@ function renderCommandDeck(vaultItems = []) {
             <h4 style="margin:0 0 10px; font-weight:800">● MULTI-AGENT NEURAL VAULT GRAPH</h4>
             <svg viewBox="0 0 400 240" style="width:100%; max-height:220px; background:#fcf8ec; border:1.5px solid #2c2825; border-radius:6px">
               <circle cx="200" cy="120" r="28" fill="#f5e39b" stroke="#2c2825" stroke-width="2"/>
-              <text x="200" y="124" text-anchor="middle" font-size="10" font-weight="900">👑 AZHAR</text>
+              <text x="200" y="124" text-anchor="middle" font-size="10" font-weight="900">AZHAR</text>
               <line x1="200" y1="120" x2="80" y2="60" stroke="#2c2825" stroke-width="1.5"/>
               <circle cx="80" cy="60" r="18" fill="#fff" stroke="#0284c7" stroke-width="2"/>
               <text x="80" y="64" text-anchor="middle" font-size="8" font-weight="800">AARAV</text>
@@ -1267,7 +1290,7 @@ function renderCommandDeck(vaultItems = []) {
               ${mdState.agents.map(a => `
                 <div style="background:#fcf8ec; border:1.5px solid #2c2825; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between; align-items:center">
                   <div>
-                    <strong>${escapeHtml(a.name)} ${a.isGod ? '👑' : ''}</strong>
+                    <strong>${escapeHtml(a.name)} ${a.isGod ? '<span class="md-tag-god">LEAD</span>' : ''}</strong>
                     <div style="font-size:10px; color:#666">${escapeHtml(a.title)}</div>
                   </div>
                   <span style="font-size:9.5px; font-weight:700; color:#16a34a">■ ${escapeHtml(a.status)}</span>
@@ -1288,7 +1311,7 @@ function renderBottomRoster() {
       ${mdState.agents.map(a => `
         <div class="md-agent-card ${a.isGod ? 'selected' : ''}" data-agent-card-id="${a.id}">
           <div class="md-agent-avatar-thumb" style="border-color:${a.isGod ? '#f59e0b' : '#2c2825'}">
-            ${a.isGod ? '👑' : a.name.slice(0, 2)}
+            ${a.isGod ? mdIcon('workers') : a.name.slice(0, 2)}
           </div>
           <div class="md-agent-info">
             <div class="md-agent-name-row">
@@ -1296,7 +1319,7 @@ function renderBottomRoster() {
               <span class="md-tag-idle">■ ${a.status}</span>
             </div>
             <div class="md-agent-harness">${escapeHtml(a.title)}</div>
-            ${a.isGod ? '<button class="md-talk-btn" id="md-talk-azhar-btn">🎙 talk to Azhar</button>' : `<span style="font-size:8.5px; color:#777; font-weight:700">● ${escapeHtml(a.roleTag)}</span>`}
+            ${a.isGod ? `<button class="md-talk-btn" id="md-talk-azhar-btn">${mdIcon('mic')} talk to Azhar</button>` : `<span style="font-size:8.5px; color:#777; font-weight:700">● ${escapeHtml(a.roleTag)}</span>`}
           </div>
         </div>
       `).join('')}
@@ -1346,8 +1369,8 @@ export function renderKaryalayaTheme(containerNode, profile, vaultItems = []) {
           <div class="md-floor-frame">
             <div class="md-floor-toolbar">
               <div class="md-floor-chips">
-                <span class="md-chip">🏢 FLOOR 01</span>
-                <span class="md-chip">🧠 MEMORY: ${vaultItems.length || 0}</span>
+                <span class="md-chip">${mdIcon('monitor')} FLOOR 01</span>
+                <span class="md-chip">${mdIcon('memory')} MEMORY: ${vaultItems.length || 0}</span>
                 <span class="md-chip" data-office-clock>${officeSchedule.shift.toUpperCase()} SHIFT · ${officeSchedule.label}${officeSchedule.breakName ? ` · ${officeSchedule.breakName}` : ''}</span>
               </div>
               <!-- 2D Horizontal & Vertical Pan / Zoom Pad -->
@@ -1590,7 +1613,7 @@ function bindMdEvents(profile, vaultItems) {
         hud.innerHTML = `
           <div class="md-agent-hud-card">
             <div class="md-hud-header">
-              <strong>${hit.isGod ? '👑' : '●'} ${escapeHtml(hit.name)} ${hit.isGod ? '<span class="md-tag-god">GOD</span>' : ''}</strong>
+              <strong>${hit.isGod ? mdIcon('workers') : '●'} ${escapeHtml(hit.name)} ${hit.isGod ? '<span class="md-tag-god">LEAD</span>' : ''}</strong>
               <button id="md-hud-close-btn" style="background:none; border:0; font-size:14px; cursor:pointer">${mdIcon('close')}</button>
             </div>
             <div class="md-hud-desc">
@@ -1700,7 +1723,7 @@ function bindDeckSubEvents(vaultItems) {
       });
       mdState.logs.push({
         type: 'agent',
-        name: '👑 AZHAR (Supreme God Orchestrator)',
+        name: 'AZHAR · ORCHESTRATOR',
         text: `AI Intelligence provider set to **${chosen.toUpperCase()}** (with automatic model fallback).`,
         copyable: false,
       });
@@ -1816,9 +1839,7 @@ export function showExperienceSwitcherModal(onSwitchCallback = null) {
 
         <!-- 2. Munder Difflin Pixel Office -->
         <div class="md-theme-card ${currentTheme === 'karyalaya' ? 'selected' : ''}" data-pick-theme="karyalaya">
-          <div class="md-theme-icon" style="background:#f5e39b">
-            👑
-          </div>
+          <div class="md-theme-icon md-theme-icon-floor">${mdIcon('monitor')}</div>
           <h3>Munder Difflin AI Floor</h3>
           <p>Authentic retro pixel-art office simulation. God Agent Azhar, autonomous walking agents, and breakroom chai lounge.</p>
           <div style="font-size:10px; font-weight:800; color:${currentTheme === 'karyalaya' ? '#d97706' : '#999'}">

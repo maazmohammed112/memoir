@@ -41,6 +41,7 @@ import ImageIcon from 'lucide/dist/esm/icons/image.mjs';
 import Info from 'lucide/dist/esm/icons/info.mjs';
 import KeyRound from 'lucide/dist/esm/icons/key-round.mjs';
 import Landmark from 'lucide/dist/esm/icons/landmark.mjs';
+import PanelsTopLeft from 'lucide/dist/esm/icons/panels-top-left.mjs';
 import LockKeyhole from 'lucide/dist/esm/icons/lock-keyhole.mjs';
 import LogOut from 'lucide/dist/esm/icons/log-out.mjs';
 import ListTodo from 'lucide/dist/esm/icons/list-todo.mjs';
@@ -84,7 +85,7 @@ const iconSet = {
   AlarmClock, AudioLines, ArrowLeft, ArrowUp, ArrowUpRight, BadgeCheck, Bell, BellRing, CakeSlice, Calendar, Camera,
   Check, ChevronRight, Circle, CircleCheckBig, CirclePause, CirclePlay, Clipboard, ClipboardPaste, Clock,
   CloudUpload, Copy, CreditCard, Download, Ellipsis, Eraser, Eye, EyeOff, ExternalLink, FileBadge, FileText, Gem, Globe, House, Image: ImageIcon, Info, KeyRound, Landmark,
-  LockKeyhole, LogOut, ListTodo, Mail, MessageCircle, Mic, Minus, NotebookText, Paperclip, Pencil, Plus, ReceiptText, RefreshCw, Search,
+  LockKeyhole, LogOut, ListTodo, Mail, MessageCircle, Mic, Minus, NotebookText, PanelsTopLeft, Paperclip, Pencil, Plus, ReceiptText, RefreshCw, Search,
   Send, Share2, ShieldAlert, ShieldCheck, Sparkles, Trash2, TriangleAlert, UploadCloud: CloudUpload, WandSparkles, Wifi, X, Zap,
 };
 
@@ -568,7 +569,7 @@ function shell() {
         <div class="top-actions">
           <div class="global-search"><span>${icon('Search')}</span><input id="global-search" name="search" aria-label="Search everything" placeholder="Search everything…" autocomplete="off"><span class="key-hint">⌘ K</span></div>
           <span class="sync-pill"><i class="sync-dot ${state.status === 'synced' ? '' : 'offline'}"></i>${syncLabel()}</span>
-          <button class="header-karyalaya-runner" id="header-theme-switcher" title="Switch to Karyalaya AI Floor" aria-label="Switch to Karyalaya AI Floor"><span class="karyalaya-badge-pulse"></span>${icon('Sparkles')} <span class="theme-label">Karyalaya Floor</span></button>
+          <button class="header-karyalaya-runner" id="header-theme-switcher" title="Switch workspace experience" aria-label="Switch workspace experience"><span class="karyalaya-badge-pulse"></span>${icon('PanelsTopLeft')} <span class="theme-label">Karyalaya Floor</span></button>
           <button class="header-rhino-runner" id="header-rhino-assistant" title="Open Rhinous" aria-label="Open Rhinous assistant"><span class="rhino-track" aria-hidden="true"></span><span class="header-rhino-launch" aria-hidden="true"><img src="/brand/memoir-rhino-ui.png" alt=""></span><i></i><i></i><i></i></button>
           <button class="round-btn mobile-search" id="mobile-search-button" title="Search everything">${icon('Search')}</button>
           <button class="round-btn notification-trigger" id="notification-center" title="Notifications" aria-label="Notifications">${icon('BellRing')}<span class="notification-badge" hidden></span></button>
@@ -4057,6 +4058,7 @@ async function runBackgroundAutomation() {
 let currentProfileUid = localStorage.getItem('memoir-selected-profile') || '';
 vaultStore.subscribe((items, status, session) => {
   const wasSignedIn = state.auth.status === 'signedIn'; state.items = items; state.status = status; state.auth = session || state.auth;
+  window.__MEMOIR_ITEMS__ = Array.isArray(items) ? items : [];
   const nextProfileUid = state.auth.profile?.uid || '';
   if (nextProfileUid !== currentProfileUid) { currentProfileUid = nextProfileUid; state.messages = []; state.assistantLog = nextProfileUid ? loadAssistantLog(nextProfileUid) : []; }
   if (state.auth.status === 'signedIn') state.authError = '';
