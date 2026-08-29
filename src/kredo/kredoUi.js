@@ -1285,11 +1285,11 @@ export class KredoController {
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div>
                   <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Total Limit (₹)</label>
-                  <input type="number" step="1000" class="kredo-form-input" id="card-total-limit" placeholder="e.g. 500000" required />
+                  <input type="number" step="any" min="0" class="kredo-form-input" id="card-total-limit" placeholder="e.g. 500000" required />
                 </div>
                 <div>
                   <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Available Limit (₹)</label>
-                  <input type="number" step="1000" class="kredo-form-input" id="card-current-limit" placeholder="e.g. 420000" required />
+                  <input type="number" step="any" min="0" class="kredo-form-input" id="card-current-limit" placeholder="e.g. 420000" required />
                 </div>
               </div>
 
@@ -1360,11 +1360,11 @@ export class KredoController {
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div>
                   <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Total Limit (₹)</label>
-                  <input type="number" class="kredo-form-input" id="edit-card-total-limit" value="${selectedCard.totalLimit}" required />
+                  <input type="number" step="any" min="0" class="kredo-form-input" id="edit-card-total-limit" value="${selectedCard.totalLimit}" required />
                 </div>
                 <div>
                   <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Available Limit (₹)</label>
-                  <input type="number" class="kredo-form-input" id="edit-card-current-limit" value="${selectedCard.currentLimit}" required />
+                  <input type="number" step="any" min="0" class="kredo-form-input" id="edit-card-current-limit" value="${selectedCard.currentLimit}" required />
                 </div>
               </div>
 
@@ -1961,10 +1961,17 @@ export class KredoController {
     const currentLimitInput = this.container.querySelector('#card-current-limit');
     const usedPreview = this.container.querySelector('#card-preview-used');
 
+    const parseFlexibleNumber = (val) => {
+      if (typeof val === 'number') return isNaN(val) ? 0 : val;
+      const cleaned = String(val || '').replace(/[^0-9.]/g, '');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
     const updateCalcPreview = () => {
       if (totalLimitInput && currentLimitInput && usedPreview) {
-        const tot = parseFloat(totalLimitInput.value || '0');
-        const cur = parseFloat(currentLimitInput.value || '0');
+        const tot = parseFlexibleNumber(totalLimitInput.value);
+        const cur = parseFlexibleNumber(currentLimitInput.value);
         const used = Math.max(0, tot - cur);
         const util = tot > 0 ? Math.min(100, Math.round((used / tot) * 100)) : 0;
         usedPreview.innerText = `${formatINR(used)} (${util}% utilization)`;
@@ -1988,13 +1995,17 @@ export class KredoController {
       const expiry = this.container.querySelector('#card-expiry')?.value?.trim() || '12/28';
       const cvv = this.container.querySelector('#card-cvv')?.value?.trim() || '•••';
       const cardholderName = this.container.querySelector('#card-holder')?.value?.trim() || 'Maaz Mohammed';
-      const totalLimit = parseFloat(this.container.querySelector('#card-total-limit')?.value || '0');
-      const currentLimit = parseFloat(this.container.querySelector('#card-current-limit')?.value || String(totalLimit));
-      const billDay = parseInt(this.container.querySelector('#card-bill-day')?.value || '15', 10);
-      const dueDay = parseInt(this.container.querySelector('#card-due-day')?.value || '5', 10);
+      const totalLimit = parseFlexibleNumber(this.container.querySelector('#card-total-limit')?.value);
+      const currentLimitRaw = this.container.querySelector('#card-current-limit')?.value;
+      const currentLimit = currentLimitRaw !== '' && currentLimitRaw !== undefined ? parseFlexibleNumber(currentLimitRaw) : totalLimit;
+      const billDay = parseInt(this.container.querySelector('#card-bill-day')?.value || '15', 10) || 15;
+      const dueDay = parseInt(this.container.querySelector('#card-due-day')?.value || '5', 10) || 5;
       const theme = this.container.querySelector('input[name="card-theme"]:checked')?.value || 'obsidian';
 
-      if (!cardName || !cardNumber || !totalLimit) return;
+      if (!cardName || !cardNumber || totalLimit <= 0) {
+        this.showToast('Please enter a valid card name and limit amount.');
+        return;
+      }
 
       const digits = cardNumber.replace(/\D/g, '');
       const last4 = digits.slice(-4) || '0000';
@@ -2024,13 +2035,13 @@ export class KredoController {
       e.preventDefault();
       const id = this.container.querySelector('#edit-card-id')?.value;
       const cardName = this.container.querySelector('#edit-card-name')?.value?.trim();
-      const last4 = this.container.querySelector('#edit-card-last4')?.value?.trim()?.slice(-4);
-      const totalLimit = parseFloat(this.container.querySelector('#edit-card-total-limit')?.value || '0');
-      const currentLimit = parseFloat(this.container.querySelector('#edit-card-current-limit')?.value || '0');
-      const billDay = parseInt(this.container.querySelector('#edit-card-bill-day')?.value || '15', 10);
-      const dueDay = parseInt(this.container.querySelector('#edit-card-due-day')?.value || '5', 10);
+      const last4 = this.container.querySelector('#edit-card-last4')?.value?.trim()?.slice(-4) || '0000';
+      const totalLimit = parseFlexibleNumber(this.container.querySelector('#edit-card-total-limit')?.value);
+      const currentLimit = parseFlexibleNumber(this.container.querySelector('#edit-card-current-limit')?.value);
+      const billDay = parseInt(this.container.querySelector('#edit-card-bill-day')?.value || '15', 10) || 15;
+      const dueDay = parseInt(this.container.querySelector('#edit-card-due-day')?.value || '5', 10) || 5;
 
-      if (!id || !cardName || !totalLimit) return;
+      if (!id || !cardName || totalLimit <= 0) return;
 
       await updateCreditCard(id, {
         cardName,
