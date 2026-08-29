@@ -7,22 +7,23 @@
 import { computeTransactionFingerprint } from './kredoStore.js';
 import { format12HourTime } from './kredoAnalytics.js';
 
-export const GEMINI_PROMPT_TEMPLATE = `You are a financial parsing assistant. Extract all debit and credit transactions from my Gmail emails, bank alerts, or SMS.
-Output ONLY a valid JSON array of objects with NO conversational filler or preamble.
+export const GEMINI_PROMPT_TEMPLATE = `You are a financial parsing assistant. Extract all debit and credit transactions from my bank SMS, emails, or account statements.
+Output ONLY a valid JSON array of objects with NO conversational filler, markdown explanations, or preamble.
 
 Schema for each transaction:
 [
   {
     "date": "YYYY-MM-DD",              // e.g. "2026-03-12"
-    "time": "HH:MM AM/PM",             // e.g. "09:31 PM" (optional)
-    "merchant": "Name of payee/store", // e.g. "Amazon", "Swiggy", "Salary"
-    "amount": 23499,                    // Numeric number in INR (no currency symbols or commas)
-    "type": "debit",                   // "debit" (expense) or "credit" (income/refund)
+    "time": "HH:MM AM/PM",             // e.g. "09:31 PM"
+    "merchant": "Name of payee/store", // e.g. "Amazon", "Swiggy", "HDFC CC Bill"
+    "amount": 23499,                    // Numeric amount in INR (no symbols)
+    "type": "debit",                   // "debit" (expense) or "credit" (income/refund/bill payment)
     "category": "Shopping",             // "Shopping" | "Food & Dining" | "Groceries" | "Bills & Utilities" | "Healthcare" | "Travel" | "Entertainment" | "Income" | "Other"
-    "paymentMethod": "UPI",            // "UPI" | "Credit Card" | "Debit Card" | "Net Banking" | "Cash"
-    "cardOrAccount": "Cred UPI",       // Optional card name (e.g. "Axis Ace", "HDFC Millennia")
-    "referenceId": "UPI/607223918231", // Bank UTR or UPI Ref number (used for deduplication)
-    "notes": "Brief item description"  // Optional
+    "paymentMethod": "Credit Card",    // "Credit Card" | "UPI" | "Debit Card" | "Net Banking" | "Cash"
+    "cardLast4": "4028",               // REQUIRED for Credit Card: Extract the 4-digit card number (e.g. ending in 4028, xx4028)
+    "cardOrAccount": "HDFC Regalia",   // Bank or Card name if mentioned
+    "referenceId": "UPI/607223918231", // Bank UTR or UPI/Card Ref number
+    "notes": "Brief description"
   }
 ]`;
 
@@ -178,7 +179,18 @@ export function normalizeTransaction(raw) {
   const referenceId = String(raw.referenceId || raw.utr || raw.txnId || raw.ref || '').trim();
   const notes = raw.notes || raw.description || '';
 
-  const displaySub = `${merchant.toLowerCase()} (${method.toLowerCase()})`;
+  // Extract last 4 digits of credit/debit card
+  let cardLast4 = String(raw.cardLast4 || raw.last4 || '').trim().replace(/\D/g, '').slice(-4);
+  if (!cardLast4 && cardOrAccount) {
+    const match = String(cardOrAccount).match(/\b(\d{4})\b/);
+    if (match) cardLast4 = match[1];
+  }
+  if (!cardLast4 && notes) {
+    const match = String(notes).match(/ending (?:in )?(\d{4})|xx+(\d{4})|card (\d{4})/i);
+    if (match) cardLast4 = match[1] || match[2] || match[3];
+  }
+
+  const displaySub = `${merchant.toLowerCase()} (${method.toLowerCase()}${cardLast4 ? ` • ${cardLast4}` : ''})`;
 
   const normalized = {
     id: raw.id || 'krtx_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
@@ -191,6 +203,7 @@ export function normalizeTransaction(raw) {
     category,
     paymentMethod: method,
     cardOrAccount,
+    cardLast4,
     referenceId,
     notes,
     createdAt: Date.parse(`${dateStr}T${timeStr.includes(':') ? '12:00:00' : '00:00:00'}`) || Date.now(),

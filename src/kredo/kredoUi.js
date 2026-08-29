@@ -1,15 +1,15 @@
 /**
- * KREDO — Executive Financial Ledger & Intelligence Suite
+ * KREDO — Executive Financial Ledger, Credit Card Vault & Intelligence Suite
  * Full-Screen Desktop Dashboard & Mobile Application
  * - Electric Cobalt Blue (#0000FF), Warm Porcelain (#FCF8F8), Obsidian (#050505)
  * - Inter Typography, Display Numeric Tabulars, Material Symbols Outlined
  * - Responsive 2-Column Desktop Grid Layout & Fluid Mobile Views
  * - Hidden Scrollbars for seamless luxury aesthetic
- * - Quick Action (+) Menu with Add Expense & Import Statement JSON (No overlapping buttons!)
+ * - Dedicated Credit Cards Vault with auto-calculated used limit & utilization %
  * - Real-Time Dynamic SVG Wave Curve with Clickable Data Inspection Points
- * - Full Flawless CRUD with instant in-memory reactive updates & complete demo data purge
- * - Rich Spending Velocity Analytics with zero undefined values
- * - Transaction Row Click opens Clean Structured Preview Box
+ * - Auto-Deducting limits on new transactions matching card last 4 digits
+ * - Copy AI Extraction Prompt button in statement importer
+ * - 12-Hour (AM/PM) standard time formatting across all views
  */
 
 import {
@@ -36,6 +36,14 @@ import {
   GEMINI_PROMPT_TEMPLATE,
   analyzeImportBatch,
 } from './kredoImporter.js';
+
+import {
+  getCreditCards,
+  addCreditCard,
+  updateCreditCard,
+  deleteCreditCard,
+  DEFAULT_CARD_GRADIENTS,
+} from './kredoCardStore.js';
 
 // Premium Category Icon Vector Mapping (Zero emojis, modern Material Symbols)
 function getCategoryIcon(cat = '', type = 'debit') {
@@ -73,6 +81,7 @@ export class KredoController {
 
     this.state = {
       transactions: [],
+      cards: [],
       selectedMonth: 'all',
       searchQuery: '',
       typeFilter: 'all',
@@ -80,10 +89,13 @@ export class KredoController {
       paymentMethodFilter: 'all',
       timeRange: '1D', // '1H' | '1D' | '1W' | '1M' | '1Y' | 'All'
       showBalance: true,
-      activeTab: 'ledger', // 'ledger' | 'categories' | 'insights' | 'ai'
-      activeModal: null,   // 'action-menu' | 'add' | 'edit' | 'preview' | 'import' | 'delete-confirm' | 'batch-delete-confirm'
+      activeTab: 'ledger', // 'ledger' | 'cards' | 'categories' | 'insights' | 'ai'
+      activeModal: null,   // 'action-menu' | 'add' | 'edit' | 'preview' | 'import' | 'delete-confirm' | 'batch-delete-confirm' | 'add-card' | 'edit-card' | 'delete-card-confirm'
       selectedTx: null,
+      selectedCard: null,
       selectedTxIds: new Set(),
+      visibleCvvCardIds: new Set(),
+      selectedCardIdFilter: null,
       inspectingPoint: null,
       importDraft: '',
       importAnalysis: null,
@@ -95,6 +107,7 @@ export class KredoController {
 
   async init() {
     this.state.transactions = await getKredoTransactions();
+    this.state.cards = await getCreditCards();
     const months = getAvailableMonths(this.state.transactions);
     if (months.length > 0) {
       this.state.selectedMonth = months[0].key;
@@ -134,13 +147,20 @@ export class KredoController {
 
   openModal(modalName, data = null) {
     this.state.activeModal = modalName;
-    if (data) this.state.selectedTx = data;
+    if (data) {
+      if (modalName.includes('card')) {
+        this.state.selectedCard = data;
+      } else {
+        this.state.selectedTx = data;
+      }
+    }
     this.render();
   }
 
   closeModal() {
     this.state.activeModal = null;
     this.state.selectedTx = null;
+    this.state.selectedCard = null;
     this.state.importDraft = '';
     this.state.importAnalysis = null;
     this.render();
@@ -169,6 +189,15 @@ export class KredoController {
 
   clearSelection() {
     this.state.selectedTxIds.clear();
+    this.render();
+  }
+
+  toggleCardCvv(cardId) {
+    if (this.state.visibleCvvCardIds.has(cardId)) {
+      this.state.visibleCvvCardIds.delete(cardId);
+    } else {
+      this.state.visibleCvvCardIds.add(cardId);
+    }
     this.render();
   }
 
@@ -390,6 +419,7 @@ export class KredoController {
   render() {
     const {
       transactions,
+      cards,
       selectedMonth,
       searchQuery,
       typeFilter,
@@ -399,16 +429,29 @@ export class KredoController {
       showBalance,
       activeTab,
       selectedTxIds,
+      selectedCardIdFilter,
     } = this.state;
 
     // Filter transactions using multi-filter engine
-    const filteredTxs = filterTransactions(transactions, {
+    let filteredTxs = filterTransactions(transactions, {
       month: selectedMonth,
       query: searchQuery,
       type: typeFilter,
       category: categoryFilter,
       paymentMethod: paymentMethodFilter,
     });
+
+    // If filtered by specific credit card
+    if (selectedCardIdFilter) {
+      const card = cards.find(c => c.id === selectedCardIdFilter);
+      if (card && card.last4) {
+        filteredTxs = filteredTxs.filter(t => 
+          (t.cardLast4 && t.cardLast4 === card.last4) ||
+          (t.cardOrAccount && t.cardOrAccount.includes(card.last4)) ||
+          (t.notes && t.notes.includes(card.last4))
+        );
+      }
+    }
 
     // Hierarchical Week & Day grouping
     const hierarchicalWeeks = groupTransactionsHierarchically(filteredTxs);
@@ -447,6 +490,9 @@ export class KredoController {
                 <button class="kredo-desktop-tab-btn ${activeTab === 'ledger' ? 'active' : ''}" data-nav="ledger">
                   <span class="material-symbols-outlined text-[16px]">receipt_long</span> Ledger
                 </button>
+                <button class="kredo-desktop-tab-btn ${activeTab === 'cards' ? 'active' : ''}" data-nav="cards">
+                  <span class="material-symbols-outlined text-[16px]">credit_card</span> Credit Cards
+                </button>
                 <button class="kredo-desktop-tab-btn ${activeTab === 'categories' ? 'active' : ''}" data-nav="categories">
                   <span class="material-symbols-outlined text-[16px]">pie_chart</span> Categories
                 </button>
@@ -454,7 +500,7 @@ export class KredoController {
                   <span class="material-symbols-outlined text-[16px]">speed</span> Velocity
                 </button>
                 <button class="kredo-desktop-tab-btn ${activeTab === 'ai' ? 'active' : ''}" data-nav="ai">
-                  <span class="material-symbols-outlined text-[16px]">psychology</span> AI Intelligence
+                  <span class="material-symbols-outlined text-[16px]">psychology</span> AI
                 </button>
               </nav>
 
@@ -477,8 +523,8 @@ export class KredoController {
               <button class="kredo-nav-item ${activeTab === 'ledger' ? 'active' : ''}" data-nav="ledger" title="Ledger Feed">
                 <span class="material-symbols-outlined ${activeTab === 'ledger' ? 'fill' : ''}">receipt_long</span>
               </button>
-              <button class="kredo-nav-item ${activeTab === 'categories' ? 'active' : ''}" data-nav="categories" title="Categories">
-                <span class="material-symbols-outlined ${activeTab === 'categories' ? 'fill' : ''}">pie_chart</span>
+              <button class="kredo-nav-item ${activeTab === 'cards' ? 'active' : ''}" data-nav="cards" title="Credit Cards">
+                <span class="material-symbols-outlined ${activeTab === 'cards' ? 'fill' : ''}">credit_card</span>
               </button>
 
               <!-- Center Floating Action Button (+) opens quick menu -->
@@ -486,11 +532,11 @@ export class KredoController {
                 <span class="material-symbols-outlined text-[24px]">add</span>
               </button>
 
+              <button class="kredo-nav-item ${activeTab === 'categories' ? 'active' : ''}" data-nav="categories" title="Categories">
+                <span class="material-symbols-outlined ${activeTab === 'categories' ? 'fill' : ''}">pie_chart</span>
+              </button>
               <button class="kredo-nav-item ${activeTab === 'insights' ? 'active' : ''}" data-nav="insights" title="Spending Velocity">
                 <span class="material-symbols-outlined ${activeTab === 'insights' ? 'fill' : ''}">speed</span>
-              </button>
-              <button class="kredo-nav-item ${activeTab === 'ai' ? 'active' : ''}" data-nav="ai" title="AI Intelligence">
-                <span class="material-symbols-outlined ${activeTab === 'ai' ? 'fill' : ''}">psychology</span>
               </button>
             </div>
           </nav>
@@ -521,8 +567,198 @@ export class KredoController {
   }
 
   renderCanvasContent(analytics, hierarchicalWeeks, filteredTxs, availableMonths, isAllSelected, chartData) {
-    const { activeTab, showBalance, timeRange, selectedMonth, typeFilter, inspectingPoint } = this.state;
+    const { activeTab, showBalance, timeRange, selectedMonth, typeFilter, inspectingPoint, cards, selectedCardIdFilter } = this.state;
     const displayAmount = showBalance ? formatINR(analytics.totalDebits || 0) : '••••••••';
+
+    // CREDIT CARDS VAULT TAB
+    if (activeTab === 'cards') {
+      const cardList = cards || [];
+      const totalCreditLine = cardList.reduce((sum, c) => sum + (c.totalLimit || 0), 0);
+      const totalAvailable = cardList.reduce((sum, c) => sum + (c.currentLimit || 0), 0);
+      const totalUsed = cardList.reduce((sum, c) => sum + (c.usedLimit || 0), 0);
+      const overallUtilization = totalCreditLine > 0 ? Math.min(100, Math.round((totalUsed / totalCreditLine) * 100)) : 0;
+
+      return `
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+          
+          <!-- Top Executive Metrics Bar -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+            <div class="kredo-card">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Total Credit Line</span>
+              <h3 style="font-size: 24px; font-weight: 700; margin: 0; font-family: var(--kredo-mono); color: var(--kredo-secondary);">${formatINR(totalCreditLine)}</h3>
+              <span style="font-size: 11px; color: var(--kredo-outline); margin-top: 4px;">${cardList.length} Active Cards</span>
+            </div>
+
+            <div class="kredo-card">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Available Limit</span>
+              <h3 style="font-size: 24px; font-weight: 700; margin: 0; font-family: var(--kredo-mono); color: var(--kredo-primary);">${formatINR(totalAvailable)}</h3>
+              <span style="font-size: 11px; color: var(--kredo-outline); margin-top: 4px;">Safe Liquidity Margin</span>
+            </div>
+
+            <div class="kredo-card">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Total Used / Outstanding</span>
+              <h3 style="font-size: 24px; font-weight: 700; margin: 0; font-family: var(--kredo-mono); color: var(--kredo-tertiary);">${formatINR(totalUsed)}</h3>
+              <span style="font-size: 11px; color: var(--kredo-outline); margin-top: 4px;">Auto-calculated from limits</span>
+            </div>
+
+            <div class="kredo-card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline);">Utilization Rate</span>
+                <span style="font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: ${overallUtilization < 30 ? 'var(--kredo-green-bg)' : (overallUtilization < 70 ? '#fef3c7' : '#fee2e2')}; color: ${overallUtilization < 30 ? 'var(--kredo-green)' : (overallUtilization < 70 ? '#d97706' : 'var(--kredo-error)')};">
+                  ${overallUtilization < 30 ? 'HEALTHY (<30%)' : (overallUtilization < 70 ? 'MODERATE' : 'HIGH')}
+                </span>
+              </div>
+              <h3 style="font-size: 24px; font-weight: 700; margin: 0; font-family: var(--kredo-mono);">${overallUtilization}%</h3>
+              <div class="kredo-utilization-bar" style="margin-top: 8px;">
+                <div class="kredo-utilization-fill" style="width: ${overallUtilization}%; background: ${overallUtilization < 30 ? 'var(--kredo-green)' : (overallUtilization < 70 ? '#d97706' : 'var(--kredo-error)')};"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Action Header -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 4px;">
+            <div>
+              <h3 style="font-size: 18px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Credit Cards Vault</h3>
+              <span style="font-size: 12px; color: var(--kredo-outline);">Tracks limits, billing cycles, and auto-deducts expenses by last 4 digits</span>
+            </div>
+            <button class="kredo-btn-action" id="open-add-card-btn">
+              <span class="material-symbols-outlined text-[18px]">add_card</span> Add Credit Card
+            </button>
+          </div>
+
+          <!-- Cards Visual Gallery -->
+          ${cardList.length > 0 ? `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;">
+              ${cardList.map(card => {
+                const gradientObj = DEFAULT_CARD_GRADIENTS.find(g => g.id === card.theme) || DEFAULT_CARD_GRADIENTS[0];
+                const isCvvVisible = this.state.visibleCvvCardIds.has(card.id);
+                return `
+                  <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <!-- Realistic Luxury Credit Card Component -->
+                    <div class="kredo-credit-card" style="background: ${gradientObj.background}; color: ${gradientObj.text};">
+                      <div class="kredo-card-gloss"></div>
+
+                      <!-- Card Top Row: Bank & Contactless -->
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start; z-index: 2;">
+                        <div>
+                          <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.8; display: block;">${card.bank || 'EXECUTIVE'}</span>
+                          <strong style="font-size: 16px; font-weight: 800; letter-spacing: 0.5px;">${card.cardName}</strong>
+                        </div>
+                        <span class="material-symbols-outlined text-[24px]" style="opacity: 0.8;">contactless</span>
+                      </div>
+
+                      <!-- Card Middle Row: EMV Chip & Number -->
+                      <div style="display: flex; flex-direction: column; gap: 12px; z-index: 2; margin: 8px 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                          <div class="kredo-card-chip"></div>
+                          <span style="font-size: 11px; font-weight: 700; background: rgba(255,255,255,0.15); padding: 3px 8px; border-radius: 6px; letter-spacing: 1px;">CREDIT</span>
+                        </div>
+                        <div class="kredo-card-number-display">
+                          <span>••••</span>
+                          <span>••••</span>
+                          <span>••••</span>
+                          <span style="color: #ffffff; text-decoration: underline dotted;">${card.last4 || '••••'}</span>
+                        </div>
+                      </div>
+
+                      <!-- Card Bottom Row: Cardholder, Expiry, CVV -->
+                      <div style="display: flex; justify-content: space-between; align-items: flex-end; z-index: 2;">
+                        <div>
+                          <span style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; display: block;">CARDHOLDER</span>
+                          <strong style="font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;">${card.cardholderName || 'CARD MEMBER'}</strong>
+                        </div>
+
+                        <div style="display: flex; gap: 14px; align-items: flex-end;">
+                          <div>
+                            <span style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; display: block;">EXPIRES</span>
+                            <span style="font-size: 12px; font-weight: 700; font-family: var(--kredo-mono);">${card.expiry || '12/28'}</span>
+                          </div>
+
+                          <div>
+                            <span style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; display: block;">CVV</span>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                              <span style="font-size: 12px; font-weight: 700; font-family: var(--kredo-mono);">${isCvvVisible ? (card.cvv || '•••') : '•••'}</span>
+                              <button type="button" data-toggle-cvv="${card.id}" style="background: none; border: none; color: inherit; cursor: pointer; padding: 0; opacity: 0.75;" title="Toggle CVV visibility">
+                                <span class="material-symbols-outlined text-[14px]">${isCvvVisible ? 'visibility_off' : 'visibility'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Card Limit & Billing Summary Card -->
+                    <div class="kredo-card" style="padding: 16px 18px; gap: 12px;">
+                      <div>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                          <div>
+                            <span style="font-size: 11px; font-weight: 700; color: var(--kredo-outline); text-transform: uppercase;">Available: </span>
+                            <strong style="font-size: 16px; font-weight: 700; color: var(--kredo-primary); font-family: var(--kredo-mono);">${formatINR(card.currentLimit)}</strong>
+                          </div>
+                          <div style="text-align: right;">
+                            <span style="font-size: 11px; color: var(--kredo-outline);">Used: </span>
+                            <strong style="font-size: 14px; font-family: var(--kredo-mono); color: var(--kredo-secondary);">${formatINR(card.usedLimit)} (${card.utilization}%)</strong>
+                          </div>
+                        </div>
+                        <div class="kredo-utilization-bar">
+                          <div class="kredo-utilization-fill" style="width: ${card.utilization}%; background: ${card.utilization < 30 ? 'var(--kredo-green)' : (card.utilization < 70 ? '#d97706' : 'var(--kredo-error)')};"></div>
+                        </div>
+                      </div>
+
+                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 8px 10px; background: var(--kredo-surface-container-low); border-radius: 8px; font-size: 11.5px;">
+                        <div>
+                          <span style="color: var(--kredo-outline); display: block;">Billing Date</span>
+                          <strong style="color: var(--kredo-secondary);">${card.billDay}th of month</strong>
+                        </div>
+                        <div>
+                          <span style="color: var(--kredo-outline); display: block;">Payment Due</span>
+                          <strong style="color: ${card.dueBadgeColor};">${card.dueBadge}</strong>
+                        </div>
+                      </div>
+
+                      <!-- Card Action Controls -->
+                      <div style="display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--kredo-outline-variant); padding-top: 10px;">
+                        <button type="button" data-view-card-txs="${card.id}" style="background: transparent; border: 1px solid var(--kredo-outline-variant); border-radius: 6px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                          <span class="material-symbols-outlined text-[14px]">receipt_long</span> Transactions
+                        </button>
+                        <button type="button" data-edit-card="${card.id}" style="background: transparent; border: 1px solid var(--kredo-outline-variant); border-radius: 6px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                          <span class="material-symbols-outlined text-[14px]">edit</span> Edit
+                        </button>
+                        <button type="button" data-delete-card="${card.id}" style="background: rgba(186,26,26,0.08); border: none; color: var(--kredo-error); border-radius: 6px; padding: 5px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                          <span class="material-symbols-outlined text-[14px]">delete</span> Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            <div style="background:#ffffff; border:1px dashed var(--kredo-outline-variant); border-radius:14px; padding:48px 20px; text-align:center; color:var(--kredo-outline);">
+              <span class="material-symbols-outlined text-[44px]" style="margin-bottom:8px; display:block; color:var(--kredo-primary);">credit_card</span>
+              <h4 style="margin:0 0 6px 0; color:var(--kredo-secondary); font-size:17px; font-weight:700;">No Credit Cards Added Yet</h4>
+              <p style="margin:0 0 20px 0; font-size:13px; max-width: 420px; margin-left: auto; margin-right: auto;">
+                Add your cards to monitor limits, auto-calculate utilization, track due dates, and auto-deduct newly imported statement expenses by last 4 digits.
+              </p>
+              
+              <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;">
+                <button type="button" class="kredo-btn-action secondary" data-quick-sample="hdfc" style="font-size: 12px; padding: 8px 14px;">
+                  + Add HDFC Regalia (••4028)
+                </button>
+                <button type="button" class="kredo-btn-action secondary" data-quick-sample="axis" style="font-size: 12px; padding: 8px 14px;">
+                  + Add Axis Ace (••8812)
+                </button>
+              </div>
+
+              <button class="kredo-btn-action" style="max-width:200px; margin:0 auto; padding:10px 20px; font-size:13.5px;" id="open-add-card-btn-2">
+                <span class="material-symbols-outlined text-[18px]">add_card</span> Add Custom Card
+              </button>
+            </div>
+          `}
+
+        </div>
+      `;
+    }
 
     if (activeTab === 'ledger') {
       return `
@@ -686,6 +922,7 @@ export class KredoController {
                                 <div class="kredo-tx-merchant">${tx.merchant}</div>
                                 <div class="kredo-tx-meta">
                                   <span>${tx.category}</span> &bull; <span>${tx.paymentMethod}</span>
+                                  ${tx.cardLast4 ? `&bull; <span style="font-family:var(--kredo-mono); font-weight:600;">••${tx.cardLast4}</span>` : ''}
                                 </div>
                               </div>
                             </div>
@@ -869,8 +1106,168 @@ export class KredoController {
 
   // Modals & Bottom Drawers
   renderActiveModal(filteredTxs) {
-    const { activeModal, selectedTx, importDraft } = this.state;
+    const { activeModal, selectedTx, selectedCard, importDraft } = this.state;
     if (!activeModal) return '';
+
+    // ADD CREDIT CARD MODAL
+    if (activeModal === 'add-card') {
+      return `
+        <div class="kredo-modal-backdrop" id="kredo-modal-bg">
+          <div class="kredo-modal-sheet" style="max-width: 480px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 style="font-size: 17px; font-weight: 700; margin: 0;">Add Credit Card</h3>
+              <button class="kredo-mini-btn" id="close-modal-btn">
+                <span class="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form id="kredo-add-card-form" style="display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Bank</label>
+                  <select class="kredo-form-select" id="card-bank" required>
+                    <option value="HDFC">HDFC Bank</option>
+                    <option value="ICICI">ICICI Bank</option>
+                    <option value="Axis">Axis Bank</option>
+                    <option value="SBI">SBI Card</option>
+                    <option value="Amex">American Express</option>
+                    <option value="Kotak">Kotak Mahindra</option>
+                    <option value="Standard Chartered">Standard Chartered</option>
+                    <option value="Other">Other Bank</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Card Name</label>
+                  <input type="text" class="kredo-form-input" id="card-name" placeholder="e.g. Regalia Gold, Ace" required />
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Card Number / Last 4</label>
+                  <input type="text" class="kredo-form-input" id="card-number" placeholder="•••• 4028" required />
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Expiry</label>
+                  <input type="text" class="kredo-form-input" id="card-expiry" placeholder="08/29" maxlength="5" />
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">CVV</label>
+                  <input type="password" class="kredo-form-input" id="card-cvv" placeholder="•••" maxlength="4" />
+                </div>
+              </div>
+
+              <div>
+                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Cardholder Name</label>
+                <input type="text" class="kredo-form-input" id="card-holder" value="${this.profile?.displayName || 'Maaz Mohammed'}" required />
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Total Limit (₹)</label>
+                  <input type="number" step="1000" class="kredo-form-input" id="card-total-limit" placeholder="e.g. 500000" required />
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Available Limit (₹)</label>
+                  <input type="number" step="1000" class="kredo-form-input" id="card-current-limit" placeholder="e.g. 420000" required />
+                </div>
+              </div>
+
+              <!-- Live Calculation Preview -->
+              <div id="card-limit-calc-preview" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--kredo-surface-container-low); border-radius: 8px; font-size: 12px;">
+                <span style="color: var(--kredo-outline);">Auto-calculated Used Limit:</span>
+                <strong style="color: var(--kredo-primary); font-family: var(--kredo-mono);" id="card-preview-used">₹0 (0% utilization)</strong>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Bill Date (Day of Month)</label>
+                  <input type="number" min="1" max="31" class="kredo-form-input" id="card-bill-day" value="15" required />
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Payment Due Day</label>
+                  <input type="number" min="1" max="31" class="kredo-form-input" id="card-due-day" value="5" required />
+                </div>
+              </div>
+
+              <div>
+                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Card Color Theme</label>
+                <div style="display: flex; gap: 8px;">
+                  ${DEFAULT_CARD_GRADIENTS.map(g => `
+                    <label style="flex: 1; height: 32px; border-radius: 6px; background: ${g.background}; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px solid transparent;" title="${g.name}">
+                      <input type="radio" name="card-theme" value="${g.id}" ${g.id === 'obsidian' ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;" />
+                    </label>
+                  `).join('')}
+                </div>
+              </div>
+
+              <button type="submit" class="kredo-btn-action" style="width: 100%; margin-top: 6px;">
+                Save Card to Vault
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    // EDIT CREDIT CARD MODAL
+    if (activeModal === 'edit-card' && selectedCard) {
+      return `
+        <div class="kredo-modal-backdrop" id="kredo-modal-bg">
+          <div class="kredo-modal-sheet" style="max-width: 480px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 style="font-size: 17px; font-weight: 700; margin: 0;">Edit ${selectedCard.cardName}</h3>
+              <button class="kredo-mini-btn" id="close-modal-btn">
+                <span class="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form id="kredo-edit-card-form" style="display: flex; flex-direction: column; gap: 12px;">
+              <input type="hidden" id="edit-card-id" value="${selectedCard.id}" />
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Card Name</label>
+                  <input type="text" class="kredo-form-input" id="edit-card-name" value="${selectedCard.cardName}" required />
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Last 4 Digits</label>
+                  <input type="text" class="kredo-form-input" id="edit-card-last4" value="${selectedCard.last4}" maxlength="4" required />
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Total Limit (₹)</label>
+                  <input type="number" class="kredo-form-input" id="edit-card-total-limit" value="${selectedCard.totalLimit}" required />
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Available Limit (₹)</label>
+                  <input type="number" class="kredo-form-input" id="edit-card-current-limit" value="${selectedCard.currentLimit}" required />
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Billing Day</label>
+                  <input type="number" min="1" max="31" class="kredo-form-input" id="edit-card-bill-day" value="${selectedCard.billDay}" required />
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Payment Due Day</label>
+                  <input type="number" min="1" max="31" class="kredo-form-input" id="edit-card-due-day" value="${selectedCard.dueDay}" required />
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <button type="button" class="kredo-btn-action secondary" id="edit-card-cancel-btn" style="flex: 1;">Cancel</button>
+                <button type="submit" class="kredo-btn-action" style="flex: 1;">Update Card</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
 
     // TRANSACTION PREVIEW BOX (Pure, clean, structured receipt - not edit form!)
     if (activeModal === 'preview' && selectedTx) {
@@ -915,7 +1312,7 @@ export class KredoController {
               </div>
               <div style="display: flex; justify-content: space-between; padding: 10px 14px; background: #ffffff; border: 1px solid var(--kredo-outline-variant); border-radius: 8px;">
                 <span style="color: var(--kredo-outline);">Payment Method</span>
-                <strong style="color: var(--kredo-secondary);">${selectedTx.paymentMethod || 'UPI'}</strong>
+                <strong style="color: var(--kredo-secondary);">${selectedTx.paymentMethod || 'UPI'}${selectedTx.cardLast4 ? ` (••${selectedTx.cardLast4})` : ''}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; padding: 10px 14px; background: #ffffff; border: 1px solid var(--kredo-outline-variant); border-radius: 8px;">
                 <span style="color: var(--kredo-outline);">Category</span>
@@ -965,6 +1362,16 @@ export class KredoController {
                 <div>
                   <strong style="font-size: 14px; display: block; color: var(--kredo-secondary);">Add Transaction</strong>
                   <span style="font-size: 12px; color: var(--kredo-outline);">Record single expense or incoming funds</span>
+                </div>
+              </button>
+
+              <button class="kredo-quick-action-btn" id="quick-action-add-card-btn">
+                <div style="width: 38px; height: 38px; border-radius: 10px; background: #e0e0ff; color: var(--kredo-primary); display: flex; align-items: center; justify-content: center;">
+                  <span class="material-symbols-outlined text-[20px]">credit_card</span>
+                </div>
+                <div>
+                  <strong style="font-size: 14px; display: block; color: var(--kredo-secondary);">Add Credit Card</strong>
+                  <span style="font-size: 12px; color: var(--kredo-outline);">Track limit, utilization, and due dates</span>
                 </div>
               </button>
 
@@ -1058,6 +1465,12 @@ export class KredoController {
                     <option value="Cash">Cash</option>
                   </select>
                 </div>
+              </div>
+
+              <!-- Card Last 4 Digits (for auto-deduction) -->
+              <div id="add-card-last4-wrap" style="display: none;">
+                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Card Last 4 Digits</label>
+                <input type="text" class="kredo-form-input" id="add-card-last4" placeholder="e.g. 4028 (Auto-deducts card limit)" maxlength="4" />
               </div>
 
               <button type="submit" class="kredo-btn-action" style="width: 100%; margin-top: 8px;">
@@ -1167,6 +1580,27 @@ export class KredoController {
       `;
     }
 
+    // DELETE CREDIT CARD CONFIRMATION MODAL
+    if (activeModal === 'delete-card-confirm' && selectedCard) {
+      return `
+        <div class="kredo-modal-backdrop" id="kredo-modal-bg">
+          <div class="kredo-modal-sheet" style="text-align: center;">
+            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(186,26,26,0.1); color: var(--kredo-error); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
+              <span class="material-symbols-outlined text-[24px]">credit_card_off</span>
+            </div>
+            <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 6px 0;">Delete Credit Card?</h3>
+            <p style="font-size: 13px; color: var(--kredo-on-surface-variant); margin: 0 0 18px 0;">
+              Are you sure you want to remove <strong>${selectedCard.cardName} (••${selectedCard.last4})</strong> from your credit vault?
+            </p>
+            <div style="display: flex; gap: 10px;">
+              <button class="kredo-btn-action secondary" id="cancel-delete-card-btn" style="flex: 1;">Cancel</button>
+              <button class="kredo-btn-action" id="confirm-delete-card-btn" style="flex: 1; background: var(--kredo-error); box-shadow: none;">Delete Card</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     // BATCH DELETE CONFIRMATION MODAL
     if (activeModal === 'batch-delete-confirm') {
       const count = this.state.selectedTxIds.size;
@@ -1189,26 +1623,37 @@ export class KredoController {
       `;
     }
 
-    // JSON IMPORTER MODAL (Zero size limit, handles thousands of records with deduplication)
+    // JSON IMPORTER MODAL (Zero size limit, Copy AI Prompt, auto card limit deduction)
     if (activeModal === 'import') {
       return `
         <div class="kredo-modal-backdrop" id="kredo-modal-bg">
-          <div class="kredo-modal-sheet" style="max-width: 520px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <div class="kredo-modal-sheet" style="max-width: 540px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
               <div>
                 <h3 style="font-size: 17px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Import Statement JSON</h3>
-                <span style="font-size: 11.5px; color: var(--kredo-outline);">Unbounded capacity &bull; Real-time AI deduplication</span>
+                <span style="font-size: 11.5px; color: var(--kredo-outline);">Unbounded capacity &bull; Auto card limit deduction</span>
               </div>
               <button class="kredo-mini-btn" id="close-modal-btn">
                 <span class="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
 
+            <!-- Prominent Copy AI Prompt Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; background: var(--kredo-primary-fixed); padding: 10px 14px; border-radius: 10px; margin-bottom: 12px;">
+              <div>
+                <strong style="font-size: 13px; color: var(--kredo-on-primary-fixed); display: block;">Gemini AI Extraction Prompt</strong>
+                <span style="font-size: 11px; color: var(--kredo-primary);">Extracts last 4 digits for automatic credit card deductions</span>
+              </div>
+              <button type="button" id="copy-ai-prompt-btn" style="background: var(--kredo-primary); color: #fff; border: none; border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(0,0,255,0.2);">
+                <span class="material-symbols-outlined text-[15px]">content_copy</span> Copy Prompt
+              </button>
+            </div>
+
             <p style="font-size: 12px; color: var(--kredo-on-surface-variant); margin: 0 0 10px 0; line-height: 1.4;">
-              Paste any JSON array, object, or statement extract. Handles large volumes smoothly with zero size limits and skips duplicates automatically.
+              Paste any statement JSON. If a transaction has a card's last 4 digits, its available limit will be deducted automatically.
             </p>
 
-            <textarea class="kredo-form-textarea" id="import-json-input" style="height: 180px; font-family: var(--kredo-mono); font-size: 12px; resize: vertical; line-height: 1.4;" placeholder='Paste any JSON array or statement export:&#10;[&#10;  { "date": "2026-03-20", "amount": 350, "merchant": "Swiggy", "type": "debit", "paymentMethod": "UPI" }&#10;]'>${importDraft}</textarea>
+            <textarea class="kredo-form-textarea" id="import-json-input" style="height: 160px; font-family: var(--kredo-mono); font-size: 12px; resize: vertical; line-height: 1.4;" placeholder='Paste any JSON array or statement export:&#10;[&#10;  { "date": "2026-03-20", "amount": 350, "merchant": "Swiggy", "type": "debit", "paymentMethod": "Credit Card", "cardLast4": "4028" }&#10;]'>${importDraft}</textarea>
 
             <div id="import-loading-status" style="display: none;" class="kredo-import-status-box">
               <span class="kredo-spinner dark"></span>
@@ -1264,14 +1709,230 @@ export class KredoController {
       this.openModal('add');
     });
 
+    this.container.querySelector('#quick-action-add-card-btn')?.addEventListener('click', () => {
+      this.openModal('add-card');
+    });
+
     this.container.querySelector('#quick-action-import-btn')?.addEventListener('click', () => {
       this.openModal('import');
+    });
+
+    // Open Add Card Modal
+    this.container.querySelector('#open-add-card-btn')?.addEventListener('click', () => {
+      this.openModal('add-card');
+    });
+
+    this.container.querySelector('#open-add-card-btn-2')?.addEventListener('click', () => {
+      this.openModal('add-card');
     });
 
     // Empty state add button
     this.container.querySelector('#kredo-empty-add-btn')?.addEventListener('click', () => {
       this.openModal('add');
     });
+
+    // Copy AI Prompt
+    this.container.querySelector('#copy-ai-prompt-btn')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(GEMINI_PROMPT_TEMPLATE);
+      this.showToast('Copied AI Extraction Prompt to Clipboard!');
+    });
+
+    // Quick Sample Cards
+    this.container.querySelectorAll('[data-quick-sample]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const sample = btn.dataset.quickSample;
+        if (sample === 'hdfc') {
+          await addCreditCard({
+            cardName: 'HDFC Regalia Gold',
+            bank: 'HDFC',
+            cardNumber: '•••• •••• •••• 4028',
+            last4: '4028',
+            cardholderName: this.profile?.displayName || 'Maaz Mohammed',
+            expiry: '08/29',
+            cvv: '782',
+            totalLimit: 500000,
+            currentLimit: 420000,
+            billDay: 15,
+            dueDay: 5,
+            theme: 'obsidian',
+          });
+          this.state.cards = await getCreditCards();
+          this.render();
+          this.showToast('Added HDFC Regalia Gold (••4028) to Vault!');
+        } else if (sample === 'axis') {
+          await addCreditCard({
+            cardName: 'Axis Ace',
+            bank: 'Axis',
+            cardNumber: '•••• •••• •••• 8812',
+            last4: '8812',
+            cardholderName: this.profile?.displayName || 'Maaz Mohammed',
+            expiry: '11/28',
+            cvv: '419',
+            totalLimit: 300000,
+            currentLimit: 265000,
+            billDay: 20,
+            dueDay: 10,
+            theme: 'cobalt',
+          });
+          this.state.cards = await getCreditCards();
+          this.render();
+          this.showToast('Added Axis Ace (••8812) to Vault!');
+        }
+      });
+    });
+
+    // Toggle CVV Visibility
+    this.container.querySelectorAll('[data-toggle-cvv]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleCardCvv(btn.dataset.toggleCvv);
+      });
+    });
+
+    // Edit Card Button
+    this.container.querySelectorAll('[data-edit-card]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const card = this.state.cards.find(c => c.id === btn.dataset.editCard);
+        if (card) this.openModal('edit-card', card);
+      });
+    });
+
+    // Delete Card Button
+    this.container.querySelectorAll('[data-delete-card]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const card = this.state.cards.find(c => c.id === btn.dataset.deleteCard);
+        if (card) this.openModal('delete-card-confirm', card);
+      });
+    });
+
+    // View Card Transactions Button
+    this.container.querySelectorAll('[data-view-card-txs]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.state.selectedCardIdFilter = btn.dataset.viewCardTxs;
+        this.state.activeTab = 'ledger';
+        this.render();
+        this.showToast('Filtering ledger for this card transactions');
+      });
+    });
+
+    // Add Card Live Limit Calculation
+    const totalLimitInput = this.container.querySelector('#card-total-limit');
+    const currentLimitInput = this.container.querySelector('#card-current-limit');
+    const usedPreview = this.container.querySelector('#card-preview-used');
+
+    const updateCalcPreview = () => {
+      if (totalLimitInput && currentLimitInput && usedPreview) {
+        const tot = parseFloat(totalLimitInput.value || '0');
+        const cur = parseFloat(currentLimitInput.value || '0');
+        const used = Math.max(0, tot - cur);
+        const util = tot > 0 ? Math.min(100, Math.round((used / tot) * 100)) : 0;
+        usedPreview.innerText = `${formatINR(used)} (${util}% utilization)`;
+      }
+    };
+
+    totalLimitInput?.addEventListener('input', updateCalcPreview);
+    currentLimitInput?.addEventListener('input', updateCalcPreview);
+
+    // Add Card Form Submit
+    this.container.querySelector('#kredo-add-card-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const bank = this.container.querySelector('#card-bank')?.value || 'HDFC';
+      const cardName = this.container.querySelector('#card-name')?.value?.trim();
+      const cardNumber = this.container.querySelector('#card-number')?.value?.trim();
+      const expiry = this.container.querySelector('#card-expiry')?.value?.trim() || '12/28';
+      const cvv = this.container.querySelector('#card-cvv')?.value?.trim() || '•••';
+      const cardholderName = this.container.querySelector('#card-holder')?.value?.trim() || 'Maaz Mohammed';
+      const totalLimit = parseFloat(this.container.querySelector('#card-total-limit')?.value || '0');
+      const currentLimit = parseFloat(this.container.querySelector('#card-current-limit')?.value || String(totalLimit));
+      const billDay = parseInt(this.container.querySelector('#card-bill-day')?.value || '15', 10);
+      const dueDay = parseInt(this.container.querySelector('#card-due-day')?.value || '5', 10);
+      const theme = this.container.querySelector('input[name="card-theme"]:checked')?.value || 'obsidian';
+
+      if (!cardName || !cardNumber || !totalLimit) return;
+
+      const digits = cardNumber.replace(/\D/g, '');
+      const last4 = digits.slice(-4) || '0000';
+
+      await addCreditCard({
+        bank,
+        cardName,
+        cardNumber: `•••• •••• •••• ${last4}`,
+        last4,
+        cardholderName,
+        expiry,
+        cvv,
+        totalLimit,
+        currentLimit,
+        billDay,
+        dueDay,
+        theme,
+      });
+
+      this.state.cards = await getCreditCards();
+      this.closeModal();
+      this.showToast(`Added ${cardName} (••${last4}) to Credit Vault!`);
+    });
+
+    // Edit Card Form Submit
+    this.container.querySelector('#kredo-edit-card-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = this.container.querySelector('#edit-card-id')?.value;
+      const cardName = this.container.querySelector('#edit-card-name')?.value?.trim();
+      const last4 = this.container.querySelector('#edit-card-last4')?.value?.trim()?.slice(-4);
+      const totalLimit = parseFloat(this.container.querySelector('#edit-card-total-limit')?.value || '0');
+      const currentLimit = parseFloat(this.container.querySelector('#edit-card-current-limit')?.value || '0');
+      const billDay = parseInt(this.container.querySelector('#edit-card-bill-day')?.value || '15', 10);
+      const dueDay = parseInt(this.container.querySelector('#edit-card-due-day')?.value || '5', 10);
+
+      if (!id || !cardName || !totalLimit) return;
+
+      await updateCreditCard(id, {
+        cardName,
+        last4,
+        totalLimit,
+        currentLimit,
+        billDay,
+        dueDay,
+      });
+
+      this.state.cards = await getCreditCards();
+      this.closeModal();
+      this.showToast('Credit Card updated successfully.');
+    });
+
+    // Confirm Delete Card
+    this.container.querySelector('#confirm-delete-card-btn')?.addEventListener('click', async () => {
+      if (this.state.selectedCard) {
+        await deleteCreditCard(this.state.selectedCard.id);
+        this.state.cards = await getCreditCards();
+        this.closeModal();
+        this.showToast('Credit card removed from vault.');
+      }
+    });
+
+    this.container.querySelector('#cancel-delete-card-btn')?.addEventListener('click', () => {
+      this.closeModal();
+    });
+
+    this.container.querySelector('#edit-card-cancel-btn')?.addEventListener('click', () => {
+      this.closeModal();
+    });
+
+    // Show / Hide Card Last 4 in Add Transaction Form when Payment Method is Credit Card
+    const addMethodSelect = this.container.querySelector('#add-method');
+    const cardLast4Wrap = this.container.querySelector('#add-card-last4-wrap');
+    if (addMethodSelect && cardLast4Wrap) {
+      addMethodSelect.addEventListener('change', () => {
+        if (addMethodSelect.value === 'Credit Card') {
+          cardLast4Wrap.style.display = 'block';
+        } else {
+          cardLast4Wrap.style.display = 'none';
+        }
+      });
+    }
 
     // Time Range Buttons
     this.container.querySelectorAll('[data-time]').forEach(btn => {
@@ -1355,6 +2016,7 @@ export class KredoController {
     this.container.querySelectorAll('[data-nav]').forEach(btn => {
       btn.addEventListener('click', () => {
         this.state.activeTab = btn.dataset.nav;
+        this.state.selectedCardIdFilter = null;
         this.render();
       });
     });
@@ -1430,6 +2092,7 @@ export class KredoController {
       const type = this.container.querySelector('input[name="add-type"]:checked')?.value || 'debit';
       const paymentMethod = this.container.querySelector('#add-method')?.value || 'UPI';
       const category = this.container.querySelector('#add-category')?.value || 'General';
+      const cardLast4 = this.container.querySelector('#add-card-last4')?.value?.trim()?.slice(-4) || '';
 
       if (!amount || !merchant) return;
 
@@ -1441,12 +2104,14 @@ export class KredoController {
         type,
         paymentMethod,
         category,
+        cardLast4,
       });
 
       if (result.duplicate) {
         this.showToast('Duplicate transaction detected!');
       } else {
         this.state.transactions = await getKredoTransactions();
+        this.state.cards = await getCreditCards(); // refresh limits
         // Ensure the month of the newly added transaction is visible
         const txMonth = date.slice(0, 7);
         if (this.state.selectedMonth !== 'all' && this.state.selectedMonth !== txMonth) {
@@ -1547,9 +2212,10 @@ export class KredoController {
         // Batch save into persistent storage & reactive cache
         await addKredoTransactionsBatch(newItems);
         this.state.transactions = await getKredoTransactions();
+        this.state.cards = await getCreditCards(); // refresh card limits
         this.state.selectedMonth = 'all'; // Set to all so newly imported records are visible immediately
         this.closeModal();
-        this.showToast(`Imported ${newItems.length} transactions! (${duplicateItems.length} duplicate items skipped)`);
+        this.showToast(`Imported ${newItems.length} transactions! (${duplicateItems.length} duplicates skipped)`);
       } catch (err) {
         if (btn) {
           btn.disabled = false;

@@ -226,5 +226,48 @@ assert.equal(txsAfterBatch.length, txsBeforeBatch.length - 2, 'Store must reflec
 
 console.log(`✓ Edit & Batch Delete passed: updated transaction "${updateRes.tx.merchant}", deleted ${deleteCount} items in batch.`);
 
+// 10. Credit Card Vault & Auto-Deduction Engine Test
+const {
+  addCreditCard,
+  getCreditCards,
+  updateCreditCard,
+  deleteCreditCard,
+  matchAndAdjustCardForTransaction,
+} = await import('../src/kredo/kredoCardStore.js');
+
+const testCard = await addCreditCard({
+  cardName: 'HDFC Regalia Gold',
+  bank: 'HDFC',
+  cardNumber: '4111 2222 3333 4028',
+  last4: '4028',
+  totalLimit: 500000,
+  currentLimit: 420000,
+  billDay: 15,
+  dueDay: 5,
+});
+
+assert.equal(testCard.last4, '4028', 'Last 4 digits must be extracted');
+assert.equal(testCard.usedLimit, 80000, 'Used limit must be totalLimit - currentLimit (500000 - 420000 = 80000)');
+assert.equal(testCard.utilization, 16, 'Utilization must be 16%');
+
+// Test auto-deduction on new debit transaction
+const debitTx = {
+  amount: 20000,
+  type: 'debit',
+  cardLast4: '4028',
+  merchant: 'Apple Store',
+};
+const adjustResult = await matchAndAdjustCardForTransaction(debitTx, true);
+assert.equal(adjustResult.matched, true, 'Transaction must match card by last 4 digits');
+assert.equal(adjustResult.newCurrentLimit, 400000, 'Current limit must be reduced by 20000 (420000 - 20000 = 400000)');
+
+const updatedCards = await getCreditCards();
+const refreshedCard = updatedCards.find(c => c.id === testCard.id);
+assert.equal(refreshedCard.currentLimit, 400000, 'Store must reflect updated available limit');
+assert.equal(refreshedCard.usedLimit, 100000, 'Used limit must now be 100000');
+assert.equal(refreshedCard.utilization, 20, 'Utilization must now be 20%');
+
+console.log(`✓ Credit Card Vault & Auto-Deduction passed: ${refreshedCard.cardName} (••${refreshedCard.last4}) available ₹${refreshedCard.currentLimit.toLocaleString()}, used ₹${refreshedCard.usedLimit.toLocaleString()} (${refreshedCard.utilization}%).`);
+
 console.log('\n🎉 ALL KREDO ENGINE & DEDUPLICATION TESTS PASSED WITH 100% SUCCESS!\n');
 

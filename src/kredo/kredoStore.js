@@ -397,6 +397,7 @@ export async function getKredoTransactions() {
 }
 
 import { format12HourTime } from './kredoAnalytics.js';
+import { matchAndAdjustCardForTransaction } from './kredoCardStore.js';
 
 export async function addKredoTransaction(rawTx) {
   const existing = await getKredoTransactions();
@@ -413,6 +414,7 @@ export async function addKredoTransaction(rawTx) {
     category: rawTx.category || 'General',
     paymentMethod: rawTx.paymentMethod || 'UPI',
     cardOrAccount: rawTx.cardOrAccount || 'Cred UPI',
+    cardLast4: rawTx.cardLast4 || '',
     referenceId: rawTx.referenceId || '',
     notes: rawTx.notes || '',
     createdAt: rawTx.createdAt || Date.now(),
@@ -429,6 +431,13 @@ export async function addKredoTransaction(rawTx) {
   inMemoryTransactions = [tx, ...existing];
   saveLocalStorageBackup(inMemoryTransactions);
   localStorage.setItem(INITIALIZED_FLAG_KEY, 'true');
+
+  // Match credit card by last 4 digits and auto-deduct limit for new transactions
+  try {
+    await matchAndAdjustCardForTransaction(tx, true);
+  } catch (e) {
+    console.warn('Card limit match error:', e);
+  }
 
   const db = await getDb();
   if (db) {
@@ -510,6 +519,15 @@ export async function addKredoTransactionsBatch(txList = []) {
   inMemoryTransactions = [...added, ...existing];
   saveLocalStorageBackup(inMemoryTransactions);
   localStorage.setItem(INITIALIZED_FLAG_KEY, 'true');
+
+  // Match credit card limits for newly imported records
+  try {
+    for (const t of added) {
+      await matchAndAdjustCardForTransaction(t, true);
+    }
+  } catch (e) {
+    console.warn('Batch card match error:', e);
+  }
 
   return {
     addedCount: added.length,
