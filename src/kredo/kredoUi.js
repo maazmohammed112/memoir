@@ -1041,46 +1041,64 @@ export class KredoController {
 
       return `
         <!-- Categories Breakdown Desktop Dashboard -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px;">
+        <div style="display: flex; flex-direction: column; gap: 20px;">
           
-          <div class="kredo-card">
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
-              <h3 style="font-size: 17px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Category Outflows</h3>
-              <span style="font-size: 12px; color: var(--kredo-outline);">${categories.length} Categories</span>
+          <!-- Month & Type Filter Strip -->
+          <section class="kredo-filter-strip">
+            <div class="kredo-filter-pills">
+              <button class="kredo-filter-pill ${typeFilter === 'all' ? 'active' : ''}" data-filter-type="all">All</button>
+              <button class="kredo-filter-pill ${typeFilter === 'debit' ? 'active' : ''}" data-filter-type="debit">Outflows</button>
+              <button class="kredo-filter-pill ${typeFilter === 'credit' ? 'active' : ''}" data-filter-type="credit">Inflows</button>
             </div>
 
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-              ${categories.length > 0 ? categories.map(cat => `
-                <div style="background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                      <div style="width: 34px; height: 34px; border-radius: 8px; background: rgba(0,0,255,0.08); color: var(--kredo-primary); display: flex; align-items: center; justify-content: center;">
-                        ${getCategoryIcon(cat.category)}
+            <select class="kredo-month-select" id="kredo-month-dropdown">
+              <option value="all" ${selectedMonth === 'all' ? 'selected' : ''}>All Months</option>
+              ${availableMonths.map(m => `
+                <option value="${m.key}" ${selectedMonth === m.key ? 'selected' : ''}>${m.label}</option>
+              `).join('')}
+            </select>
+          </section>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;">
+            <div class="kredo-card">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
+                <h3 style="font-size: 17px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Category Outflows</h3>
+                <span style="font-size: 12px; color: var(--kredo-outline);">${categories.length} Categories (${selectedMonth === 'all' ? 'All Time' : selectedMonth})</span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                ${categories.length > 0 ? categories.map(cat => `
+                  <div style="background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 34px; height: 34px; border-radius: 8px; background: rgba(0,0,255,0.08); color: var(--kredo-primary); display: flex; align-items: center; justify-content: center;">
+                          ${getCategoryIcon(cat.category)}
+                        </div>
+                        <strong style="font-size: 14px; color: var(--kredo-secondary);">${cat.category}</strong>
                       </div>
-                      <strong style="font-size: 14px; color: var(--kredo-secondary);">${cat.category}</strong>
+                      <div style="text-align: right;">
+                        <strong style="font-size: 14px; font-family: var(--kredo-mono);">${formatINR(cat.amount)}</strong>
+                        <span style="font-size: 11px; color: var(--kredo-outline); margin-left: 4px;">(${cat.percentage}%)</span>
+                      </div>
                     </div>
-                    <div style="text-align: right;">
-                      <strong style="font-size: 14px; font-family: var(--kredo-mono);">${formatINR(cat.amount)}</strong>
-                      <span style="font-size: 11px; color: var(--kredo-outline); margin-left: 4px;">(${cat.percentage}%)</span>
+                    <div style="height: 6px; background: rgba(0,0,0,0.06); border-radius: 3px; overflow: hidden;">
+                      <div style="height: 100%; width: ${cat.percentage}%; background: var(--kredo-primary); border-radius: 3px;"></div>
                     </div>
                   </div>
-                  <div style="height: 6px; background: rgba(0,0,0,0.06); border-radius: 3px; overflow: hidden;">
-                    <div style="height: 100%; width: ${cat.percentage}%; background: var(--kredo-primary); border-radius: 3px;"></div>
-                  </div>
-                </div>
-              `).join('') : '<p style="color: var(--kredo-outline); font-size: 13px; text-align: center; padding: 20px 0;">No category data recorded.</p>'}
+                `).join('') : '<p style="color: var(--kredo-outline); font-size: 13px; text-align: center; padding: 20px 0;">No category data recorded for this period.</p>'}
+              </div>
             </div>
-          </div>
 
-          <div class="kredo-card">
-            <h4 style="font-size: 16px; font-weight: 700; margin: 0 0 16px 0; color: var(--kredo-secondary);">Payment Method Distribution</h4>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-              ${paymentMethods.length > 0 ? paymentMethods.map(pm => `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--kredo-surface-container-low); border-radius: 10px; font-size: 13px;">
-                  <span style="color: var(--kredo-secondary); font-weight: 600;">${pm.method}</span>
-                  <span style="font-family: var(--kredo-mono); color: var(--kredo-outline); font-weight: 700;">${formatINR(pm.amount)} (${pm.percentage}%)</span>
-                </div>
-              `).join('') : '<p style="color: var(--kredo-outline); font-size: 13px; text-align: center; padding: 20px 0;">No payment method distribution available.</p>'}
+            <div class="kredo-card">
+              <h4 style="font-size: 16px; font-weight: 700; margin: 0 0 16px 0; color: var(--kredo-secondary);">Payment Method Distribution</h4>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                ${paymentMethods.length > 0 ? paymentMethods.map(pm => `
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--kredo-surface-container-low); border-radius: 10px; font-size: 13px;">
+                    <span style="color: var(--kredo-secondary); font-weight: 600;">${pm.method}</span>
+                    <span style="font-family: var(--kredo-mono); color: var(--kredo-outline); font-weight: 700;">${formatINR(pm.amount)} (${pm.percentage}%)</span>
+                  </div>
+                `).join('') : '<p style="color: var(--kredo-outline); font-size: 13px; text-align: center; padding: 20px 0;">No payment method distribution available.</p>'}
+              </div>
             </div>
           </div>
 
@@ -1093,43 +1111,59 @@ export class KredoController {
 
       return `
         <!-- Spending Velocity & Local AI Analytics -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px;">
+        <div style="display: flex; flex-direction: column; gap: 20px;">
           
-          <div class="kredo-card">
-            <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 16px 0; color: var(--kredo-secondary);">Spending Velocity</h3>
-
-            <div style="background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 14px; padding: 16px 18px; margin-bottom: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
-                <span style="font-size: 11px; font-weight: 700; color: var(--kredo-outline); text-transform: uppercase;">Daily Burn Pace</span>
-                <strong style="font-size: 20px; color: var(--kredo-primary); font-family: var(--kredo-mono);">${formatINR(analytics.dailyAverageSpend || 0)} / day</strong>
-              </div>
-              <p style="font-size: 12.5px; color: var(--kredo-on-surface-variant); margin: 0;">
-                Peak Outflow: ${analytics.highestPaymentPeriod ? `${formatINR(analytics.highestPaymentPeriod.amount)} at ${analytics.highestPaymentPeriod.merchant} (${analytics.highestPaymentPeriod.date || ''})` : 'None recorded'}
-              </p>
+          <!-- Month Selector for Velocity -->
+          <section class="kredo-filter-strip">
+            <div style="font-size: 13.5px; font-weight: 700; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
+              <span class="material-symbols-outlined text-[18px]">speed</span> Spending Velocity Analysis
             </div>
 
-            <div style="background: var(--kredo-surface-container-low); border-radius: 12px; padding: 14px 16px;">
-              <span style="font-size: 11px; font-weight: 700; color: var(--kredo-outline); text-transform: uppercase; display: block; margin-bottom: 4px;">Total Transaction Count</span>
-              <strong style="font-size: 18px; color: var(--kredo-secondary);">${analytics.debitsCount} outflows &bull; ${analytics.creditsCount} inflows</strong>
-            </div>
-          </div>
+            <select class="kredo-month-select" id="kredo-month-dropdown">
+              <option value="all" ${selectedMonth === 'all' ? 'selected' : ''}>All History</option>
+              ${availableMonths.map(m => `
+                <option value="${m.key}" ${selectedMonth === m.key ? 'selected' : ''}>${m.label}</option>
+              `).join('')}
+            </select>
+          </section>
 
-          <div class="kredo-card">
-            <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 16px 0; color: var(--kredo-secondary);">Actionable Intelligence</h3>
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-              ${aiInsights.length > 0 ? aiInsights.map(ai => `
-                <div style="background: #ffffff; border-left: 4px solid var(--kredo-primary); border-radius: 10px; padding: 14px 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); border-top: 1px solid var(--kredo-outline-variant); border-right: 1px solid var(--kredo-outline-variant); border-bottom: 1px solid var(--kredo-outline-variant);">
-                  <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--kredo-primary); margin-bottom: 2px;">
-                    ${ai.tag || ai.severity || ai.type || 'INSIGHT'}
-                  </div>
-                  <strong style="font-size: 14px; color: var(--kredo-secondary); display: block; margin-bottom: 4px;">
-                    ${ai.title || 'Financial Velocity Insight'}
-                  </strong>
-                  <p style="font-size: 12.5px; color: var(--kredo-on-surface-variant); margin: 0; line-height: 1.4;">
-                    ${ai.desc || ai.message || 'On-device telemetry evaluated smoothly.'}
-                  </p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;">
+            <div class="kredo-card">
+              <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 16px 0; color: var(--kredo-secondary);">Velocity Breakdown</h3>
+
+              <div style="background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 14px; padding: 16px 18px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                  <span style="font-size: 11px; font-weight: 700; color: var(--kredo-outline); text-transform: uppercase;">Daily Burn Pace</span>
+                  <strong style="font-size: 20px; color: var(--kredo-primary); font-family: var(--kredo-mono);">${formatINR(analytics.dailyAverageSpend || 0)} / day</strong>
                 </div>
-              `).join('') : '<p style="color: var(--kredo-outline); font-size: 13px; text-align: center; padding: 20px 0;">Record expenses to view on-device AI velocity intelligence.</p>'}
+                <p style="font-size: 12.5px; color: var(--kredo-on-surface-variant); margin: 0;">
+                  Peak Outflow: ${analytics.highestPaymentPeriod ? `${formatINR(analytics.highestPaymentPeriod.amount)} at ${analytics.highestPaymentPeriod.merchant} (${analytics.highestPaymentPeriod.date || ''})` : 'None recorded'}
+                </p>
+              </div>
+
+              <div style="background: var(--kredo-surface-container-low); border-radius: 12px; padding: 14px 16px;">
+                <span style="font-size: 11px; font-weight: 700; color: var(--kredo-outline); text-transform: uppercase; display: block; margin-bottom: 4px;">Period Transaction Count</span>
+                <strong style="font-size: 18px; color: var(--kredo-secondary);">${analytics.debitsCount} outflows &bull; ${analytics.creditsCount} inflows</strong>
+              </div>
+            </div>
+
+            <div class="kredo-card">
+              <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 16px 0; color: var(--kredo-secondary);">Actionable Intelligence</h3>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                ${aiInsights.length > 0 ? aiInsights.map(ai => `
+                  <div style="background: #ffffff; border-left: 4px solid var(--kredo-primary); border-radius: 10px; padding: 14px 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); border-top: 1px solid var(--kredo-outline-variant); border-right: 1px solid var(--kredo-outline-variant); border-bottom: 1px solid var(--kredo-outline-variant);">
+                    <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--kredo-primary); margin-bottom: 2px;">
+                      ${ai.tag || ai.severity || ai.type || 'INSIGHT'}
+                    </div>
+                    <strong style="font-size: 14px; color: var(--kredo-secondary); display: block; margin-bottom: 4px;">
+                      ${ai.title || 'Financial Velocity Insight'}
+                    </strong>
+                    <p style="font-size: 12.5px; color: var(--kredo-on-surface-variant); margin: 0; line-height: 1.4;">
+                      ${ai.desc || ai.message || 'On-device telemetry evaluated smoothly.'}
+                    </p>
+                  </div>
+                `).join('') : '<p style="color: var(--kredo-outline); font-size: 13px; text-align: center; padding: 20px 0;">Record expenses to view on-device AI velocity intelligence.</p>'}
+              </div>
             </div>
           </div>
 
@@ -1140,28 +1174,44 @@ export class KredoController {
     if (activeTab === 'ai') {
       return `
         <!-- AI Financial Health & Overview -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px;">
+        <div style="display: flex; flex-direction: column; gap: 20px;">
           
-          <div class="kredo-card">
-            <div style="background: var(--kredo-primary-fixed); border-radius: 14px; padding: 18px 20px; color: var(--kredo-on-primary-fixed); margin-bottom: 16px;">
-              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <span class="material-symbols-outlined text-[20px]" style="color: var(--kredo-primary);">shield_check</span>
-                <strong style="font-size: 15px;">Executive Cashflow Health</strong>
-              </div>
-              <p style="font-size: 12.5px; margin: 0; line-height: 1.4; opacity: 0.9;">
-                Retained liquidity: ${formatINR(analytics.netCashflow)}. All computations executed privately on-device with zero cloud telemetry.
-              </p>
+          <!-- Month Selector for AI -->
+          <section class="kredo-filter-strip">
+            <div style="font-size: 13.5px; font-weight: 700; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
+              <span class="material-symbols-outlined text-[18px]">psychology</span> Executive AI Telemetry
             </div>
 
-            <h4 style="font-size: 14px; font-weight: 700; margin: 0 0 10px 0;">Summary Metrics</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-              <div style="background: var(--kredo-surface-container-low); padding: 12px 14px; border-radius: 8px;">
-                <span style="font-size: 11px; color: var(--kredo-outline); display: block;">Total Inflows</span>
-                <strong style="font-size: 16px; color: var(--kredo-green);">${formatINR(analytics.totalCredits)}</strong>
+            <select class="kredo-month-select" id="kredo-month-dropdown">
+              <option value="all" ${selectedMonth === 'all' ? 'selected' : ''}>All History</option>
+              ${availableMonths.map(m => `
+                <option value="${m.key}" ${selectedMonth === m.key ? 'selected' : ''}>${m.label}</option>
+              `).join('')}
+            </select>
+          </section>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;">
+            <div class="kredo-card">
+              <div style="background: var(--kredo-primary-fixed); border-radius: 14px; padding: 18px 20px; color: var(--kredo-on-primary-fixed); margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <span class="material-symbols-outlined text-[20px]" style="color: var(--kredo-primary);">shield_check</span>
+                  <strong style="font-size: 15px;">Executive Cashflow Health</strong>
+                </div>
+                <p style="font-size: 12.5px; margin: 0; line-height: 1.4; opacity: 0.9;">
+                  Retained liquidity: ${formatINR(analytics.netCashflow)}. All computations executed privately on-device with zero cloud telemetry.
+                </p>
               </div>
-              <div style="background: var(--kredo-surface-container-low); padding: 12px 14px; border-radius: 8px;">
-                <span style="font-size: 11px; color: var(--kredo-outline); display: block;">Total Outflows</span>
-                <strong style="font-size: 16px; color: var(--kredo-secondary);">${formatINR(analytics.totalDebits)}</strong>
+
+              <h4 style="font-size: 14px; font-weight: 700; margin: 0 0 10px 0;">Summary Metrics</h4>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div style="background: var(--kredo-surface-container-low); padding: 12px 14px; border-radius: 8px;">
+                  <span style="font-size: 11px; color: var(--kredo-outline); display: block;">Total Inflows</span>
+                  <strong style="font-size: 16px; color: var(--kredo-green);">${formatINR(analytics.totalCredits)}</strong>
+                </div>
+                <div style="background: var(--kredo-surface-container-low); padding: 12px 14px; border-radius: 8px;">
+                  <span style="font-size: 11px; color: var(--kredo-outline); display: block;">Total Outflows</span>
+                  <strong style="font-size: 16px; color: var(--kredo-secondary);">${formatINR(analytics.totalDebits)}</strong>
+                </div>
               </div>
             </div>
           </div>
@@ -1475,14 +1525,15 @@ export class KredoController {
 
             <form id="kredo-add-tx-form" style="display: flex; flex-direction: column; gap: 12px;">
               <div>
-                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Type</label>
-                <div style="display: flex; gap: 8px;">
-                  <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; border: 1px solid var(--kredo-outline-variant); border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;">
-                    <input type="radio" name="add-type" value="debit" checked /> Outflow
-                  </label>
-                  <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; border: 1px solid var(--kredo-outline-variant); border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;">
-                    <input type="radio" name="add-type" value="credit" /> Inflow
-                  </label>
+                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 6px;">Transaction Type</label>
+                <div class="kredo-segmented-type" style="display: flex; background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 10px; padding: 3px; gap: 4px;">
+                  <button type="button" class="kredo-type-btn active" data-type-target="debit" style="flex: 1; padding: 9px 12px; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s; background: var(--kredo-secondary); color: #ffffff;">
+                    <span class="material-symbols-outlined text-[16px]">arrow_downward</span> Outflow
+                  </button>
+                  <button type="button" class="kredo-type-btn" data-type-target="credit" style="flex: 1; padding: 9px 12px; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s; background: transparent; color: var(--kredo-outline);">
+                    <span class="material-symbols-outlined text-[16px]">arrow_upward</span> Inflow
+                  </button>
+                  <input type="hidden" name="add-type" id="add-type-val" value="debit" />
                 </div>
               </div>
 
@@ -1568,14 +1619,15 @@ export class KredoController {
               <input type="hidden" id="edit-tx-id" value="${selectedTx.id}" />
 
               <div>
-                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Type</label>
-                <div style="display: flex; gap: 8px;">
-                  <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; border: 1px solid var(--kredo-outline-variant); border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;">
-                    <input type="radio" name="edit-type" value="debit" ${selectedTx.type === 'debit' ? 'checked' : ''} /> Outflow
-                  </label>
-                  <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; border: 1px solid var(--kredo-outline-variant); border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;">
-                    <input type="radio" name="edit-type" value="credit" ${selectedTx.type === 'credit' ? 'checked' : ''} /> Inflow
-                  </label>
+                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 6px;">Transaction Type</label>
+                <div class="kredo-segmented-type" style="display: flex; background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 10px; padding: 3px; gap: 4px;">
+                  <button type="button" class="kredo-edit-type-btn ${selectedTx.type === 'debit' ? 'active' : ''}" data-type-target="debit" style="flex: 1; padding: 9px 12px; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s; background: ${selectedTx.type === 'debit' ? 'var(--kredo-secondary)' : 'transparent'}; color: ${selectedTx.type === 'debit' ? '#ffffff' : 'var(--kredo-outline)'};">
+                    <span class="material-symbols-outlined text-[16px]">arrow_downward</span> Outflow
+                  </button>
+                  <button type="button" class="kredo-edit-type-btn ${selectedTx.type === 'credit' ? 'active' : ''}" data-type-target="credit" style="flex: 1; padding: 9px 12px; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s; background: ${selectedTx.type === 'credit' ? 'var(--kredo-green)' : 'transparent'}; color: ${selectedTx.type === 'credit' ? '#ffffff' : 'var(--kredo-outline)'};">
+                    <span class="material-symbols-outlined text-[16px]">arrow_upward</span> Inflow
+                  </button>
+                  <input type="hidden" name="edit-type" id="edit-type-val" value="${selectedTx.type}" />
                 </div>
               </div>
 
@@ -2047,11 +2099,13 @@ export class KredoController {
       });
     });
 
-    // Month Selector Dropdown
-    this.container.querySelector('#kredo-month-dropdown')?.addEventListener('change', (e) => {
-      this.state.selectedMonth = e.target.value;
-      this.state.inspectingPoint = null;
-      this.render();
+    // Month Selector Dropdown (Ledger, Categories, Velocity, AI)
+    this.container.querySelectorAll('#kredo-month-dropdown, .kredo-month-select').forEach(sel => {
+      sel.addEventListener('change', (e) => {
+        this.state.selectedMonth = e.target.value;
+        this.state.inspectingPoint = null;
+        this.render();
+      });
     });
 
     // Filter Type Pills
@@ -2174,13 +2228,47 @@ export class KredoController {
       if (e.target.id === 'kredo-modal-bg') this.closeModal();
     });
 
+    // Segmented Type Button Handlers in Add Transaction Modal
+    this.container.querySelectorAll('.kredo-type-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetType = btn.dataset.typeTarget;
+        const hiddenInput = this.container.querySelector('#add-type-val');
+        if (hiddenInput) hiddenInput.value = targetType;
+        this.container.querySelectorAll('.kredo-type-btn').forEach(b => {
+          b.classList.remove('active');
+          b.style.background = 'transparent';
+          b.style.color = 'var(--kredo-outline)';
+        });
+        btn.classList.add('active');
+        btn.style.background = targetType === 'credit' ? 'var(--kredo-green)' : 'var(--kredo-secondary)';
+        btn.style.color = '#ffffff';
+      });
+    });
+
+    // Segmented Type Button Handlers in Edit Transaction Modal
+    this.container.querySelectorAll('.kredo-edit-type-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetType = btn.dataset.typeTarget;
+        const hiddenInput = this.container.querySelector('#edit-type-val');
+        if (hiddenInput) hiddenInput.value = targetType;
+        this.container.querySelectorAll('.kredo-edit-type-btn').forEach(b => {
+          b.classList.remove('active');
+          b.style.background = 'transparent';
+          b.style.color = 'var(--kredo-outline)';
+        });
+        btn.classList.add('active');
+        btn.style.background = targetType === 'credit' ? 'var(--kredo-green)' : 'var(--kredo-secondary)';
+        btn.style.color = '#ffffff';
+      });
+    });
+
     // Add Form Submit
     this.container.querySelector('#kredo-add-tx-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const amount = parseFloat(this.container.querySelector('#add-amount')?.value || '0');
       const date = this.container.querySelector('#add-date')?.value || new Date().toISOString().slice(0, 10);
       const merchant = this.container.querySelector('#add-merchant')?.value.trim();
-      const type = this.container.querySelector('input[name="add-type"]:checked')?.value || 'debit';
+      const type = this.container.querySelector('#add-type-val')?.value || 'debit';
       const paymentMethod = this.container.querySelector('#add-method')?.value || 'UPI';
       const category = this.container.querySelector('#add-category')?.value || 'General';
       const cardLast4 = this.container.querySelector('#add-card-last4')?.value?.trim()?.slice(-4) || '';
@@ -2222,7 +2310,7 @@ export class KredoController {
       const merchant = this.container.querySelector('#edit-merchant')?.value.trim();
       const category = this.container.querySelector('#edit-category')?.value;
       const paymentMethod = this.container.querySelector('#edit-method')?.value;
-      const type = this.container.querySelector('input[name="edit-type"]:checked')?.value || 'debit';
+      const type = this.container.querySelector('#edit-type-val')?.value || 'debit';
       const notes = this.container.querySelector('#edit-notes')?.value.trim();
 
       if (!id || !amount || !merchant) return;

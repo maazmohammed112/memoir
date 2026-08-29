@@ -4131,6 +4131,9 @@ vaultStore.subscribe((items, status, session) => {
   const nextProfileUid = state.auth.profile?.uid || '';
   if (nextProfileUid !== currentProfileUid) { currentProfileUid = nextProfileUid; state.messages = []; state.assistantLog = nextProfileUid ? loadAssistantLog(nextProfileUid) : []; }
   if (state.auth.status === 'signedIn') state.authError = '';
+  if (state.view === 'kredo' || document.querySelector('.kredo-app-root')) {
+    return;
+  }
   if (wasSignedIn && state.auth.status === 'signedIn' && (document.querySelector('.shell') || document.querySelector('.karyalaya-shell'))) {
     if (document.querySelector('.karyalaya-shell')) {
       const tel = document.querySelector('.kf-telemetry-pill strong');
