@@ -1,7 +1,9 @@
 import './styles.css';
 import './brand.css';
 import './karyalaya.css';
+import './kredo/kredo.css';
 import { renderKaryalayaTheme, getThemePreference, setThemePreference, showExperienceSwitcherModal, kfLog, sendKaryalayaMessage } from './karyalaya.js';
+import { mountKredoApp } from './kredo/kredoUi.js';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import ArrowLeft from 'lucide/dist/esm/icons/arrow-left.mjs';
@@ -71,7 +73,7 @@ import Zap from 'lucide/dist/esm/icons/zap.mjs';
 import { vaultStore } from './store.js';
 import { cleanLegacyPrivateValue, hasPrivateToken, sanitizeAssistantAction } from './vaultIntegrity.js';
 
-if (import.meta.env.DEV && window.matchMedia('(pointer: fine)').matches) {
+if (import.meta.env.DEV) {
   import('./agentation-dev.js').then(({ mountAgentation }) => mountAgentation()).catch(error => {
     console.warn('Agentation development overlay could not start:', error?.message || error);
   });
@@ -554,6 +556,23 @@ function shell() {
   const profile = activeProfile();
   document.body.classList.remove('auth-locked');
 
+  const isMaaz = profile && profile.code === '2002';
+  if (state.view === 'kredo') {
+    if (isMaaz) {
+      document.body.classList.remove('karyalaya-active');
+      document.body.classList.remove('dark');
+      mountKredoApp(app, profile, {
+        onBack: () => {
+          state.view = 'home';
+          shell();
+        }
+      });
+      return;
+    } else {
+      state.view = 'home';
+    }
+  }
+
   const activeTheme = getThemePreference();
   if (activeTheme === 'karyalaya') {
     document.body.classList.remove('dark');
@@ -575,7 +594,10 @@ function shell() {
         <div class="top-actions">
           <div class="global-search"><span>${icon('Search')}</span><input id="global-search" name="search" aria-label="Search everything" placeholder="Search everything…" autocomplete="off"><span class="key-hint">⌘ K</span></div>
           <span class="sync-pill"><i class="sync-dot ${state.status === 'synced' ? '' : 'offline'}"></i>${syncLabel()}</span>
-          <button class="header-karyalaya-runner" id="header-theme-switcher" title="Switch workspace experience" aria-label="Switch workspace experience"><span class="karyalaya-badge-pulse"></span>${icon('PanelsTopLeft')} <span class="theme-label">Karyalaya Floor</span></button>
+          ${isMaaz ? `
+          <button class="header-kredo-runner" id="header-kredo-launcher" title="Launch KREDO Luxury Expense Vault" aria-label="Launch KREDO Luxury Expense Vault"><img src="/brand/kredo-logo.svg" alt="KREDO" style="width:16px;height:16px;object-fit:contain;"><span class="theme-label">KREDO</span></button>
+          ` : ''}
+          <button class="header-karyalaya-runner" id="header-theme-switcher" title="Switch workspace experience" aria-label="Switch workspace experience">${icon('PanelsTopLeft')} <span class="theme-label">Karyalaya Floor</span></button>
           <button class="header-rhino-runner" id="header-rhino-assistant" title="Open Rhinous" aria-label="Open Rhinous assistant"><span class="rhino-track" aria-hidden="true"></span><span class="header-rhino-launch" aria-hidden="true"><img src="/brand/memoir-rhino-ui.png" alt=""></span><i></i><i></i><i></i></button>
           <button class="round-btn mobile-search" id="mobile-search-button" title="Search everything">${icon('Search')}</button>
           <button class="round-btn notification-trigger" id="notification-center" title="Notifications" aria-label="Notifications">${icon('BellRing')}<span class="notification-badge" hidden></span></button>
@@ -1213,6 +1235,26 @@ function reminderCard(item, compact = false) {
   return `<article class="reminder-card reminder-${status} ${snoozed ? 'is-snoozed' : ''} ${compact ? 'compact' : ''}" data-searchable="${escapeHtml(searchable(item))}"><span class="reminder-accent"></span><div class="reminder-icon">${icon(completed ? 'CircleCheckBig' : snoozed ? 'CirclePause' : 'AlarmClock')}</div><div class="reminder-copy"><div class="reminder-title-line"><h3>${escapeHtml(item.title)}</h3><span class="reminder-state">${completed ? escapeHtml(label) : label}</span></div><p class="reminder-time">${formatDue(item)} · ${reminderNotificationCount(item)} notification${reminderNotificationCount(item) === 1 ? '' : 's'} remaining${repeat !== 'none' ? ` · Repeats ${escapeHtml(repeat)}` : ''}</p>${item.note ? `<p class="reminder-note">${escapeHtml(item.note)}</p>` : ''}</div><div class="reminder-actions">${!completed ? `<button class="icon-btn complete" data-reminder-complete="${item.id}" title="Mark completed">${icon('CircleCheckBig')}</button><button class="icon-btn" data-reminder-snooze="${item.id}" title="${snoozed ? 'Resume notifications' : 'Snooze notifications'}">${icon(snoozed ? 'CirclePlay' : 'CirclePause')}</button>` : status === 'no-response' ? `<button class="icon-btn complete" data-reminder-complete="${item.id}" title="Confirm completed">${icon('CircleCheckBig')}</button>` : ''}<button class="icon-btn" data-reminder-edit="${item.id}" title="Edit">${icon('Pencil')}</button><button class="icon-btn danger" data-reminder-delete="${item.id}" title="Delete">${icon('Trash2')}</button></div></article>`;
 }
 function homeView() {
+  const isMaaz = activeProfile().code === '2002';
+  const kredoCardHtml = isMaaz ? `
+    <article class="kredo-home-card" id="home-kredo-launcher" data-view="kredo" style="margin:16px 0;cursor:pointer;background:#ffffff;border:1px solid #e5e2e1;border-radius:16px;padding:16px 18px;color:#1c1b1b;box-shadow:0 2px 12px rgba(0,0,0,0.03);display:flex;align-items:center;justify-content:space-between;gap:14px;transition:all 0.2s cubic-bezier(0.16,1,0.3,1);">
+      <div style="display:flex;align-items:center;gap:14px;min-width:0;">
+        <div style="width:42px;height:42px;border-radius:10px;background:#f6f3f2;border:1px solid #e5e2e1;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <img src="/brand/kredo-logo.png" alt="KREDO" style="width:26px;height:26px;border-radius:4px;object-fit:contain;" onerror="this.src='/brand/kredo-logo.svg'">
+        </div>
+        <div style="min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <strong style="font-size:15px;color:#1c1b1b;font-weight:700;letter-spacing:-0.2px;">KREDO &bull; Financial Vault</strong>
+            <span style="background:#e0e0ff;color:#0000ff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;letter-spacing:0.04em;">EXECUTIVE</span>
+          </div>
+          <p style="margin:3px 0 0;font-size:12px;color:#757589;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Executive Expense Ledger &bull; On-Device AI Financial Intelligence</p>
+        </div>
+      </div>
+      <button type="button" class="kredo-home-launch-btn" data-view="kredo" style="flex:none;background:#0000ff;border:none;border-radius:8px;padding:8px 16px;color:#ffffff;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,255,0.18);transition:all 0.15s ease;">
+        Open KREDO &rarr;
+      </button>
+    </article>
+  ` : '';
   const upcomingReminders = reminders().filter(item => reminderStatus(item) === 'upcoming').sort((a, b) => reminderDue(a) - reminderDue(b));
   const criticalExpiries = criticalExpiringMemories();
   const guardAudit = auditVaultSecurity(state.items, activeProfile());
@@ -1290,7 +1332,7 @@ function homeView() {
     </div>
   `;
 
-  return `<div class="hero-grid"><section class="hero"><img class="hero-rhino" src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Your private second brain</p><h2>Everything important, remembered beautifully.</h2><p>Save private details, retrieve only what you need, and never miss a meaningful moment.</p><button class="primary" data-add="memory">${icon('Plus')} Add a memory</button></section>
+  return `${kredoCardHtml}<div class="hero-grid"><section class="hero"><img class="hero-rhino" src="/brand/memoir-rhino-ui.png" alt=""><p class="eyebrow">Your private second brain</p><h2>Everything important, remembered beautifully.</h2><p>Save private details, retrieve only what you need, and never miss a meaningful moment.</p><button class="primary" data-add="memory">${icon('Plus')} Add a memory</button></section>
   <div class="stat-grid"><article class="stat large" data-view="vault" style="cursor:pointer"><span class="stat-symbol rose">${icon('ShieldCheck')}</span><div><strong>${normalMemories.length}</strong><span>memories kept safe</span></div></article><article class="stat" data-view="extension" style="cursor:pointer"><span class="stat-symbol green">${icon('Globe')}</span><div><strong>${extensionItems.length}</strong><span>browser captures</span></div></article><article class="stat" data-view="reminders" style="cursor:pointer"><span class="stat-symbol violet">${icon('AlarmClock')}</span><div><strong>${upcomingReminders.length}</strong><span>upcoming reminders</span></div></article></div></div>
   ${quickActionsHtml}
   ${extensionBannerHtml}
@@ -2039,6 +2081,8 @@ function bindShell() {
   document.querySelector('#notification-center')?.addEventListener('click', () => toggleNotificationCenter());
   document.querySelector('#header-rhino-assistant')?.addEventListener('click', () => navigate('assistant'));
   document.querySelector('#header-theme-switcher')?.addEventListener('click', () => showExperienceSwitcherModal(newTheme => shell()));
+  document.querySelector('#header-kredo-launcher')?.addEventListener('click', () => navigate('kredo'));
+  document.querySelectorAll('#header-kredo-launcher, #home-kredo-launcher').forEach(el => el.addEventListener('click', () => navigate('kredo')));
   document.addEventListener('keydown', shortcutHandler, { once: true });
   bindView();
   updateNotificationBadge();
@@ -2046,6 +2090,18 @@ function bindShell() {
 function shortcutHandler(event) { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search')?.focus(); } document.addEventListener('keydown', shortcutHandler, { once: true }); }
 function navigate(viewName) {
   document.querySelector('.notification-popover')?.remove();
+  if (viewName === 'kredo') {
+    const prof = activeProfile();
+    const isMaaz = prof && (prof.code === '2002' || prof.name === 'Maaz' || (prof.email && prof.email.toLowerCase().includes('maaz')));
+    if (isMaaz) {
+      state.view = 'kredo';
+      shell();
+      return;
+    } else {
+      toast('KREDO is exclusive to Maaz');
+      return;
+    }
+  }
   if (viewName === 'guard' || viewName === 'security') { state.vaultSection = 'security'; viewName = 'vault'; }
   else if (viewName === 'extension' || viewName === 'captures' || viewName === 'browser-captures') { state.vaultSection = 'extension'; viewName = 'vault'; }
   else if (viewName === 'memories') { state.vaultSection = 'memories'; viewName = 'vault'; }
@@ -2080,6 +2136,13 @@ function renderView() { const node = document.querySelector('#view'); if (node) 
 
 function bindView() {
   document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => navigate(button.dataset.view));
+  document.querySelectorAll('#home-kredo-launcher, .kredo-home-launch-btn, #header-kredo-launcher, [data-view="kredo"]').forEach(button => {
+    button.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigate('kredo');
+    };
+  });
   document.querySelectorAll('[data-action]').forEach(button => {
     button.onclick = () => {
       const action = button.dataset.action;

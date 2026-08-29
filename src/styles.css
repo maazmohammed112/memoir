@@ -1033,24 +1033,23 @@ input, textarea {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 6px 13px;
-  border-radius: 20px;
-  background: linear-gradient(145deg, #17171a, #29292e);
-  border: 1px solid rgba(255,255,255,0.12);
-  color: #fff;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, rgba(0, 0, 0, 0.12));
+  color: var(--ink, #1c1b1b);
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 7px 20px rgba(17,17,20,0.18), inset 0 1px rgba(255,255,255,0.1);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   white-space: nowrap;
 }
 .header-karyalaya-runner:hover {
-  background: linear-gradient(145deg, #24242a, #111114);
-  border-color: rgba(255,255,255,0.2);
+  background: var(--surface-secondary, #f6f3f2);
+  border-color: var(--ink-secondary, rgba(0, 0, 0, 0.25));
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(17,17,20,0.25), inset 0 1px rgba(255,255,255,0.12);
-  color: #fff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
 }
 .platform-btn{white-space:normal;overflow-wrap:anywhere;text-align:center}
 @media(max-width:480px){
@@ -1059,23 +1058,49 @@ input, textarea {
   .share-modal .modal-head h2{font-size:17px;margin-bottom:10px}
   .share-section-heading{align-items:flex-start;gap:8px}
 }
-.karyalaya-badge-pulse {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
-  animation: kfPulseDot 2s infinite ease-in-out;
+.karyalaya-badge-pulse,
+.kredo-badge-pulse {
+  display: none !important;
 }
-@keyframes kfPulseDot {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.3); opacity: 0.6; }
+
+/* Header KREDO Modern Switcher */
+.header-kredo-runner {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: #0000ff;
+  border: 1px solid #0000d6;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 255, 0.2);
+  white-space: nowrap;
 }
+.header-kredo-runner:hover {
+  background: #0000d6;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 255, 0.3);
+}
+
+.kredo-home-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s;
+}
+.kredo-home-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06) !important;
+}
+
 @media (max-width: 640px) {
-  .header-karyalaya-runner .theme-label {
+  .header-karyalaya-runner .theme-label,
+  .header-kredo-runner .theme-label {
     display: none;
   }
-  .header-karyalaya-runner {
+  .header-karyalaya-runner,
+  .header-kredo-runner {
     padding: 6px 9px;
   }
 }

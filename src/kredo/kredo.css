@@ -1,0 +1,1013 @@
+/**
+ * KREDO — Luxury Executive Financial Ledger & Intelligence Suite
+ * Re-designed as a Full-Screen Responsive Desktop Dashboard & Fluid Mobile Experience:
+ * - Electric Cobalt Blue (#0000FF), Warm Porcelain Cream (#FCF8F8), Obsidian (#050505)
+ * - Inter Typography, Display Numeric Tabulars, Material Symbols Outlined
+ * - Responsive Desktop Dashboard (1360px max-width 2-column layout on desktop, fluid 100vw on mobile)
+ * - Zero Fake Phone Bezels, Zero Fake 9:41 Status Bars
+ * - Hidden Scrollbars for perfectly clean designer aesthetic
+ * - Real-Time Dynamic SVG Wave Curve with Clickable Data Inspection Points
+ * - Clean Center (+) Action Trigger that opens Add Expense / Import JSON without overlapping buttons
+ * - Modern Clean Squircles (No Emojis, No Circular Glows or Pulses)
+ */
+
+:root {
+  --kredo-primary: #0000ff;
+  --kredo-primary-hover: #0000d6;
+  --kredo-primary-fixed: #e0e0ff;
+  --kredo-on-primary: #ffffff;
+  --kredo-on-primary-fixed: #00006e;
+  --kredo-secondary: #050505;
+  --kredo-on-secondary: #ffffff;
+  --kredo-tertiary: #9d0002;
+  --kredo-neutral: #767684;
+  --kredo-outline: #757589;
+  --kredo-outline-variant: #c5c4db;
+  --kredo-background: #fcf8f8;
+  --kredo-on-background: #1c1b1b;
+  --kredo-surface: #fcf8f8;
+  --kredo-on-surface: #1c1b1b;
+  --kredo-surface-variant: #e5e2e1;
+  --kredo-on-surface-variant: #454558;
+  --kredo-surface-container: #f1edec;
+  --kredo-surface-container-low: #f6f3f2;
+  --kredo-surface-container-high: #ebe7e7;
+  --kredo-surface-container-highest: #e5e2e1;
+  --kredo-surface-container-lowest: #ffffff;
+  --kredo-error: #ba1a1a;
+  --kredo-green: #00c853;
+  --kredo-green-bg: #e6f4ea;
+  --kredo-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --kredo-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --kredo-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hidden Scrollbars for perfectly clean designer aesthetic */
+.kredo-app-root,
+.kredo-main-canvas,
+.kredo-device-container,
+.kredo-scroll-area {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.kredo-app-root::-webkit-scrollbar,
+.kredo-main-canvas::-webkit-scrollbar,
+.kredo-device-container::-webkit-scrollbar,
+.kredo-scroll-area::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Base Full-Screen Canvas */
+.kredo-app-root {
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--kredo-background);
+  color: var(--kredo-on-surface);
+  font-family: var(--kredo-font);
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* Material Symbols in Kredo */
+.kredo-app-root .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.kredo-app-root .material-symbols-outlined.fill {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Main Application Container: Adapts from fluid mobile to wide desktop dashboard */
+.kredo-device-container {
+  width: 100%;
+  max-width: 1320px;
+  min-height: 100vh;
+  background: var(--kredo-background);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-sizing: border-box;
+  padding: 0 16px 90px 16px;
+}
+
+@media (min-width: 900px) {
+  .kredo-device-container {
+    padding: 0 32px 40px 32px;
+  }
+}
+
+/* Top App Bar Header */
+.kredo-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(252, 248, 248, 0.94);
+  backdrop-filter: blur(14px);
+  padding: 14px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid rgba(229, 226, 225, 0.6);
+  margin-bottom: 20px;
+}
+
+.kredo-brand-home-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s var(--kredo-ease);
+  flex-shrink: 0;
+}
+
+.kredo-brand-home-btn:hover {
+  background: var(--kredo-surface-variant);
+}
+
+.kredo-brand-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--kredo-secondary);
+  letter-spacing: -0.2px;
+}
+
+.kredo-header-search-wrap {
+  flex: 1;
+  min-width: 0;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kredo-search-pill {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+  min-width: 0;
+}
+
+.kredo-search-pill:hover {
+  border-color: var(--kredo-primary);
+  background: #ffffff;
+}
+
+.kredo-search-pill-text {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--kredo-on-surface-variant);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+  .kredo-device-container {
+    padding: 0 12px 85px 12px;
+  }
+  .kredo-header {
+    gap: 8px;
+    padding: 10px 0;
+    margin-bottom: 14px;
+  }
+  .kredo-brand-home-btn {
+    padding: 4px 6px;
+    gap: 6px;
+  }
+  .kredo-brand-title {
+    font-size: 14px;
+  }
+  .kredo-header-search-wrap {
+    max-width: 100%;
+  }
+  .kredo-search-pill {
+    padding: 7px 10px;
+    gap: 6px;
+    border-radius: 8px;
+  }
+  .kredo-search-pill-text {
+    font-size: 12px;
+  }
+  .kredo-header-actions {
+    display: none !important;
+  }
+}
+
+/* Header Right Desktop Actions & Navigation */
+.kredo-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.kredo-desktop-nav-tabs {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: var(--kredo-surface-container-low);
+  padding: 4px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--kredo-outline-variant);
+}
+
+@media (min-width: 900px) {
+  .kredo-desktop-nav-tabs {
+    display: flex;
+  }
+}
+
+.kredo-desktop-tab-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--kredo-on-surface-variant);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kredo-desktop-tab-btn:hover {
+  color: var(--kredo-secondary);
+}
+
+.kredo-desktop-tab-btn.active {
+  background: var(--kredo-secondary);
+  color: #ffffff;
+}
+
+/* Trigger Button for Add & Import Modal */
+.kredo-header-add-btn {
+  background: var(--kredo-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 255, 0.22);
+  transition: all 0.15s var(--kredo-ease);
+}
+
+.kredo-header-add-btn:hover {
+  background: var(--kredo-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 255, 0.32);
+}
+
+/* Main Dashboard Canvas: Responsive Grid */
+.kredo-main-canvas {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 2-Column Grid on Desktop */
+.kredo-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .kredo-dashboard-grid {
+    grid-template-columns: 460px 1fr;
+    gap: 28px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .kredo-dashboard-grid {
+    grid-template-columns: 500px 1fr;
+    gap: 32px;
+  }
+}
+
+/* Left Column: Analytics & Overview Cards */
+.kredo-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Right Column: Ledger & Feed */
+.kredo-right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Card Wrappers */
+.kredo-card {
+  background: #ffffff;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 16px;
+  padding: 20px 22px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Total Outflow Hero */
+.kredo-balance-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.kredo-balance-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--kredo-on-surface-variant);
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.kredo-balance-amount {
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  color: var(--kredo-on-surface);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.kredo-trend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--kredo-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* REAL-TIME DYNAMIC SVG WAVE CHART */
+.kredo-chart-section {
+  width: 100%;
+  height: 180px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.kredo-svg-chart {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+}
+
+.kredo-chart-dot {
+  cursor: pointer;
+  transition: transform 0.15s ease, r 0.15s ease;
+}
+
+.kredo-chart-dot:hover, .kredo-chart-dot.active {
+  r: 6;
+  fill: #0000ff !important;
+  stroke: #ffffff !important;
+  stroke-width: 2.5px !important;
+}
+
+.kredo-chart-inspection-pill {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #050505;
+  color: #ffffff;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  animation: kredoFadeIn 0.15s;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+/* Time Range Selector */
+.kredo-time-selector {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px;
+  margin-top: 6px;
+}
+
+.kredo-time-btn {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--kredo-on-surface-variant);
+  background: transparent;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.kredo-time-btn:hover {
+  background: var(--kredo-surface-variant);
+  color: var(--kredo-on-surface);
+}
+
+.kredo-time-btn.active {
+  background: var(--kredo-primary-fixed);
+  color: var(--kredo-primary);
+  font-weight: 700;
+}
+
+/* Filter Strip & Month Dropdown */
+.kredo-filter-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #ffffff;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--kredo-outline-variant);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+}
+
+.kredo-filter-pills {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.kredo-filter-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.kredo-filter-pill {
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--kredo-surface-container-low);
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kredo-on-surface-variant);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.kredo-filter-pill:hover {
+  background: var(--kredo-surface-variant);
+  color: var(--kredo-on-surface);
+}
+
+.kredo-filter-pill.active {
+  background: var(--kredo-secondary);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.kredo-month-select {
+  background: #ffffff;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kredo-secondary);
+  outline: none;
+  cursor: pointer;
+}
+
+/* HIERARCHICAL WEEK & DAY GROUPS */
+.kredo-week-block {
+  background: #ffffff;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+}
+
+.kredo-week-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--kredo-surface-container-low);
+  border-bottom: 1px solid var(--kredo-outline-variant);
+}
+
+.kredo-week-tag {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--kredo-primary-fixed);
+  color: var(--kredo-primary);
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+}
+
+.kredo-week-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--kredo-secondary);
+  margin-left: 10px;
+}
+
+.kredo-week-spend {
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: var(--kredo-mono);
+  color: var(--kredo-tertiary);
+}
+
+/* Day Sub-Group */
+.kredo-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 18px 6px 18px;
+  background: rgba(0, 0, 0, 0.015);
+  border-bottom: 1px solid rgba(229, 226, 225, 0.6);
+}
+
+.kredo-day-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--kredo-outline);
+}
+
+.kredo-day-total {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--kredo-mono);
+  color: var(--kredo-outline);
+}
+
+/* Transaction Row */
+.kredo-tx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(229, 226, 225, 0.5);
+  cursor: pointer;
+  transition: all 0.15s;
+  gap: 12px;
+}
+
+.kredo-tx-row:hover {
+  background: var(--kredo-surface-container-low);
+}
+
+.kredo-tx-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.kredo-tx-checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--kredo-outline);
+  background: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.kredo-tx-checkbox.checked {
+  background: var(--kredo-primary);
+  border-color: var(--kredo-primary);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.kredo-tx-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(0, 0, 255, 0.08);
+  color: var(--kredo-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kredo-tx-avatar.credit {
+  background: var(--kredo-green-bg);
+  color: var(--kredo-green);
+}
+
+.kredo-tx-merchant {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kredo-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kredo-tx-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--kredo-outline);
+}
+
+.kredo-tx-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kredo-mini-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--kredo-outline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.kredo-mini-btn:hover {
+  background: var(--kredo-surface-variant);
+  color: var(--kredo-secondary);
+}
+
+.kredo-mini-btn.danger:hover {
+  background: rgba(186, 26, 26, 0.1);
+  color: var(--kredo-error);
+}
+
+.kredo-tx-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.kredo-tx-amount {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--kredo-mono);
+}
+
+.kredo-tx-amount.debit { color: var(--kredo-secondary); }
+.kredo-tx-amount.credit { color: var(--kredo-green); }
+
+.kredo-tx-time {
+  font-size: 11px;
+  color: var(--kredo-outline);
+}
+
+/* Floating Bottom Navigation Shell (Mobile Only) */
+.kredo-bottom-nav {
+  position: fixed;
+  bottom: 14px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+  pointer-events: none;
+}
+
+@media (min-width: 900px) {
+  .kredo-bottom-nav {
+    display: none;
+  }
+}
+
+.kredo-bottom-nav-pill {
+  pointer-events: auto;
+  background: rgba(229, 226, 225, 0.94);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 14px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  min-width: 290px;
+  justify-content: space-around;
+}
+
+.kredo-nav-item {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--kredo-on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.kredo-nav-item:hover {
+  color: var(--kredo-secondary);
+}
+
+.kredo-nav-item.active {
+  background: var(--kredo-secondary);
+  color: #ffffff;
+}
+
+/* Prominent Center (+) Button in Nav */
+.kredo-nav-center-add {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--kredo-primary);
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 255, 0.35);
+  transition: all 0.15s var(--kredo-ease);
+  margin: -12px 4px 0 4px;
+}
+
+.kredo-nav-center-add:hover {
+  background: var(--kredo-primary-hover);
+  transform: translateY(-2px) scale(1.05);
+}
+
+.kredo-nav-center-add:active {
+  transform: scale(0.95);
+}
+
+/* Floating Batch Dock */
+.kredo-batch-dock {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #050505;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  z-index: 99;
+  animation: kredoFadeIn 0.15s;
+}
+
+/* Quick Action Sheet / Popover for (+) Button */
+.kredo-quick-action-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.kredo-quick-action-btn {
+  background: var(--kredo-surface-container-low);
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.15s var(--kredo-ease);
+  text-align: left;
+}
+
+.kredo-quick-action-btn:hover {
+  border-color: var(--kredo-primary);
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 255, 0.08);
+}
+
+.kredo-quick-action-btn.primary {
+  background: var(--kredo-primary-fixed);
+  border-color: var(--kredo-primary);
+}
+
+.kredo-quick-action-btn.primary:hover {
+  background: #d4d4ff;
+}
+
+/* Modals & Dialog Sheets */
+.kredo-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 15, 0.6);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: kredoFadeIn 0.15s var(--kredo-ease);
+}
+
+@media (min-width: 600px) {
+  .kredo-modal-backdrop {
+    align-items: center;
+  }
+}
+
+.kredo-modal-sheet {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  border-radius: 20px 20px 0 0;
+  padding: 24px 22px 30px 22px;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.12);
+  animation: kredoSlideUp 0.2s var(--kredo-ease);
+  box-sizing: border-box;
+}
+
+@media (min-width: 600px) {
+  .kredo-modal-sheet {
+    border-radius: 20px;
+  }
+}
+
+.kredo-form-input, .kredo-form-select, .kredo-form-textarea {
+  width: 100%;
+  background: var(--kredo-surface-container-low);
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--kredo-secondary);
+  font-family: inherit;
+  font-size: 13.5px;
+  box-sizing: border-box;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.kredo-form-input:focus, .kredo-form-select:focus, .kredo-form-textarea:focus {
+  border-color: var(--kredo-primary);
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(0, 0, 255, 0.15);
+}
+
+.kredo-btn-action {
+  background: var(--kredo-primary);
+  color: var(--kredo-on-primary);
+  border: none;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 255, 0.2);
+  transition: all 0.15s var(--kredo-ease);
+}
+
+.kredo-btn-action:hover {
+  background: var(--kredo-primary-hover);
+}
+
+.kredo-btn-action.secondary {
+  background: var(--kredo-primary-fixed);
+  color: var(--kredo-primary);
+  box-shadow: none;
+}
+
+.kredo-btn-action.secondary:hover {
+  background: #d4d4ff;
+}
+
+@keyframes kredoFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes kredoSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Spinner & Processing Animation for Large Batch Imports */
+.kredo-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: kredoSpin 0.65s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.kredo-spinner.dark {
+  border: 2.5px solid rgba(0, 0, 255, 0.2);
+  border-top-color: var(--kredo-primary);
+}
+
+@keyframes kredoSpin {
+  to { transform: rotate(360deg); }
+}
+
+.kredo-import-status-box {
+  background: var(--kredo-surface-container-low);
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--kredo-primary);
+  animation: kredoFadeIn 0.15s;
+}
+
