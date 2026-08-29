@@ -877,22 +877,34 @@
   background: #d4d4ff;
 }
 
-/* Modals & Dialog Sheets */
+/* Modals & Dialog Sheets (Proper Viewport Scrollability with Hidden Scrollbars) */
 .kredo-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(10, 10, 15, 0.6);
-  backdrop-filter: blur(10px);
+  background: rgba(10, 10, 15, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   z-index: 1000;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: center;
-  animation: kredoFadeIn 0.15s var(--kredo-ease);
+  padding: 24px 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: kredoFadeIn 0.18s var(--kredo-ease);
+  box-sizing: border-box;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.kredo-modal-backdrop::-webkit-scrollbar {
+  display: none;
 }
 
 @media (min-width: 600px) {
   .kredo-modal-backdrop {
     align-items: center;
+    padding: 32px 20px;
   }
 }
 
@@ -900,17 +912,39 @@
   width: 100%;
   max-width: 480px;
   background: #ffffff;
-  border-radius: 20px 20px 0 0;
-  padding: 24px 22px 30px 22px;
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.12);
-  animation: kredoSlideUp 0.2s var(--kredo-ease);
+  border-radius: 20px;
+  padding: 24px 22px 28px 22px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.08);
+  animation: kredoScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  margin: auto 0;
+  position: relative;
 }
 
-@media (min-width: 600px) {
-  .kredo-modal-sheet {
-    border-radius: 20px;
-  }
+.kredo-modal-sheet::-webkit-scrollbar {
+  display: none;
+}
+
+/* SKELETON LOADING SHIMMER ANIMATION */
+.kredo-skeleton {
+  background: linear-gradient(90deg, #edeae9 25%, #fcfbfb 50%, #edeae9 75%);
+  background-size: 200% 100%;
+  animation: kredoShimmer 1.4s infinite ease-in-out;
+  border-radius: 8px;
+}
+
+@keyframes kredoShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes kredoScaleIn {
+  from { opacity: 0; transform: scale(0.96) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .kredo-form-input, .kredo-form-select, .kredo-form-textarea {

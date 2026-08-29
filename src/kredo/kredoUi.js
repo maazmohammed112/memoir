@@ -80,6 +80,7 @@ export class KredoController {
     this.onBack = options.onBack || (() => {});
 
     this.state = {
+      isLoading: true,
       transactions: [],
       cards: [],
       selectedMonth: 'all',
@@ -102,17 +103,29 @@ export class KredoController {
       settings: getKredoSettings(),
     };
 
+    // Render skeleton immediately (0ms latency, zero flicker)
+    this.render();
     this.init();
   }
 
   async init() {
-    this.state.transactions = await getKredoTransactions();
-    this.state.cards = await getCreditCards();
-    const months = getAvailableMonths(this.state.transactions);
-    if (months.length > 0) {
-      this.state.selectedMonth = months[0].key;
+    try {
+      const [txs, cards] = await Promise.all([
+        getKredoTransactions(),
+        getCreditCards(),
+      ]);
+      this.state.transactions = txs;
+      this.state.cards = cards;
+      const months = getAvailableMonths(txs);
+      if (months.length > 0) {
+        this.state.selectedMonth = months[0].key;
+      }
+    } catch (e) {
+      console.warn('Kredo store init error:', e);
+    } finally {
+      this.state.isLoading = false;
+      this.render();
     }
-    this.render();
   }
 
   showToast(message) {
@@ -567,8 +580,64 @@ export class KredoController {
   }
 
   renderCanvasContent(analytics, hierarchicalWeeks, filteredTxs, availableMonths, isAllSelected, chartData) {
-    const { activeTab, showBalance, timeRange, selectedMonth, typeFilter, inspectingPoint, cards, selectedCardIdFilter } = this.state;
+    const { isLoading, activeTab, showBalance, timeRange, selectedMonth, typeFilter, inspectingPoint, cards, selectedCardIdFilter } = this.state;
     const displayAmount = showBalance ? formatINR(analytics.totalDebits || 0) : '••••••••';
+
+    // SKELETON LOADING SCREEN (Zero flicker, ultra smooth startup)
+    if (isLoading) {
+      return `
+        <div class="kredo-dashboard-grid" style="opacity: 0.95;">
+          <div class="kredo-left-column">
+            <div class="kredo-card" style="padding: 24px;">
+              <div class="kredo-skeleton" style="width: 110px; height: 16px; margin-bottom: 12px;"></div>
+              <div class="kredo-skeleton" style="width: 220px; height: 42px; margin-bottom: 22px;"></div>
+              <div class="kredo-skeleton" style="width: 100%; height: 130px; border-radius: 12px; margin-bottom: 18px;"></div>
+              <div style="display: flex; gap: 8px;">
+                ${[1, 2, 3, 4, 5, 6].map(() => `<div class="kredo-skeleton" style="flex: 1; height: 32px; border-radius: 8px;"></div>`).join('')}
+              </div>
+            </div>
+            <div class="kredo-card" style="padding: 20px;">
+              <div class="kredo-skeleton" style="width: 140px; height: 16px; margin-bottom: 14px;"></div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="kredo-skeleton" style="height: 60px; border-radius: 10px;"></div>
+                <div class="kredo-skeleton" style="height: 60px; border-radius: 10px;"></div>
+              </div>
+            </div>
+          </div>
+          <div class="kredo-right-column">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+              <div style="display: flex; gap: 8px;">
+                <div class="kredo-skeleton" style="width: 60px; height: 32px; border-radius: 8px;"></div>
+                <div class="kredo-skeleton" style="width: 80px; height: 32px; border-radius: 8px;"></div>
+                <div class="kredo-skeleton" style="width: 80px; height: 32px; border-radius: 8px;"></div>
+              </div>
+              <div class="kredo-skeleton" style="width: 130px; height: 32px; border-radius: 8px;"></div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+              ${[1, 2].map(() => `
+                <div class="kredo-card" style="padding: 16px;">
+                  <div class="kredo-skeleton" style="width: 160px; height: 18px; margin-bottom: 14px;"></div>
+                  <div style="display: flex; flex-direction: column; gap: 10px;">
+                    ${[1, 2, 3].map(() => `
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                          <div class="kredo-skeleton" style="width: 38px; height: 38px; border-radius: 10px;"></div>
+                          <div>
+                            <div class="kredo-skeleton" style="width: 120px; height: 14px; margin-bottom: 6px;"></div>
+                            <div class="kredo-skeleton" style="width: 80px; height: 11px;"></div>
+                          </div>
+                        </div>
+                        <div class="kredo-skeleton" style="width: 70px; height: 16px;"></div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
 
     // CREDIT CARDS VAULT TAB
     if (activeTab === 'cards') {
@@ -1192,11 +1261,12 @@ export class KredoController {
               </div>
 
               <div>
-                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Card Color Theme</label>
+                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 6px;">Card Color Theme</label>
                 <div style="display: flex; gap: 8px;">
                   ${DEFAULT_CARD_GRADIENTS.map(g => `
-                    <label style="flex: 1; height: 32px; border-radius: 6px; background: ${g.background}; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px solid transparent;" title="${g.name}">
-                      <input type="radio" name="card-theme" value="${g.id}" ${g.id === 'obsidian' ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;" />
+                    <label class="kredo-theme-pill-label" data-theme-val="${g.id}" style="flex: 1; height: 36px; border-radius: 8px; background: ${g.background}; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px solid ${g.id === 'obsidian' ? 'var(--kredo-primary)' : 'rgba(0,0,0,0.1)'}; transition: all 0.15s; position: relative;" title="${g.name}">
+                      <input type="radio" name="card-theme" value="${g.id}" ${g.id === 'obsidian' ? 'checked' : ''} style="opacity: 0; width: 0; height: 0; position: absolute;" />
+                      <span class="theme-check material-symbols-outlined text-[16px]" style="color: #ffffff; display: ${g.id === 'obsidian' ? 'inline-block' : 'none'};">check</span>
                     </label>
                   `).join('')}
                 </div>
@@ -1818,6 +1888,22 @@ export class KredoController {
       });
     });
 
+    // Theme Selector Radio Handlers in Add Card Modal
+    this.container.querySelectorAll('.kredo-theme-pill-label').forEach(label => {
+      label.addEventListener('click', () => {
+        const radio = label.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+        this.container.querySelectorAll('.kredo-theme-pill-label').forEach(l => {
+          l.style.borderColor = 'rgba(0,0,0,0.1)';
+          const check = l.querySelector('.theme-check');
+          if (check) check.style.display = 'none';
+        });
+        label.style.borderColor = 'var(--kredo-primary)';
+        const check = label.querySelector('.theme-check');
+        if (check) check.style.display = 'inline-block';
+      });
+    });
+
     // Add Card Live Limit Calculation
     const totalLimitInput = this.container.querySelector('#card-total-limit');
     const currentLimitInput = this.container.querySelector('#card-current-limit');
@@ -1834,7 +1920,12 @@ export class KredoController {
     };
 
     totalLimitInput?.addEventListener('input', updateCalcPreview);
+    totalLimitInput?.addEventListener('keyup', updateCalcPreview);
+    totalLimitInput?.addEventListener('change', updateCalcPreview);
     currentLimitInput?.addEventListener('input', updateCalcPreview);
+    currentLimitInput?.addEventListener('keyup', updateCalcPreview);
+    currentLimitInput?.addEventListener('change', updateCalcPreview);
+    updateCalcPreview(); // Run immediately on mount!
 
     // Add Card Form Submit
     this.container.querySelector('#kredo-add-card-form')?.addEventListener('submit', async (e) => {
