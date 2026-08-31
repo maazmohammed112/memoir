@@ -9,3 +9,5 @@ env.*
 *.log
 *-firebase-adminsdk-*.json
 *service-account*.json
+syntara/
+

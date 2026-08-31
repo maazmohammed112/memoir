@@ -597,6 +597,18 @@ function shell() {
           ${isMaaz ? `
           <button class="header-kredo-runner" id="header-kredo-launcher" title="Launch KREDO Luxury Expense Vault" aria-label="Launch KREDO Luxury Expense Vault"><img src="/brand/kredo-logo.svg" alt="KREDO" style="width:16px;height:16px;object-fit:contain;"><span class="theme-label">KREDO</span></button>
           ` : ''}
+          ${isMaaz && ['localhost', '127.0.0.1'].includes(window.location.hostname) ? `
+          <button class="header-syntara-runner" id="header-syntara-launcher" title="Launch Syntara Shield & Antivirus Dashboard" aria-label="Launch Syntara Shield & Antivirus Dashboard">
+            <svg width="14" height="14" viewBox="0 0 40 40" fill="none" style="display:inline-block;vertical-align:middle;">
+              <rect x="17" y="4" width="6" height="12" rx="3" fill="#ffffff"/>
+              <rect x="17" y="24" width="6" height="12" rx="3" fill="#ffffff"/>
+              <rect x="4" y="17" width="12" height="6" rx="3" fill="#ffffff"/>
+              <rect x="24" y="17" width="12" height="6" rx="3" fill="#ffffff"/>
+              <circle cx="20" cy="20" r="3.5" fill="#C8F500"/>
+            </svg>
+            <span class="theme-label">Syntara Shield</span>
+          </button>
+          ` : ''}
           <button class="header-karyalaya-runner" id="header-theme-switcher" title="Switch workspace experience" aria-label="Switch workspace experience">${icon('PanelsTopLeft')} <span class="theme-label">Karyalaya Floor</span></button>
           <button class="header-rhino-runner" id="header-rhino-assistant" title="Open Rhinous" aria-label="Open Rhinous assistant"><span class="rhino-track" aria-hidden="true"></span><span class="header-rhino-launch" aria-hidden="true"><img src="/brand/memoir-rhino-ui.png" alt=""></span><i></i><i></i><i></i></button>
           <button class="round-btn mobile-search" id="mobile-search-button" title="Search everything">${icon('Search')}</button>
@@ -2083,9 +2095,65 @@ function bindShell() {
   document.querySelector('#header-theme-switcher')?.addEventListener('click', () => showExperienceSwitcherModal(newTheme => shell()));
   document.querySelector('#header-kredo-launcher')?.addEventListener('click', () => navigate('kredo'));
   document.querySelectorAll('#header-kredo-launcher, #home-kredo-launcher').forEach(el => el.addEventListener('click', () => navigate('kredo')));
+  document.querySelector('#header-syntara-launcher')?.addEventListener('click', () => showSyntaraLauncherModal());
   document.addEventListener('keydown', shortcutHandler, { once: true });
   bindView();
   updateNotificationBadge();
+}
+
+function showSyntaraLauncherModal() {
+  modal.className = 'modal confirm syntara-modal';
+  modal.innerHTML = `
+    <div class="modal-inner" style="max-width: 520px;">
+      <div class="modal-head">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="width:38px; height:38px; border-radius:50%; background:#111113; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <svg width="22" height="22" viewBox="0 0 40 40" fill="none">
+              <rect x="17" y="4" width="6" height="12" rx="3" fill="#ffffff"/>
+              <rect x="17" y="24" width="6" height="12" rx="3" fill="#ffffff"/>
+              <rect x="4" y="17" width="12" height="6" rx="3" fill="#ffffff"/>
+              <rect x="24" y="17" width="12" height="6" rx="3" fill="#ffffff"/>
+              <circle cx="20" cy="20" r="3.5" fill="#C8F500"/>
+            </svg>
+          </div>
+          <div>
+            <p class="eyebrow" style="color:#10b981; font-weight:700; display:flex; align-items:center; gap:5px; margin:0;">
+              <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#10b981;"></span>
+              SYNTARA SHIELD × MEMOIR RHINO
+            </p>
+            <h2 style="font-size:18px; margin-top:2px; color:#111113;">Cybersecurity & Zero-Leak Platform</h2>
+          </div>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close">${icon('X')}</button>
+      </div>
+
+      <div style="background:#f4f4f6; border-radius:18px; padding:16px; margin:14px 0; border:1px solid rgba(0,0,0,0.06);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+          <span style="font-size:12px; font-weight:700; color:#111113;">🛡️ Universal Antivirus & Super Admin</span>
+          <span style="font-size:10px; font-weight:800; background:#c8f500; color:#111113; padding:2px 8px; border-radius:999px;">PORT 3000</span>
+        </div>
+        <p style="font-size:12.5px; color:#52525b; line-height:1.5; margin:0;">
+          Syntara runs locally beside Memoir. It connects directly to your Firebase Authentication, lets you quarantine/block accounts, revoke active tokens, and audit your code AST locally.
+        </p>
+        <div style="margin-top:12px; font-size:11.5px; color:#111113; display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div>✓ Firebase Super Admin</div>
+          <div>✓ Quarantine / Block Users</div>
+          <div>✓ Revoke Active Sessions</div>
+          <div>✓ OWASP AST Code Scanner</div>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top:16px; display:flex; gap:10px;">
+        <button type="button" class="secondary modal-cancel" style="flex:1;">Close</button>
+        <a href="http://localhost:3000" target="_blank" rel="noopener noreferrer" class="primary" style="flex:2; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:#111113; color:#c8f500; font-weight:700; border-radius:12px; padding:10px 16px;">
+          ${icon('ExternalLink')} Launch Dashboard
+        </a>
+      </div>
+    </div>
+  `;
+  showModal();
+  modal.querySelector('.modal-close')?.addEventListener('click', closeModal);
+  modal.querySelector('.modal-cancel')?.addEventListener('click', closeModal);
 }
 function shortcutHandler(event) { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search')?.focus(); } document.addEventListener('keydown', shortcutHandler, { once: true }); }
 function navigate(viewName) {

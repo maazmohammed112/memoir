@@ -45,6 +45,15 @@ import {
   DEFAULT_CARD_GRADIENTS,
 } from './kredoCardStore.js';
 
+import {
+  fetchGoogleSheetTransactions,
+  subscribeToSheetUpdates,
+  startSheetRealtimePolling,
+  stopSheetRealtimePolling,
+  GOOGLE_SHEET_URL,
+} from './kredoSheetService.js';
+
+
 // Premium Category Icon Vector Mapping (Zero emojis, modern Material Symbols)
 function getCategoryIcon(cat = '', type = 'debit') {
   const c = String(cat).toLowerCase();
@@ -90,7 +99,12 @@ export class KredoController {
       paymentMethodFilter: 'all',
       timeRange: '1D', // '1H' | '1D' | '1W' | '1M' | '1Y' | 'All'
       showBalance: true,
-      activeTab: 'ledger', // 'ledger' | 'cards' | 'categories' | 'insights' | 'ai'
+      activeTab: 'ledger', // 'ledger' | 'cards' | 'sheet' | 'categories' | 'insights' | 'ai'
+      dataSource: 'kredo', // 'kredo' (Email/Manual) | 'sheet' (Google Sheet)
+      sheetTransactions: [],
+      isSheetLoading: false,
+      lastSheetSync: null,
+      sheetError: null,
       activeModal: null,   // 'action-menu' | 'add' | 'edit' | 'preview' | 'import' | 'delete-confirm' | 'batch-delete-confirm' | 'add-card' | 'edit-card' | 'delete-card-confirm'
       selectedTx: null,
       selectedCard: null,
@@ -103,6 +117,16 @@ export class KredoController {
       settings: getKredoSettings(),
     };
 
+    // Auto-poll Google Sheet every 10s for real-time live sync
+    this.sheetUnsubscribe = subscribeToSheetUpdates((data) => {
+      this.state.sheetTransactions = data.transactions || [];
+      this.state.lastSheetSync = data.lastSync;
+      if (this.state.activeTab === 'sheet' || this.state.dataSource === 'sheet') {
+        this.render();
+      }
+    });
+    startSheetRealtimePolling(10000);
+
     // Render skeleton immediately (0ms latency, zero flicker)
     this.render();
     this.init();
@@ -110,13 +134,19 @@ export class KredoController {
 
   async init() {
     try {
-      const [txs, cards] = await Promise.all([
+      const [txs, cards, sheetRes] = await Promise.all([
         getKredoTransactions(),
         getCreditCards(),
+        fetchGoogleSheetTransactions(true),
       ]);
       this.state.transactions = txs;
       this.state.cards = cards;
-      const months = getAvailableMonths(txs);
+      if (sheetRes && sheetRes.transactions) {
+        this.state.sheetTransactions = sheetRes.transactions;
+        this.state.lastSheetSync = sheetRes.lastSync;
+      }
+      const activePool = this.state.dataSource === 'sheet' ? this.state.sheetTransactions : txs;
+      const months = getAvailableMonths(activePool);
       if (months.length > 0) {
         this.state.selectedMonth = months[0].key;
       }
@@ -432,6 +462,7 @@ export class KredoController {
   render() {
     const {
       transactions,
+      sheetTransactions,
       cards,
       selectedMonth,
       searchQuery,
@@ -443,10 +474,14 @@ export class KredoController {
       activeTab,
       selectedTxIds,
       selectedCardIdFilter,
+      dataSource, // 'kredo' | 'sheet'
     } = this.state;
 
+    // Isolate data: strictly Kredo Email or Google Sheet (never merged)
+    const rawPool = dataSource === 'sheet' ? sheetTransactions : transactions;
+
     // Filter transactions using multi-filter engine
-    let filteredTxs = filterTransactions(transactions, {
+    let filteredTxs = filterTransactions(rawPool, {
       month: selectedMonth,
       query: searchQuery,
       type: typeFilter,
@@ -469,11 +504,12 @@ export class KredoController {
     // Hierarchical Week & Day grouping
     const hierarchicalWeeks = groupTransactionsHierarchically(filteredTxs);
 
-    // Compute Executive Analytics
-    const analytics = computeKredoAnalytics(transactions, filteredTxs);
+    // Compute Executive Analytics on isolated data pool
+    const analytics = computeKredoAnalytics(rawPool, filteredTxs);
 
     // Real-Time Dynamic Chart Data
     const chartData = this.computeRealtimeChart(filteredTxs, timeRange);
+
 
     const availableMonths = getAvailableMonths(transactions);
     const isAllSelected = filteredTxs.length > 0 && filteredTxs.every(t => selectedTxIds.has(t.id));
@@ -498,13 +534,26 @@ export class KredoController {
             </div>
 
             <div class="kredo-header-actions">
+              <!-- Source Isolation Switcher (Kredo Email vs Google Sheet) -->
+              <div class="kredo-source-toggle" title="Select isolated data source">
+                <button type="button" class="kredo-source-pill ${dataSource === 'kredo' ? 'active' : ''}" data-source="kredo">
+                  <span class="material-symbols-outlined text-[14px]">mail</span> Kredo Email
+                </button>
+                <button type="button" class="kredo-source-pill ${dataSource === 'sheet' ? 'active' : ''}" data-source="sheet">
+                  <span class="material-symbols-outlined text-[14px]">table_chart</span> Google Sheet
+                </button>
+              </div>
+
               <!-- Desktop Navigation Tabs -->
               <nav class="kredo-desktop-nav-tabs">
                 <button class="kredo-desktop-tab-btn ${activeTab === 'ledger' ? 'active' : ''}" data-nav="ledger">
                   <span class="material-symbols-outlined text-[16px]">receipt_long</span> Ledger
                 </button>
                 <button class="kredo-desktop-tab-btn ${activeTab === 'cards' ? 'active' : ''}" data-nav="cards">
-                  <span class="material-symbols-outlined text-[16px]">credit_card</span> Credit Cards
+                  <span class="material-symbols-outlined text-[16px]">credit_card</span> Cards
+                </button>
+                <button class="kredo-desktop-tab-btn ${activeTab === 'sheet' ? 'active' : ''}" data-nav="sheet">
+                  <span class="material-symbols-outlined text-[16px]">table_chart</span> Sheet
                 </button>
                 <button class="kredo-desktop-tab-btn ${activeTab === 'categories' ? 'active' : ''}" data-nav="categories">
                   <span class="material-symbols-outlined text-[16px]">pie_chart</span> Categories
@@ -538,6 +587,9 @@ export class KredoController {
               </button>
               <button class="kredo-nav-item ${activeTab === 'cards' ? 'active' : ''}" data-nav="cards" title="Credit Cards">
                 <span class="material-symbols-outlined ${activeTab === 'cards' ? 'fill' : ''}">credit_card</span>
+              </button>
+              <button class="kredo-nav-item ${activeTab === 'sheet' ? 'active' : ''}" data-nav="sheet" title="Live Google Sheet">
+                <span class="material-symbols-outlined ${activeTab === 'sheet' ? 'fill' : ''}">table_chart</span>
               </button>
 
               <!-- Center Floating Action Button (+) opens quick menu -->
@@ -829,6 +881,170 @@ export class KredoController {
       `;
     }
 
+    // DEDICATED GOOGLE SHEET REAL-TIME TAB
+    if (activeTab === 'sheet') {
+      const sheetTxs = this.state.sheetTransactions || [];
+      const totalInflow = sheetTxs.filter(t => t.type === 'credit').reduce((s, t) => s + (t.amount || 0), 0);
+      const totalOutflow = sheetTxs.filter(t => t.type === 'debit').reduce((s, t) => s + (t.amount || 0), 0);
+      const netSheetFlow = totalInflow - totalOutflow;
+      const lastSyncStr = this.state.lastSheetSync ? this.state.lastSheetSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Pending';
+
+      return `
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          
+          <!-- Top Live Sync Status & Controls -->
+          <div class="kredo-sheet-hero-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <span class="kredo-live-pulsar"></span>
+                  <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #00c853;">Live Connected</span>
+                  <span style="font-size: 11px; color: var(--kredo-outline);">&bull; Real-time auto sync</span>
+                </div>
+                <h2 style="font-size: 22px; font-weight: 800; margin: 0 0 4px 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 8px;">
+                  <span class="material-symbols-outlined text-[24px]" style="color: #0f9d58;">table_chart</span> Google Sheet Live Reader
+                </h2>
+                <p style="font-size: 12.5px; color: var(--kredo-outline); margin: 0;">
+                  Direct live stream from your Google Sheet transaction ledger. Edits in Google Sheets reflect here instantaneously.
+                </p>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <button type="button" class="kredo-btn-action secondary" id="kredo-sheet-refresh-btn" style="padding: 8px 14px; font-size: 12.5px; display: flex; align-items: center; gap: 6px;">
+                  <span class="material-symbols-outlined text-[16px] ${this.state.isSheetLoading ? 'animate-spin' : ''}">sync</span> Refresh Now
+                </button>
+                <a href="${GOOGLE_SHEET_URL}" target="_blank" rel="noopener noreferrer" class="kredo-btn-action" style="padding: 8px 16px; font-size: 12.5px; text-decoration: none; display: flex; align-items: center; gap: 6px; background: #0f9d58; color: #fff;">
+                  <span class="material-symbols-outlined text-[16px]">open_in_new</span> Open Sheet
+                </a>
+              </div>
+            </div>
+
+            <!-- Sync Telemetry Bar -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--kredo-outline-variant); font-size: 11.5px; color: var(--kredo-outline);">
+              <div>
+                <strong>Last sync:</strong> <span style="font-family: var(--kredo-mono); color: var(--kredo-secondary);">${lastSyncStr}</span>
+              </div>
+              <div>
+                <strong>Records in sheet:</strong> <span style="font-family: var(--kredo-mono); color: var(--kredo-secondary); font-weight: 700;">${sheetTxs.length}</span>
+              </div>
+              <div>
+                <strong>Mode:</strong> <span style="color: #0000ff; font-weight: 700;">Zero-Leak Isolated Stream</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Executive Live Metrics Strip -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+            <div class="kredo-card">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Total Credits (Inflow)</span>
+              <h3 style="font-size: 24px; font-weight: 700; margin: 0; font-family: var(--kredo-mono); color: var(--kredo-green);">${formatINR(totalInflow)}</h3>
+              <span style="font-size: 11px; color: var(--kredo-outline); margin-top: 4px;">Direct from Sheet column D</span>
+            </div>
+
+            <div class="kredo-card">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Total Debits (Outflow)</span>
+              <h3 style="font-size: 24px; font-weight: 700; margin: 0; font-family: var(--kredo-mono); color: var(--kredo-secondary);">${formatINR(totalOutflow)}</h3>
+              <span style="font-size: 11px; color: var(--kredo-outline); margin-top: 4px;">Direct from Sheet column D</span>
+            </div>
+
+            <div class="kredo-card">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Net Balance Delta</span>
+              <h3 style="font-size: 24px; font-weight: 700; margin: 0; font-family: var(--kredo-mono); color: ${netSheetFlow >= 0 ? 'var(--kredo-green)' : 'var(--kredo-tertiary)'};">${formatINR(netSheetFlow)}</h3>
+              <span style="font-size: 11px; color: var(--kredo-outline); margin-top: 4px;">Live calculated</span>
+            </div>
+
+            <div class="kredo-card">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Data Isolation</span>
+              <div style="margin-top: 6px;">
+                <button type="button" class="kredo-btn-action secondary" data-switch-source="sheet" style="font-size: 11.5px; padding: 5px 10px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                  <span class="material-symbols-outlined text-[14px]">tune</span> Filter Entire App to Sheet
+                </button>
+              </div>
+              <span style="font-size: 10.5px; color: var(--kredo-outline); margin-top: 4px; display: block;">Isolates Ledger & Insights exclusively to Sheet</span>
+            </div>
+          </div>
+
+          <!-- Live Transactions Feed Table -->
+          <div class="kredo-card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 16px 20px; border-bottom: 1px solid var(--kredo-outline-variant); display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h3 style="font-size: 16px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Live Google Sheet Ledger</h3>
+                <span style="font-size: 11.5px; color: var(--kredo-outline);">All ${sheetTxs.length} real-time transactions</span>
+              </div>
+              <div style="font-size: 11px; font-weight: 700; background: rgba(0,0,255,0.08); color: #0000ff; padding: 4px 10px; border-radius: 999px;">
+                AUTO REFRESH: ON
+              </div>
+            </div>
+
+            ${sheetTxs.length > 0 ? `
+              <div class="kredo-sheet-table-wrap">
+                <table class="kredo-sheet-table">
+                  <thead>
+                    <tr>
+                      <th>Row</th>
+                      <th>Date & Time</th>
+                      <th>Merchant</th>
+                      <th>Category</th>
+                      <th>Method</th>
+                      <th>Account</th>
+                      <th style="text-align: right;">Amount</th>
+                      <th>Transaction ID</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${sheetTxs.map((tx, idx) => `
+                      <tr class="kredo-sheet-row">
+                        <td style="font-family: var(--kredo-mono); font-size: 11px; color: var(--kredo-outline);">#${tx.sheetRowIndex || (idx + 1)}</td>
+                        <td>
+                          <div style="font-weight: 600; color: var(--kredo-secondary);">${tx.date}</div>
+                          <div style="font-size: 11px; color: var(--kredo-outline);">${format12HourTime(tx.time) || tx.time}</div>
+                        </td>
+                        <td>
+                          <div style="display: flex; align-items: center; gap: 8px;">
+                            <div class="kredo-tx-avatar ${tx.type === 'credit' ? 'credit' : 'debit'}" style="width: 28px; height: 28px;">
+                              ${getCategoryIcon(tx.category, tx.type)}
+                            </div>
+                            <strong style="color: var(--kredo-secondary);">${tx.merchant}</strong>
+                          </div>
+                        </td>
+                        <td>
+                          <span style="font-size: 11.5px; background: var(--kredo-surface-container-low); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--kredo-outline-variant);">
+                            ${tx.category}
+                          </span>
+                        </td>
+                        <td style="font-size: 12px;">${tx.paymentMethod}</td>
+                        <td style="font-size: 11.5px; font-family: var(--kredo-mono);">${tx.cardOrAccount || '-'}</td>
+                        <td style="text-align: right;">
+                          <span class="kredo-tx-amount ${tx.type === 'debit' ? 'debit' : 'credit'}" style="font-size: 13.5px;">
+                            ${tx.type === 'debit' ? '-' : '+'}${formatINR(tx.amount)}
+                          </span>
+                        </td>
+                        <td style="font-family: var(--kredo-mono); font-size: 10.5px; color: var(--kredo-outline);">
+                          ${tx.id ? `${tx.id.slice(0, 10)}…` : '-'}
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            ` : `
+              <div style="padding: 48px 20px; text-align: center; color: var(--kredo-outline);">
+                <span class="material-symbols-outlined text-[44px]" style="margin-bottom: 8px; display: block; color: #0f9d58;">table_chart</span>
+                <h4 style="margin: 0 0 6px 0; color: var(--kredo-secondary); font-size: 16px; font-weight: 700;">Google Sheet is currently empty</h4>
+                <p style="margin: 0 0 16px 0; font-size: 13px; max-width: 440px; margin-left: auto; margin-right: auto;">
+                  Whenever your iOS shortcut or manual entry script posts an SMS or transaction, it appears here in real-time.
+                </p>
+                <a href="${GOOGLE_SHEET_URL}" target="_blank" rel="noopener noreferrer" class="kredo-btn-action" style="max-width: 220px; margin: 0 auto; padding: 9px 18px; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; background: #0f9d58; color: #fff;">
+                  <span class="material-symbols-outlined text-[16px]">open_in_new</span> Open Google Sheet
+                </a>
+              </div>
+            `}
+          </div>
+
+        </div>
+      `;
+    }
+
     if (activeTab === 'ledger') {
       return `
         <!-- Desktop 2-Column Responsive Dashboard Layout -->
@@ -937,9 +1153,18 @@ export class KredoController {
           <!-- RIGHT COLUMN: Multi-Filter & Hierarchical Ledger Feed -->
           <div class="kredo-right-column">
             
-            <!-- Filter Strip & Month Dropdown -->
+            <!-- Filter Strip & Month Dropdown & Data Source Selector -->
             <section class="kredo-filter-strip">
               <div class="kredo-filter-pills">
+                <div class="kredo-source-mini-pills">
+                  <button class="kredo-filter-pill ${dataSource === 'kredo' ? 'active' : ''}" data-source="kredo" title="Show only Kredo Email & manual entries">
+                    <span class="material-symbols-outlined text-[13px]">mail</span> Kredo Email
+                  </button>
+                  <button class="kredo-filter-pill ${dataSource === 'sheet' ? 'active' : ''}" data-source="sheet" title="Show only real-time Google Sheet data">
+                    <span class="material-symbols-outlined text-[13px]">table_chart</span> Google Sheet
+                  </button>
+                </div>
+                <div style="width: 1px; height: 16px; background: var(--kredo-outline-variant); margin: 0 4px;"></div>
                 <button class="kredo-filter-pill ${typeFilter === 'all' ? 'active' : ''}" data-filter-type="all">All</button>
                 <button class="kredo-filter-pill ${typeFilter === 'debit' ? 'active' : ''}" data-filter-type="debit">Outflows</button>
                 <button class="kredo-filter-pill ${typeFilter === 'credit' ? 'active' : ''}" data-filter-type="credit">Inflows</button>
@@ -1113,10 +1338,20 @@ export class KredoController {
         <!-- Spending Velocity & Local AI Analytics -->
         <div style="display: flex; flex-direction: column; gap: 20px;">
           
-          <!-- Month Selector for Velocity -->
+          <!-- Month Selector & Data Source Selector for Velocity -->
           <section class="kredo-filter-strip">
-            <div style="font-size: 13.5px; font-weight: 700; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
-              <span class="material-symbols-outlined text-[18px]">speed</span> Spending Velocity Analysis
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <div style="font-size: 13.5px; font-weight: 700; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
+                <span class="material-symbols-outlined text-[18px]">speed</span> Spending Velocity Analysis
+              </div>
+              <div class="kredo-source-mini-pills">
+                <button class="kredo-filter-pill ${dataSource === 'kredo' ? 'active' : ''}" data-source="kredo" title="Show only Kredo Email data">
+                  <span class="material-symbols-outlined text-[13px]">mail</span> Kredo Email
+                </button>
+                <button class="kredo-filter-pill ${dataSource === 'sheet' ? 'active' : ''}" data-source="sheet" title="Show only Google Sheet data">
+                  <span class="material-symbols-outlined text-[13px]">table_chart</span> Google Sheet
+                </button>
+              </div>
             </div>
 
             <select class="kredo-month-select" id="kredo-month-dropdown">
@@ -2225,6 +2460,63 @@ export class KredoController {
       });
     });
 
+    // Data Source Isolation Switcher (Kredo Email vs Google Sheet)
+    this.container.querySelectorAll('[data-source]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const source = btn.dataset.source;
+        if (source && (source === 'kredo' || source === 'sheet')) {
+          this.state.dataSource = source;
+          const pool = source === 'sheet' ? this.state.sheetTransactions : this.state.transactions;
+          const months = getAvailableMonths(pool);
+          if (months.length > 0 && !months.some(m => m.key === this.state.selectedMonth)) {
+            this.state.selectedMonth = 'all';
+          }
+          this.state.selectedTxIds.clear();
+          this.render();
+          this.showToast(source === 'sheet' ? 'Switched to Google Sheet isolated stream' : 'Switched to Kredo Email isolated vault');
+        }
+      });
+    });
+
+    // Switch Source from Sheet Hero
+    this.container.querySelectorAll('[data-switch-source]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const source = btn.dataset.switchSource;
+        if (source) {
+          this.state.dataSource = source;
+          this.state.activeTab = 'ledger';
+          this.render();
+          this.showToast('Filtering ledger and insights exclusively for Google Sheet');
+        }
+      });
+    });
+
+    // Sheet Manual Refresh Button
+    this.container.querySelector('#kredo-sheet-refresh-btn')?.addEventListener('click', async () => {
+      const btn = this.container.querySelector('#kredo-sheet-refresh-btn');
+      if (btn) {
+        btn.style.opacity = '0.7';
+        btn.style.pointerEvents = 'none';
+      }
+      this.state.isSheetLoading = true;
+      try {
+        const res = await fetchGoogleSheetTransactions(true);
+        if (res.success) {
+          this.state.sheetTransactions = res.transactions;
+          this.state.lastSheetSync = res.lastSync;
+          this.showToast(`Synced ${res.transactions.length} rows from Google Sheet`);
+        } else {
+          this.showToast('Google Sheet refresh failed: ' + (res.error || 'Check connection'));
+        }
+      } catch (err) {
+        this.showToast('Error syncing Google Sheet');
+      } finally {
+        this.state.isSheetLoading = false;
+        this.render();
+      }
+    });
+
     // Filter Type Pills
     this.container.querySelectorAll('[data-filter-type]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -2247,12 +2539,21 @@ export class KredoController {
       });
     });
 
+    const activePool = this.state.dataSource === 'sheet' ? this.state.sheetTransactions : this.state.transactions;
+
     // Quick Edit Button
     this.container.querySelectorAll('[data-quick-edit]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const tx = this.state.transactions.find(t => t.id === btn.dataset.quickEdit);
-        if (tx) this.openModal('edit', tx);
+        const tx = activePool.find(t => t.id === btn.dataset.quickEdit);
+        if (tx) {
+          if (this.state.dataSource === 'sheet') {
+            this.showToast('Google Sheet entries are read-only stream from your sheet');
+            this.openModal('preview', tx);
+          } else {
+            this.openModal('edit', tx);
+          }
+        }
       });
     });
 
@@ -2260,8 +2561,14 @@ export class KredoController {
     this.container.querySelectorAll('[data-quick-delete]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const tx = this.state.transactions.find(t => t.id === btn.dataset.quickDelete);
-        if (tx) this.openModal('delete-confirm', tx);
+        const tx = activePool.find(t => t.id === btn.dataset.quickDelete);
+        if (tx) {
+          if (this.state.dataSource === 'sheet') {
+            this.showToast('Google Sheet entries are read-only stream from your sheet');
+          } else {
+            this.openModal('delete-confirm', tx);
+          }
+        }
       });
     });
 
@@ -2269,7 +2576,7 @@ export class KredoController {
     this.container.querySelectorAll('[data-open-tx]').forEach(row => {
       row.addEventListener('click', (e) => {
         if (e.target.closest('[data-toggle-select]') || e.target.closest('.kredo-mini-btn')) return;
-        const tx = this.state.transactions.find(t => t.id === row.dataset.openTx);
+        const tx = activePool.find(t => t.id === row.dataset.openTx);
         if (tx) this.openModal('preview', tx);
       });
     });
