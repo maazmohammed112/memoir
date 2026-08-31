@@ -698,6 +698,7 @@ export class KredoController {
       cards, 
       selectedCardIdFilter,
       dataSource,
+      transactions,
       sheetTransactions,
       isSheetLoading,
       lastSheetSync,
