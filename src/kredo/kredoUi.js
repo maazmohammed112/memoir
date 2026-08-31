@@ -610,14 +610,8 @@ export class KredoController {
                 <button class="kredo-desktop-tab-btn ${activeTab === 'sheet' ? 'active' : ''}" data-nav="sheet">
                   <span class="material-symbols-outlined text-[16px]">table_chart</span> Sheet
                 </button>
-                <button class="kredo-desktop-tab-btn ${activeTab === 'categories' ? 'active' : ''}" data-nav="categories">
-                  <span class="material-symbols-outlined text-[16px]">pie_chart</span> Categories
-                </button>
                 <button class="kredo-desktop-tab-btn ${activeTab === 'insights' ? 'active' : ''}" data-nav="insights">
                   <span class="material-symbols-outlined text-[16px]">insights</span> Insights
-                </button>
-                <button class="kredo-desktop-tab-btn ${activeTab === 'ai' ? 'active' : ''}" data-nav="ai">
-                  <span class="material-symbols-outlined text-[16px]">psychology</span> AI
                 </button>
               </nav>
 
@@ -634,7 +628,7 @@ export class KredoController {
             ${this.renderCanvasContent(analytics, hierarchicalWeeks, filteredTxs, availableMonths, isAllSelected, chartData, insightsAnalytics, availableCategories, availableMethods, insightsFilteredTxs, insightsPool, insightsAvailableCategories, insightsAvailableMethods)}
           </main>
 
-          <!-- Floating Bottom Navigation Pill Shell (Mobile Only) -->
+          <!-- Floating Bottom Navigation Pill Shell (Mobile Only - 4 Clean Tabs + Center Action Button) -->
           <nav class="kredo-bottom-nav">
             <div class="kredo-bottom-nav-pill">
               <button class="kredo-nav-item ${activeTab === 'ledger' ? 'active' : ''}" data-nav="ledger" title="Ledger Feed">
@@ -643,17 +637,14 @@ export class KredoController {
               <button class="kredo-nav-item ${activeTab === 'cards' ? 'active' : ''}" data-nav="cards" title="Credit Cards">
                 <span class="material-symbols-outlined ${activeTab === 'cards' ? 'fill' : ''}">credit_card</span>
               </button>
-              <button class="kredo-nav-item ${activeTab === 'sheet' ? 'active' : ''}" data-nav="sheet" title="Live Google Sheet">
-                <span class="material-symbols-outlined ${activeTab === 'sheet' ? 'fill' : ''}">table_chart</span>
-              </button>
 
               <!-- Center Floating Action Button (+) opens quick menu -->
               <button class="kredo-nav-center-add" id="kredo-center-add-btn" title="Actions">
                 <span class="material-symbols-outlined text-[24px]">add</span>
               </button>
 
-              <button class="kredo-nav-item ${activeTab === 'categories' ? 'active' : ''}" data-nav="categories" title="Categories">
-                <span class="material-symbols-outlined ${activeTab === 'categories' ? 'fill' : ''}">pie_chart</span>
+              <button class="kredo-nav-item ${activeTab === 'sheet' ? 'active' : ''}" data-nav="sheet" title="Live Google Sheet">
+                <span class="material-symbols-outlined ${activeTab === 'sheet' ? 'fill' : ''}">table_chart</span>
               </button>
               <button class="kredo-nav-item ${activeTab === 'insights' ? 'active' : ''}" data-nav="insights" title="Visual Analytics & Insights">
                 <span class="material-symbols-outlined ${activeTab === 'insights' ? 'fill' : ''}">insights</span>
@@ -1387,76 +1378,6 @@ export class KredoController {
       `;
     }
 
-    if (activeTab === 'categories') {
-      const categories = analytics.categoryShare || [];
-      const paymentMethods = analytics.paymentMethodShare || [];
-
-      return `
-        <!-- Categories Breakdown Desktop Dashboard -->
-        <div style="display: flex; flex-direction: column; gap: 20px;">
-          
-          <!-- Month & Type Filter Strip -->
-          <section class="kredo-filter-strip">
-            <div class="kredo-filter-pills">
-              <button class="kredo-filter-pill ${typeFilter === 'all' ? 'active' : ''}" data-filter-type="all">All</button>
-              <button class="kredo-filter-pill ${typeFilter === 'debit' ? 'active' : ''}" data-filter-type="debit">Outflows</button>
-              <button class="kredo-filter-pill ${typeFilter === 'credit' ? 'active' : ''}" data-filter-type="credit">Inflows</button>
-            </div>
-
-            <select class="kredo-month-select" id="kredo-month-dropdown">
-              <option value="all" ${selectedMonth === 'all' ? 'selected' : ''}>All Months</option>
-              ${availableMonths.map(m => `
-                <option value="${m.key}" ${selectedMonth === m.key ? 'selected' : ''}>${m.label}</option>
-              `).join('')}
-            </select>
-          </section>
-
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;">
-            <div class="kredo-card">
-              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
-                <h3 style="font-size: 17px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Category Outflows</h3>
-                <span style="font-size: 12px; color: var(--kredo-outline);">${categories.length} Categories (${selectedMonth === 'all' ? 'All Time' : selectedMonth})</span>
-              </div>
-
-              <div style="display: flex; flex-direction: column; gap: 12px;">
-                ${categories.length > 0 ? categories.map(cat => `
-                  <div style="background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <div style="display: flex; align-items: center; gap: 10px;">
-                        <div style="width: 34px; height: 34px; border-radius: 8px; background: rgba(0,0,255,0.08); color: var(--kredo-primary); display: flex; align-items: center; justify-content: center;">
-                          ${getCategoryIcon(cat.category)}
-                        </div>
-                        <strong style="font-size: 14px; color: var(--kredo-secondary);">${cat.category}</strong>
-                      </div>
-                      <div style="text-align: right;">
-                        <strong style="font-size: 14px; font-family: var(--kredo-mono);">${formatINR(cat.amount)}</strong>
-                        <span style="font-size: 11px; color: var(--kredo-outline); margin-left: 4px;">(${cat.percentage}%)</span>
-                      </div>
-                    </div>
-                    <div style="height: 6px; background: rgba(0,0,0,0.06); border-radius: 3px; overflow: hidden;">
-                      <div style="height: 100%; width: ${cat.percentage}%; background: var(--kredo-primary); border-radius: 3px;"></div>
-                    </div>
-                  </div>
-                `).join('') : '<p style="color: var(--kredo-outline); font-size: 13px; text-align: center; padding: 20px 0;">No category data recorded for this period.</p>'}
-              </div>
-            </div>
-
-            <div class="kredo-card">
-              <h4 style="font-size: 16px; font-weight: 700; margin: 0 0 16px 0; color: var(--kredo-secondary);">Payment Method Distribution</h4>
-              <div style="display: flex; flex-direction: column; gap: 10px;">
-                ${paymentMethods.length > 0 ? paymentMethods.map(pm => `
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--kredo-surface-container-low); border-radius: 10px; font-size: 13px;">
-                    <span style="color: var(--kredo-secondary); font-weight: 600;">${pm.method}</span>
-                    <span style="font-family: var(--kredo-mono); color: var(--kredo-outline); font-weight: 700;">${formatINR(pm.amount)} (${pm.percentage}%)</span>
-                  </div>
-                `).join('') : '<p style="color: var(--kredo-outline); font-size: 13px; text-align: center; padding: 20px 0;">No payment method distribution available.</p>'}
-              </div>
-            </div>
-          </div>
-
-        </div>
-      `;
-    }
 
     if (activeTab === 'insights') {
       const insAnalytics = insightsAnalytics || analytics;

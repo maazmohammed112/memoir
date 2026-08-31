@@ -47,15 +47,37 @@ export const DATE_RANGE_MODES = [
 ];
 
 export function parseTxDate(tx) {
+  if (!tx) return new Date();
+
+  // 1. Try parsing tx.date first (standardized ISO, Sheet format, or text dates)
+  if (tx.date) {
+    const str = String(tx.date).trim();
+    // Match YYYY-MM-DD
+    const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+    }
+    // Match DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+    const ddmmyyyy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+    if (ddmmyyyy) {
+      return new Date(Number(ddmmyyyy[3]), Number(ddmmyyyy[2]) - 1, Number(ddmmyyyy[1]));
+    }
+    // Match GViz Date(Y,M,D)
+    const gvizMatch = str.match(/Date\((\d+),(\d+),(\d+)/i);
+    if (gvizMatch) {
+      return new Date(Number(gvizMatch[1]), Number(gvizMatch[2]), Number(gvizMatch[3]));
+    }
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  // 2. Fallback to createdAt timestamp
   if (tx.createdAt && !isNaN(Number(tx.createdAt))) {
     return new Date(Number(tx.createdAt));
   }
-  if (tx.date) {
-    const parts = tx.date.split('-');
-    if (parts.length === 3) {
-      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-    }
-  }
+
   return new Date();
 }
 
@@ -131,9 +153,10 @@ export function filterTransactions(transactions = [], filters = {}) {
       if (dTime < sTime || dTime > eTime) return false;
     }
 
-    // 2. Explicit Month filter (e.g. '2026-03') if not 'all'
+    // 2. Explicit Month filter (e.g. '2026-08') if not 'all'
     if (month && month !== 'all') {
-      if (!tx.date || !tx.date.startsWith(month)) {
+      const txMonthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (txMonthKey !== month) {
         return false;
       }
     }

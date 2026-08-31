@@ -44,6 +44,57 @@ function formatTimeTo12Hour(timeStr) {
 }
 
 /**
+ * Normalizes any date format from Google Sheets to standard ISO YYYY-MM-DD
+ */
+export function normalizeSheetDate(rawDate) {
+  if (!rawDate) return new Date().toISOString().slice(0, 10);
+  const str = String(rawDate).trim();
+  
+  // Format: Date(2026,7,28) or Date(2026,7,28,14,30,0) (GViz format)
+  const gvizMatch = str.match(/Date\((\d+),(\d+),(\d+)/i);
+  if (gvizMatch) {
+    const y = parseInt(gvizMatch[1], 10);
+    const m = parseInt(gvizMatch[2], 10) + 1; // 0-indexed in GViz
+    const d = parseInt(gvizMatch[3], 10);
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  // Format: YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str;
+  }
+
+  // Format: DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  const ddmmyyyy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (ddmmyyyy) {
+    const d = parseInt(ddmmyyyy[1], 10);
+    const m = parseInt(ddmmyyyy[2], 10);
+    const y = parseInt(ddmmyyyy[3], 10);
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  // Format: YYYY/MM/DD
+  const yyyymmdd = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (yyyymmdd) {
+    const y = parseInt(yyyymmdd[1], 10);
+    const m = parseInt(yyyymmdd[2], 10);
+    const d = parseInt(yyyymmdd[3], 10);
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  // Generic Date.parse
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = parsed.getMonth() + 1;
+    const d = parsed.getDate();
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
  * Normalizes a row from the Google Sheet
  * Expected Header Columns:
  * [0: Date, 1: Time, 2: Type, 3: Amount, 4: Category, 5: Payment Method, 6: Merchant, 7: Account, 8: Source, 9: Raw Message, 10: Transaction ID]
@@ -67,11 +118,16 @@ export function normalizeSheetRow(rowCells, index) {
   const time = formatTimeTo12Hour(rawTime);
   const merchant = rawMerchant || 'Transaction';
   const id = rawTxId ? `sheet_tx_${rawTxId}` : `sheet_row_${index}_${Date.now()}`;
+  const date = normalizeSheetDate(rawDate);
+
+  // Compute realistic timestamp from parsed date
+  const parsedDateObj = new Date(date + 'T12:00:00');
+  const createdAt = !isNaN(parsedDateObj.getTime()) ? parsedDateObj.getTime() : (Date.now() - index * 60000);
 
   return {
     id,
     referenceId: rawTxId || `SHEET/${index + 1}`,
-    date: rawDate || new Date().toISOString().slice(0, 10),
+    date,
     time: time || '12:00 PM',
     type,
     amount: cleanAmountNum,
@@ -83,7 +139,7 @@ export function normalizeSheetRow(rowCells, index) {
     source: rawSource || 'Google Sheet',
     rawMessage: rawMessage || '',
     isGoogleSheet: true,
-    createdAt: Date.now() - index * 60000,
+    createdAt,
   };
 }
 
