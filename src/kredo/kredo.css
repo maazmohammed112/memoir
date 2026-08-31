@@ -1114,4 +1114,400 @@
   transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ==========================================================================
+   EXECUTIVE SEGMENTED DATA SOURCE SWITCHER (Zero Overlap, Clean Capsule)
+   ========================================================================== */
+.kredo-source-segmented {
+  display: inline-flex;
+  align-items: center;
+  background: var(--kredo-surface-container);
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.kredo-source-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--kredo-on-surface-variant);
+  font-family: var(--kredo-font);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s var(--kredo-ease);
+  position: relative;
+  user-select: none;
+}
+
+.kredo-source-seg-btn:hover {
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--kredo-secondary);
+}
+
+.kredo-source-seg-btn.active {
+  background: var(--kredo-secondary);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.kredo-source-seg-btn.active .material-symbols-outlined {
+  color: #ffffff;
+}
+
+.kredo-source-seg-btn.active .kredo-live-micro-dot {
+  background: #00e676;
+  box-shadow: 0 0 6px rgba(0, 230, 118, 0.8);
+}
+
+.kredo-source-segmented.mini .kredo-source-seg-btn {
+  padding: 5px 10px;
+  font-size: 11.5px;
+}
+
+@media (max-width: 640px) {
+  .kredo-source-segmented .kredo-seg-text {
+    font-size: 11px;
+  }
+  .kredo-source-seg-btn {
+    padding: 5px 8px;
+    gap: 4px;
+  }
+}
+
+/* Micro live pulsing dot */
+.kredo-live-micro-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00c853;
+  display: inline-block;
+  animation: kredoDotPulse 1.8s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+.kredo-live-pulsar {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00c853;
+  box-shadow: 0 0 0 0 rgba(0, 200, 83, 0.7);
+  animation: kredoPulsar 2s infinite;
+  display: inline-block;
+}
+
+@keyframes kredoPulsar {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 200, 83, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(0, 200, 83, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 200, 83, 0); }
+}
+
+@keyframes kredoDotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+/* ==========================================================================
+   FILTER STRIP (Fluid, responsive, zero overlap)
+   ========================================================================== */
+.kredo-filter-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  background: #ffffff;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.kredo-filter-left-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.kredo-filter-right-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kredo-filter-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--kredo-outline-variant);
+  margin: 0 2px;
+}
+
+.kredo-type-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kredo-filter-pill {
+  background: var(--kredo-surface-container-low);
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 9px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--kredo-font);
+  color: var(--kredo-on-surface-variant);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s var(--kredo-ease);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.kredo-filter-pill:hover {
+  background: #ffffff;
+  border-color: var(--kredo-primary);
+  color: var(--kredo-secondary);
+}
+
+.kredo-filter-pill.active {
+  background: var(--kredo-secondary);
+  border-color: var(--kredo-secondary);
+  color: #ffffff;
+}
+
+.kredo-filter-pill.select-all-pill.active {
+  background: var(--kredo-primary);
+  border-color: var(--kredo-primary);
+  color: #ffffff;
+}
+
+.kredo-month-select {
+  background: var(--kredo-surface-container-low);
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 9px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--kredo-font);
+  color: var(--kredo-secondary);
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.kredo-month-select:focus {
+  border-color: var(--kredo-primary);
+  background: #ffffff;
+}
+
+/* ==========================================================================
+   GOOGLE SHEET HERO & TABLE (Horizontally Scrollable, Clean Luxury Grid)
+   ========================================================================== */
+.kredo-sheet-hero-card {
+  background: #ffffff;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 18px;
+  padding: 22px 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+}
+
+.kredo-sheet-hero-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #0f9d58 0%, #00c853 50%, #0000ff 100%);
+}
+
+.kredo-sheet-table-card {
+  background: #ffffff;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.kredo-sheet-table-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--kredo-outline-variant);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: #fafafa;
+}
+
+.kredo-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0, 200, 83, 0.1);
+  color: #0f9d58;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 157, 88, 0.2);
+}
+
+/* Horizontal Scroll Table Container */
+.kredo-sheet-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #ffffff;
+}
+
+.kredo-sheet-table-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+.kredo-sheet-table-wrap::-webkit-scrollbar-track {
+  background: #f4f4f5;
+}
+.kredo-sheet-table-wrap::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 3px;
+}
+.kredo-sheet-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa;
+}
+
+.kredo-sheet-table {
+  width: 100%;
+  min-width: 840px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.kredo-sheet-table thead tr {
+  background: #f8fafc;
+}
+
+.kredo-sheet-table th {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--kredo-outline-variant);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.kredo-sheet-row {
+  transition: background-color 0.12s ease;
+  cursor: pointer;
+}
+
+.kredo-sheet-row:hover {
+  background-color: #f8fafc;
+}
+
+.kredo-sheet-row td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.kredo-sheet-row:last-child td {
+  border-bottom: none;
+}
+
+/* Category Badges */
+.kredo-category-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--kredo-surface-container-low);
+  color: var(--kredo-secondary);
+  white-space: nowrap;
+}
+
+.kredo-category-badge.food { background: #fff7ed; color: #c2410c; border-color: #ffedd5; }
+.kredo-category-badge.tea { background: #fefce8; color: #a16207; border-color: #fef9c3; }
+.kredo-category-badge.shopping { background: #eff6ff; color: #1d4ed8; border-color: #dbeafe; }
+.kredo-category-badge.travel { background: #f0fdf4; color: #15803d; border-color: #dcfce7; }
+.kredo-category-badge.bills { background: #faf5ff; color: #7e22ce; border-color: #f3e8ff; }
+.kredo-category-badge.health { background: #fdf2f8; color: #be185d; border-color: #fce7f3; }
+.kredo-category-badge.income { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+
+.kredo-account-chip {
+  font-family: var(--kredo-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 3px 7px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.kredo-sheet-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kredo-sheet-action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--kredo-outline-variant);
+  background: #ffffff;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.kredo-sheet-action-btn:hover {
+  background: #f1f5f9;
+  color: var(--kredo-secondary);
+  border-color: #cbd5e1;
+}
+
+.kredo-sheet-action-btn.edit-btn:hover {
+  color: #2563eb;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.kredo-sheet-action-btn.delete-btn:hover {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+
 
