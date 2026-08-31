@@ -15,15 +15,29 @@ Schema for each transaction:
   {
     "date": "YYYY-MM-DD",              // e.g. "2026-03-12"
     "time": "HH:MM AM/PM",             // e.g. "09:31 PM"
-    "merchant": "Name of payee/store", // e.g. "Amazon", "Swiggy", "HDFC CC Bill"
-    "amount": 23499,                    // Numeric amount in INR (no symbols)
     "type": "debit",                   // "debit" (expense) or "credit" (income/refund/bill payment)
+    "amount": 23499,                    // Numeric amount in INR (no symbols)
     "category": "Shopping",             // "Shopping" | "Food & Dining" | "Groceries" | "Bills & Utilities" | "Healthcare" | "Travel" | "Entertainment" | "Income" | "Other"
     "paymentMethod": "Credit Card",    // "Credit Card" | "UPI" | "Debit Card" | "Net Banking" | "Cash"
-    "cardLast4": "4028",               // REQUIRED for Credit Card: Extract the 4-digit card number (e.g. ending in 4028, xx4028)
-    "cardOrAccount": "HDFC Regalia",   // Bank or Card name if mentioned
+    "merchant": "Amazon",              // Name of payee/store/beneficiary
+    "cardOrAccount": "Axis Ace",       // Bank account or card nickname
+    "source": "Statement Import",      // Data origin
+    "rawMessage": "SMS text...",       // Raw notification message if available
+    "transactionId": "TXN-00129",      // Primary transaction ID if present
+    "bank": "Axis Bank",               // Bank institution (leave blank if unknown)
+    "cardLast4": "0123",               // Last 4 digits of card/account (leave blank if unknown)
     "referenceId": "UPI/607223918231", // Bank UTR or UPI/Card Ref number
-    "notes": "Brief description"
+    "nature": "Discretionary",         // "Personal" | "Business" | "Subscription" | "Recurring" | "Refund" | "Transfer" | "Investment"
+    "confidence": "0.99",              // Confidence score (0.0 to 1.0)
+    "currency": "INR",                 // ISO Currency code (default INR)
+    "status": "Completed",             // "Completed" | "Pending" | "Failed" | "Settled"
+    "reviewFlag": "",                  // "Needs Review" | "Flagged" if suspicious or low confidence
+    "reviewReason": "",                // Explanation if reviewFlag is set
+    "linkedBillId": "",                // Statement or bill ID if linked
+    "parserVersion": "v2.4",           // Parser engine version
+    "paymentApp": "CRED",              // "Google Pay" | "PhonePe" | "CRED" | "Paytm" | "Amazon Pay" etc.
+    "cardNetwork": "Visa",             // "Visa" | "Mastercard" | "RuPay" | "Amex" | "Diners Club"
+    "notes": "Desk setup electronics"  // Additional notes
   }
 ]`;
 
@@ -126,7 +140,7 @@ export function parseRawGeminiInput(rawInput) {
 }
 
 /**
- * Normalizes an arbitrary transaction object into standard Kredo format
+ * Normalizes an arbitrary transaction object into standard Kredo format with all 24 fields
  */
 export function normalizeTransaction(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -165,7 +179,7 @@ export function normalizeTransaction(raw) {
   const type = isCredit ? 'credit' : 'debit';
 
   // Category
-  const category = raw.category || inferCategory(merchant);
+  const category = String(raw.category || inferCategory(merchant)).trim();
 
   // Method
   let method = 'UPI';
@@ -175,11 +189,25 @@ export function normalizeTransaction(raw) {
   else if (rawMethod.includes('net') || rawMethod.includes('bank') || rawMethod.includes('neft')) method = 'Net Banking';
   else if (rawMethod.includes('cash')) method = 'Cash';
 
-  const cardOrAccount = raw.cardOrAccount || raw.account || (method === 'UPI' ? 'Cred UPI' : 'Bank A/c');
-  const referenceId = String(raw.referenceId || raw.utr || raw.txnId || raw.ref || '').trim();
-  const notes = raw.notes || raw.description || '';
+  const cardOrAccount = String(raw.cardOrAccount || raw.account || (method === 'UPI' ? 'Cred UPI' : '')).trim();
+  const referenceId = String(raw.referenceId || raw.utr || raw.txnId || raw.ref || raw.rrn || '').trim();
+  const transactionId = String(raw.transactionId || raw.txId || raw.sheetId || '').trim();
+  const notes = String(raw.notes || raw.description || '').trim();
+  const bank = String(raw.bank || raw.bankName || raw.issuer || '').trim();
+  const nature = String(raw.nature || raw.natureOfSpend || raw.classification || '').trim();
+  const confidence = String(raw.confidence !== undefined ? raw.confidence : '').trim();
+  const currency = String(raw.currency || 'INR').trim();
+  const status = String(raw.status || 'Completed').trim();
+  const reviewFlag = String(raw.reviewFlag || raw.flag || '').trim();
+  const reviewReason = String(raw.reviewReason || raw.reason || '').trim();
+  const linkedBillId = String(raw.linkedBillId || raw.billId || '').trim();
+  const parserVersion = String(raw.parserVersion || 'v2.4').trim();
+  const paymentApp = String(raw.paymentApp || raw.app || '').trim();
+  const cardNetwork = String(raw.cardNetwork || raw.network || '').trim();
+  const source = String(raw.source || 'Statement Import').trim();
+  const rawMessage = String(raw.rawMessage || raw.rawSms || raw.raw || '').trim();
 
-  // Extract last 4 digits of credit/debit card
+  // Extract last 4 digits of credit/debit card (strictly 4 digits, never guessed)
   let cardLast4 = String(raw.cardLast4 || raw.last4 || '').trim().replace(/\D/g, '').slice(-4);
   if (!cardLast4 && cardOrAccount) {
     const match = String(cardOrAccount).match(/\b(\d{4})\b/);
@@ -194,6 +222,8 @@ export function normalizeTransaction(raw) {
 
   const normalized = {
     id: raw.id || 'krtx_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
+    transactionId,
+    referenceId,
     date: dateStr,
     time: timeStr,
     merchant,
@@ -203,8 +233,20 @@ export function normalizeTransaction(raw) {
     category,
     paymentMethod: method,
     cardOrAccount,
+    bank,
     cardLast4,
-    referenceId,
+    nature,
+    confidence,
+    currency,
+    status,
+    reviewFlag,
+    reviewReason,
+    linkedBillId,
+    parserVersion,
+    paymentApp,
+    cardNetwork,
+    source,
+    rawMessage,
     notes,
     createdAt: Date.parse(`${dateStr}T${timeStr.includes(':') ? '12:00:00' : '00:00:00'}`) || Date.now(),
   };

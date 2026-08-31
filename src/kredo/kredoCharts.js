@@ -390,7 +390,7 @@ export function renderHorizontalBarRanking(items = [], options = {}) {
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;">
                 <span style="font-size: 10.5px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-outline); width: 16px; flex-shrink: 0;">#${idx + 1}</span>
-                <strong style="font-size: 12.5px; color: var(--kredo-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1;">${item.merchant || item.name || item.method}</strong>
+                <strong style="font-size: 12.5px; color: var(--kredo-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1;">${item.merchant || item.bank || item.paymentApp || item.cardNetwork || item.name || item.method || item.nature}</strong>
                 ${item.category ? `<span style="font-size: 9.5px; background: ${color}15; color: ${color}; padding: 1px 5px; border-radius: 4px; font-weight: 700; flex-shrink: 0;">${item.category}</span>` : ''}
               </div>
               <div style="text-align: right; flex-shrink: 0;">

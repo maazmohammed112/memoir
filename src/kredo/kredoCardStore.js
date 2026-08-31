@@ -35,6 +35,8 @@ function saveStoredCards(cards) {
   }
 }
 
+import { resolveFinancialStatus } from './kredoAnalytics.js';
+
 /**
  * Normalizes and calculates limits & utilization
  */
@@ -51,6 +53,17 @@ export function enrichCardData(card) {
     last4 = digits.slice(-4);
   }
 
+  // Normalize card network
+  let cardNetwork = String(card.cardNetwork || card.network || card.type || '').trim();
+  if (!cardNetwork) {
+    const lowerName = String(card.cardName || '').toLowerCase();
+    if (lowerName.includes('visa')) cardNetwork = 'Visa';
+    else if (lowerName.includes('mastercard') || lowerName.includes('master')) cardNetwork = 'Mastercard';
+    else if (lowerName.includes('rupay')) cardNetwork = 'RuPay';
+    else if (lowerName.includes('amex') || lowerName.includes('american express')) cardNetwork = 'Amex';
+    else if (lowerName.includes('diners')) cardNetwork = 'Diners Club';
+  }
+
   // Calculate Due Date & Bill Generation countdown
   const now = new Date();
   const currentDay = now.getDate();
@@ -61,10 +74,7 @@ export function enrichCardData(card) {
   const dueDay = parseInt(card.dueDay, 10) || 5;
 
   let daysToDue = 0;
-  let dueBadge = 'Normal';
-  let dueBadgeColor = 'var(--kredo-neutral)';
-
-  // Approximate days to due date
+  // Compute accurate days to due date
   if (dueDay >= currentDay) {
     daysToDue = dueDay - currentDay;
   } else {
@@ -72,20 +82,33 @@ export function enrichCardData(card) {
     daysToDue = (daysInCurrentMonth - currentDay) + dueDay;
   }
 
-  if (daysToDue <= 3) {
-    dueBadge = `Due in ${daysToDue} day${daysToDue === 1 ? '' : 's'}`;
-    dueBadgeColor = 'var(--kredo-error)';
-  } else if (daysToDue <= 7) {
-    dueBadge = `Due in ${daysToDue} days`;
-    dueBadgeColor = '#d97706';
-  } else {
-    dueBadge = `Due on ${dueDay}th`;
-    dueBadgeColor = 'var(--kredo-neutral)';
-  }
+  const finStatus = resolveFinancialStatus({
+    status: card.status || (card.isOverdue ? 'overdue' : (daysToDue === 0 ? 'due today' : (daysToDue <= 3 ? 'due soon' : 'upcoming'))),
+    dueDay,
+    daysToDue,
+    billDay: billingDay,
+    nature: 'Bill',
+    category: 'Credit Card Bill',
+    merchant: card.cardName || `${card.bank} Credit Card`,
+    bank: card.bank,
+    cardLast4: last4,
+    cardOrAccount: card.cardName,
+    cardNetwork,
+    amount: usedLimit,
+    amountDue: usedLimit,
+  });
+
+  const dueBadge = finStatus.badgeLabel;
+  let dueBadgeColor = 'var(--kredo-status-gray-text)';
+  if (finStatus.tier === 'overdue') dueBadgeColor = 'var(--kredo-status-red-text)';
+  else if (finStatus.tier === 'due-today' || finStatus.tier === 'due-soon') dueBadgeColor = 'var(--kredo-status-orange-text)';
+  else if (finStatus.tier === 'completed') dueBadgeColor = 'var(--kredo-status-green-text)';
 
   return {
     ...card,
     last4,
+    bank: card.bank || 'Bank',
+    cardNetwork: cardNetwork || 'Credit Card',
     totalLimit,
     currentLimit,
     usedLimit,
@@ -95,6 +118,7 @@ export function enrichCardData(card) {
     daysToDue,
     dueBadge,
     dueBadgeColor,
+    financialStatus: finStatus,
   };
 }
 
@@ -150,8 +174,8 @@ export async function deleteCreditCard(id) {
 }
 
 /**
- * Match a newly added/imported transaction to a credit card by last 4 digits
- * and automatically adjusts the current/available limit.
+ * Match a newly added/imported transaction to a credit card by last 4 digits,
+ * bank + network, or linkedBillId, and automatically adjusts the current/available limit.
  */
 export async function matchAndAdjustCardForTransaction(tx, isNew = true) {
   if (!isNew || !tx || !tx.amount) return null;
@@ -162,15 +186,37 @@ export async function matchAndAdjustCardForTransaction(tx, isNew = true) {
   // Search criteria for last 4 digits
   const candidateLast4 = String(tx.cardLast4 || tx.last4 || '').trim().replace(/\D/g, '').slice(-4);
   const cardOrAccount = String(tx.cardOrAccount || tx.merchant || tx.notes || '').toLowerCase();
+  const txBank = String(tx.bank || '').toLowerCase();
+  const txNetwork = String(tx.cardNetwork || '').toLowerCase();
+  const linkedBillId = String(tx.linkedBillId || '').toLowerCase();
 
   let matchedCard = null;
 
+  // 1. Exact last 4 match
   if (candidateLast4 && candidateLast4.length === 4) {
     matchedCard = cards.find(c => c.last4 === candidateLast4);
   }
 
+  // 2. Linked Bill ID match (e.g. BILL/AXIS/0123-MAR)
+  if (!matchedCard && linkedBillId) {
+    matchedCard = cards.find(c => {
+      if (c.last4 && linkedBillId.includes(c.last4)) return true;
+      if (c.id && linkedBillId.includes(c.id.toLowerCase())) return true;
+      return false;
+    });
+  }
+
+  // 3. Bank & Card Network match
+  if (!matchedCard && txBank && (txNetwork || tx.paymentMethod === 'Credit Card')) {
+    matchedCard = cards.find(c => {
+      const bMatch = String(c.bank || '').toLowerCase().includes(txBank) || txBank.includes(String(c.bank || '').toLowerCase());
+      const nMatch = txNetwork ? String(c.cardNetwork || '').toLowerCase().includes(txNetwork) : true;
+      return bMatch && nMatch;
+    });
+  }
+
+  // 4. Card name or Account substring match
   if (!matchedCard) {
-    // Check if card name or bank is mentioned with last 4
     matchedCard = cards.find(c => {
       if (c.last4 && cardOrAccount.includes(c.last4)) return true;
       const bankName = String(c.bank || '').toLowerCase();

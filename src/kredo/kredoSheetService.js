@@ -16,9 +16,14 @@ const LAST_SYNC_KEY = 'kredo_google_sheet_last_sync_v1';
  * Parses raw cell value safely
  */
 function getCellValue(cell) {
-  if (!cell) return '';
-  if (cell.f !== undefined && cell.f !== null) return String(cell.f).trim();
-  if (cell.v !== undefined && cell.v !== null) return String(cell.v).trim();
+  if (cell === null || cell === undefined) return '';
+  if (typeof cell === 'string' || typeof cell === 'number' || typeof cell === 'boolean') {
+    return String(cell).trim();
+  }
+  if (typeof cell === 'object') {
+    if (cell.f !== undefined && cell.f !== null) return String(cell.f).trim();
+    if (cell.v !== undefined && cell.v !== null) return String(cell.v).trim();
+  }
   return '';
 }
 
@@ -94,31 +99,100 @@ export function normalizeSheetDate(rawDate) {
   return new Date().toISOString().slice(0, 10);
 }
 
+export const SHEET_COLUMNS = [
+  'Date', 'Time', 'Type', 'Amount', 'Category', 'Payment Method',
+  'Merchant', 'Account', 'Source', 'Raw Message', 'Transaction ID',
+  'Bank', 'Last 4', 'Reference ID', 'Nature', 'Confidence', 'Currency',
+  'Status', 'Review Flag', 'Review Reason', 'Linked Bill ID',
+  'Parser Version', 'Payment App', 'Card Network'
+];
+
 /**
- * Normalizes a row from the Google Sheet
- * Expected Header Columns:
- * [0: Date, 1: Time, 2: Type, 3: Amount, 4: Category, 5: Payment Method, 6: Merchant, 7: Account, 8: Source, 9: Raw Message, 10: Transaction ID]
+ * Builds dynamic column index map from GViz cols array and/or header row cells
  */
-export function normalizeSheetRow(rowCells, index) {
-  const rawDate = getCellValue(rowCells[0]);
-  const rawTime = getCellValue(rowCells[1]);
-  const rawType = getCellValue(rowCells[2]).toLowerCase();
-  const rawAmount = getCellValue(rowCells[3]);
-  const rawCategory = getCellValue(rowCells[4]);
-  const rawMethod = getCellValue(rowCells[5]);
-  const rawMerchant = getCellValue(rowCells[6]);
-  const rawAccount = getCellValue(rowCells[7]);
-  const rawSource = getCellValue(rowCells[8]) || 'Google Sheet';
-  const rawMessage = getCellValue(rowCells[9]);
-  const rawTxId = getCellValue(rowCells[10]);
+export function buildColumnIndexMap(cols = [], headerRowCells = null) {
+  const map = {};
+  if (Array.isArray(cols)) {
+    cols.forEach((col, idx) => {
+      if (col) {
+        const label = (col.label || col.id || '').trim().toLowerCase();
+        if (label) map[label] = idx;
+      }
+    });
+  }
+  if (headerRowCells && Array.isArray(headerRowCells)) {
+    headerRowCells.forEach((cell, idx) => {
+      const val = getCellValue(cell).trim().toLowerCase();
+      if (val) map[val] = idx;
+    });
+  }
+  return map;
+}
+
+/**
+ * Helper to safely extract cell value by candidate column names or fallback index
+ */
+export function getColValue(rowCells, colMap, candidateNames, defaultIndex) {
+  if (!rowCells || !Array.isArray(rowCells)) return '';
+  if (colMap && typeof colMap === 'object') {
+    for (const name of candidateNames) {
+      const key = String(name).trim().toLowerCase();
+      if (colMap[key] !== undefined && rowCells[colMap[key]] !== undefined) {
+        return getCellValue(rowCells[colMap[key]]);
+      }
+    }
+  }
+  if (defaultIndex !== undefined && defaultIndex < rowCells.length && rowCells[defaultIndex] !== undefined) {
+    return getCellValue(rowCells[defaultIndex]);
+  }
+  return '';
+}
+
+/**
+ * Normalizes a row from the Google Sheet supporting all 24 columns:
+ * 0: Date, 1: Time, 2: Type, 3: Amount, 4: Category, 5: Payment Method,
+ * 6: Merchant, 7: Account, 8: Source, 9: Raw Message, 10: Transaction ID,
+ * 11: Bank, 12: Last 4, 13: Reference ID, 14: Nature, 15: Confidence, 16: Currency,
+ * 17: Status, 18: Review Flag, 19: Review Reason, 20: Linked Bill ID,
+ * 21: Parser Version, 22: Payment App, 23: Card Network
+ */
+export function normalizeSheetRow(rowCells, index, colMap = null) {
+  const rawDate = getColValue(rowCells, colMap, ['date', 'timestamp', 'txn date', 'transaction date'], 0);
+  const rawTime = getColValue(rowCells, colMap, ['time', 'txn time', 'timestamp time'], 1);
+  const rawType = getColValue(rowCells, colMap, ['type', 'txn type', 'transaction type', 'flow'], 2).toLowerCase();
+  const rawAmount = getColValue(rowCells, colMap, ['amount', 'inr', 'value', 'spent', 'txn amount'], 3);
+  const rawCategory = getColValue(rowCells, colMap, ['category', 'cat', 'spend category'], 4);
+  const rawMethod = getColValue(rowCells, colMap, ['payment method', 'method', 'mode', 'channel', 'payment mode'], 5);
+  const rawMerchant = getColValue(rowCells, colMap, ['merchant', 'payee', 'vendor', 'store', 'beneficiary', 'title'], 6);
+  const rawAccount = getColValue(rowCells, colMap, ['account', 'card / account', 'card/account', 'source account'], 7);
+  const rawSource = getColValue(rowCells, colMap, ['source', 'data source', 'stream'], 8);
+  const rawMessage = getColValue(rowCells, colMap, ['raw message', 'raw sms', 'sms', 'message', 'body'], 9);
+  const rawTxId = getColValue(rowCells, colMap, ['transaction id', 'txn id', 'tx id', 'id', 'sheet id'], 10);
+  const rawBank = getColValue(rowCells, colMap, ['bank', 'bank name', 'issuer', 'banking institution'], 11);
+  const rawLast4 = getColValue(rowCells, colMap, ['last 4', 'last4', 'card last 4', 'card last4', 'account last 4'], 12);
+  const rawRefId = getColValue(rowCells, colMap, ['reference id', 'reference', 'ref id', 'utr', 'rrn', 'ref number'], 13);
+  const rawNature = getColValue(rowCells, colMap, ['nature', 'nature of spend', 'expense nature', 'spend nature', 'classification'], 14);
+  const rawConfidence = getColValue(rowCells, colMap, ['confidence', 'confidence score', 'ai confidence', 'score'], 15);
+  const rawCurrency = getColValue(rowCells, colMap, ['currency', 'curr', 'ccy'], 16);
+  const rawStatus = getColValue(rowCells, colMap, ['status', 'state', 'tx status', 'txn status'], 17);
+  const rawReviewFlag = getColValue(rowCells, colMap, ['review flag', 'review', 'flag', 'needs review', 'audit flag'], 18);
+  const rawReviewReason = getColValue(rowCells, colMap, ['review reason', 'reason', 'flag reason', 'audit reason'], 19);
+  const rawLinkedBillId = getColValue(rowCells, colMap, ['linked bill id', 'linked bill', 'bill id', 'bill link', 'statement id'], 20);
+  const rawParserVersion = getColValue(rowCells, colMap, ['parser version', 'parser', 'version', 'engine'], 21);
+  const rawPaymentApp = getColValue(rowCells, colMap, ['payment app', 'app', 'upi app', 'wallet app'], 22);
+  const rawCardNetwork = getColValue(rowCells, colMap, ['card network', 'network', 'scheme', 'card scheme'], 23);
 
   // Clean amount: strip ₹, commas, spaces
-  const cleanAmountNum = Math.abs(parseFloat(rawAmount.replace(/[^0-9.-]+/g, '')) || 0);
-  const type = rawType.includes('credit') || rawType.includes('deposit') || rawType.includes('income') ? 'credit' : 'debit';
+  const cleanAmountNum = Math.abs(parseFloat(String(rawAmount).replace(/[^0-9.-]+/g, '')) || 0);
+  const isCredit = rawType.includes('credit') || rawType.includes('deposit') || rawType.includes('income') || rawType.includes('refund') || rawType.includes('cashback');
+  const type = isCredit ? 'credit' : 'debit';
   const time = formatTimeTo12Hour(rawTime);
-  const merchant = rawMerchant || 'Transaction';
+  const merchant = rawMerchant.trim() || 'Transaction';
   const id = rawTxId ? `sheet_tx_${rawTxId}` : `sheet_row_${index}_${Date.now()}`;
   const date = normalizeSheetDate(rawDate);
+
+  // Clean card last 4 (strictly digits, maximum 4 characters, never guessed)
+  const cleanLast4 = rawLast4 ? String(rawLast4).replace(/\D/g, '').slice(-4) : '';
 
   // Compute realistic timestamp from parsed date
   const parsedDateObj = new Date(date + 'T12:00:00');
@@ -126,18 +200,31 @@ export function normalizeSheetRow(rowCells, index) {
 
   return {
     id,
-    referenceId: rawTxId || `SHEET/${index + 1}`,
+    transactionId: rawTxId.trim(),
+    referenceId: rawRefId.trim() || rawTxId.trim() || '',
     date,
     time: time || '12:00 PM',
     type,
     amount: cleanAmountNum,
-    category: rawCategory || 'General',
-    paymentMethod: rawMethod || 'UPI',
-    cardOrAccount: rawAccount || 'Google Sheet Linked',
+    category: rawCategory.trim() || 'General',
+    paymentMethod: rawMethod.trim() || 'UPI',
+    cardOrAccount: rawAccount.trim() || '',
     merchant,
     displaySub: rawAccount ? `${merchant.toLowerCase()} (${rawAccount.toLowerCase()})` : merchant.toLowerCase(),
-    source: rawSource || 'Google Sheet',
-    rawMessage: rawMessage || '',
+    source: rawSource.trim() || 'Google Sheet',
+    rawMessage: rawMessage.trim(),
+    bank: rawBank.trim(),
+    cardLast4: cleanLast4,
+    nature: rawNature.trim(),
+    confidence: rawConfidence.trim(),
+    currency: rawCurrency.trim() || 'INR',
+    status: rawStatus.trim() || 'Completed',
+    reviewFlag: rawReviewFlag.trim(),
+    reviewReason: rawReviewReason.trim(),
+    linkedBillId: rawLinkedBillId.trim(),
+    parserVersion: rawParserVersion.trim(),
+    paymentApp: rawPaymentApp.trim(),
+    cardNetwork: rawCardNetwork.trim(),
     isGoogleSheet: true,
     createdAt,
   };
@@ -174,6 +261,7 @@ export async function fetchGoogleSheetTransactions() {
     }
 
     const rows = parsed.table.rows || [];
+    const tableCols = parsed.table.cols || [];
     if (rows.length === 0) {
       return { transactions: [], lastSync: new Date().toISOString() };
     }
@@ -182,9 +270,12 @@ export async function fetchGoogleSheetTransactions() {
     let startIndex = 0;
     const firstRowCells = rows[0]?.c || [];
     const firstRowFirstCol = getCellValue(firstRowCells[0]).toLowerCase();
-    if (firstRowFirstCol === 'date' || firstRowFirstCol === 'timestamp') {
+    const hasHeaderRow = firstRowFirstCol === 'date' || firstRowFirstCol === 'timestamp' || firstRowFirstCol === 'time';
+    if (hasHeaderRow) {
       startIndex = 1;
     }
+
+    const colMap = buildColumnIndexMap(tableCols, hasHeaderRow ? firstRowCells : null);
 
     const transactions = [];
     for (let i = startIndex; i < rows.length; i++) {
@@ -193,7 +284,7 @@ export async function fetchGoogleSheetTransactions() {
       const hasAnyValue = cells.some(c => c && (c.v !== null || c.f !== null));
       if (!hasAnyValue) continue;
 
-      const tx = normalizeSheetRow(cells, i);
+      const tx = normalizeSheetRow(cells, i, colMap);
       transactions.push(tx);
     }
 

@@ -32,6 +32,7 @@ import {
   groupTransactionsHierarchically,
   computeKredoAnalytics,
   formatINR,
+  resolveFinancialStatus,
 } from '../src/kredo/kredoAnalytics.js';
 
 import { ACCOUNT_PROFILES, accountProfileByCode } from '../lib/accountProfiles.js';
@@ -267,7 +268,212 @@ assert.equal(refreshedCard.currentLimit, 400000, 'Store must reflect updated ava
 assert.equal(refreshedCard.usedLimit, 100000, 'Used limit must now be 100000');
 assert.equal(refreshedCard.utilization, 20, 'Utilization must now be 20%');
 
-console.log(`✓ Credit Card Vault & Auto-Deduction passed: ${refreshedCard.cardName} (••${refreshedCard.last4}) available ₹${refreshedCard.currentLimit.toLocaleString()}, used ₹${refreshedCard.usedLimit.toLocaleString()} (${refreshedCard.utilization}%).`);
+// 11. Google Sheet 24-Column Normalization & Zero-Guessing Rule Test
+const { normalizeSheetRow, SHEET_COLUMNS, buildColumnIndexMap } = await import('../src/kredo/kredoSheetService.js');
 
-console.log('\n🎉 ALL KREDO ENGINE & DEDUPLICATION TESTS PASSED WITH 100% SUCCESS!\n');
+// Test with full 24 columns present
+const sampleFull24Row = [
+  '2026-03-22',                // 0: Date
+  '02:45 PM',                  // 1: Time
+  'debit',                     // 2: Type
+  '12499',                     // 3: Amount
+  'Electronics',               // 4: Category
+  'Credit Card',               // 5: Payment Method
+  'Croma Electronics',         // 6: Merchant
+  'HDFC Regalia',              // 7: Account
+  'SMS Parser',                // 8: Source
+  'Debited INR 12499 on HDFC', // 9: Raw Message
+  'TXN-998812',                // 10: Transaction ID
+  'HDFC Bank',                 // 11: Bank
+  '4028',                      // 12: Last 4
+  'REF-CROMA-771',             // 13: Reference ID
+  'Discretionary',             // 14: Nature
+  '0.98',                      // 15: Confidence
+  'INR',                       // 16: Currency
+  'Completed',                 // 17: Status
+  'Flagged',                   // 18: Review Flag
+  'High Single Spend Alert',   // 19: Review Reason
+  'BILL-HDFC-MAR26',           // 20: Linked Bill ID
+  'v2.4.1',                    // 21: Parser Version
+  'CRED',                      // 22: Payment App
+  'Visa',                      // 23: Card Network
+];
+
+const normalized24 = normalizeSheetRow(sampleFull24Row, 1);
+assert.equal(normalized24.date, '2026-03-22');
+assert.equal(normalized24.time, '02:45 PM');
+assert.equal(normalized24.type, 'debit');
+assert.equal(normalized24.amount, 12499);
+assert.equal(normalized24.category, 'Electronics');
+assert.equal(normalized24.paymentMethod, 'Credit Card');
+assert.equal(normalized24.merchant, 'Croma Electronics');
+assert.equal(normalized24.cardOrAccount, 'HDFC Regalia');
+assert.equal(normalized24.source, 'SMS Parser');
+assert.equal(normalized24.rawMessage, 'Debited INR 12499 on HDFC');
+assert.equal(normalized24.transactionId, 'TXN-998812');
+assert.equal(normalized24.bank, 'HDFC Bank');
+assert.equal(normalized24.cardLast4, '4028');
+assert.equal(normalized24.referenceId, 'REF-CROMA-771');
+assert.equal(normalized24.nature, 'Discretionary');
+assert.equal(normalized24.confidence, '0.98');
+assert.equal(normalized24.currency, 'INR');
+assert.equal(normalized24.status, 'Completed');
+assert.equal(normalized24.reviewFlag, 'Flagged');
+assert.equal(normalized24.reviewReason, 'High Single Spend Alert');
+assert.equal(normalized24.linkedBillId, 'BILL-HDFC-MAR26');
+assert.equal(normalized24.parserVersion, 'v2.4.1');
+assert.equal(normalized24.paymentApp, 'CRED');
+assert.equal(normalized24.cardNetwork, 'Visa');
+
+// Zero-Guessing Rule Verification: Missing fields MUST remain blank
+const sampleSparseRow = [
+  '2026-03-23', // Date
+  '',           // Time (missing)
+  'debit',      // Type
+  '150',        // Amount
+  'Chai & Tea', // Category
+  'UPI',        // Payment Method
+  'Chai Point', // Merchant
+  // All remaining 17 fields missing
+];
+
+const normalizedSparse = normalizeSheetRow(sampleSparseRow, 2);
+assert.equal(normalizedSparse.merchant, 'Chai Point');
+assert.equal(normalizedSparse.amount, 150);
+assert.equal(normalizedSparse.bank, '', 'Bank must remain blank when not provided');
+assert.equal(normalizedSparse.cardLast4, '', 'Last 4 must remain blank when not provided');
+assert.equal(normalizedSparse.paymentApp, '', 'Payment App must remain blank when not provided');
+assert.equal(normalizedSparse.cardNetwork, '', 'Card Network must remain blank when not provided');
+assert.equal(normalizedSparse.referenceId, '', 'Reference ID must remain blank when not provided');
+assert.equal(normalizedSparse.linkedBillId, '', 'Linked Bill ID must remain blank when not provided');
+assert.equal(normalizedSparse.reviewFlag, '', 'Review Flag must remain blank when not provided');
+assert.equal(normalizedSparse.reviewReason, '', 'Review Reason must remain blank when not provided');
+
+console.log('✓ Google Sheet 24-column parser & Zero-Guessing rule verified: all 24 fields mapped cleanly without hallucinating missing data.');
+
+// 12. Multi-Dimensional 24-Column Slicer & Analytics Breakdown Test
+const mixedDataset = [
+  normalized24,
+  normalizedSparse,
+  ...SEED_TRANSACTIONS,
+];
+
+const bankFilterResult = filterTransactions(mixedDataset, { bank: 'HDFC Bank' });
+assert.ok(bankFilterResult.length >= 1, 'Filter by bank must match');
+assert.ok(bankFilterResult.every(t => (t.bank || '').toLowerCase().includes('hdfc bank')), 'Bank filter must strictly isolate matching records');
+
+const appFilterResult = filterTransactions(mixedDataset, { paymentApp: 'CRED' });
+assert.ok(appFilterResult.length >= 1, 'Filter by payment app must match');
+assert.ok(appFilterResult.every(t => t.paymentApp === 'CRED'), 'Payment App filter must strictly isolate matching records');
+
+const netFilterResult = filterTransactions(mixedDataset, { cardNetwork: 'Visa' });
+assert.ok(netFilterResult.length >= 1, 'Filter by card network must match');
+assert.ok(netFilterResult.every(t => t.cardNetwork === 'Visa'), 'Card Network filter must strictly isolate matching records');
+
+const reviewFilterResult = filterTransactions(mixedDataset, { reviewFlag: 'flagged' });
+assert.ok(reviewFilterResult.length >= 1, 'Filter by flagged review status must match');
+assert.ok(reviewFilterResult.every(t => t.reviewFlag && t.reviewFlag !== 'no' && t.reviewFlag !== 'false' && t.reviewFlag !== 'clear'), 'Review Flag filter must isolate flagged items');
+
+const deepAnalytics = computeKredoAnalytics(mixedDataset, mixedDataset);
+assert.ok(deepAnalytics.bankShare.length > 0, 'Analytics must aggregate bank share breakdown');
+assert.ok(deepAnalytics.paymentAppShare.length > 0, 'Analytics must aggregate payment app share breakdown');
+assert.ok(deepAnalytics.cardNetworkShare.length > 0, 'Analytics must aggregate card network breakdown');
+assert.ok(deepAnalytics.natureShare.length > 0, 'Analytics must aggregate spend nature breakdown');
+assert.ok(deepAnalytics.reviewFlagStats.totalFlagged >= 1, 'Analytics must track flagged audit stats');
+assert.ok(deepAnalytics.linkedBillStats.totalLinkedCount >= 1, 'Analytics must track linked bill settlements');
+
+// 13. Financial Status Engine & Outline Highlighting Verification
+const baseReferenceDate = '2026-03-31';
+
+// Case A: Completed / Settled normal transaction -> subtle green
+const txCompleted = {
+  merchant: 'Swiggy Gourmet',
+  amount: 850,
+  status: 'Completed',
+  nature: 'Food & Dining',
+  date: '2026-03-28',
+};
+const resCompleted = resolveFinancialStatus(txCompleted, { referenceDate: baseReferenceDate });
+assert.equal(resCompleted.tier, 'completed', 'Completed transaction tier must be completed');
+assert.equal(resCompleted.outlineClass, 'kredo-status-outline-completed', 'Completed class must be kredo-status-outline-completed');
+assert.ok(resCompleted.highlightReason.toLowerCase().includes('settled'), 'Reason should explain settled status');
+
+// Case B: Upcoming Bill (> 3 days out) -> Gray by default
+const txUpcoming = {
+  merchant: 'JioFiber Home Internet',
+  amount: 1179,
+  nature: 'Bill',
+  status: 'Upcoming',
+  dueDate: '2026-04-10', // 10 days out
+};
+const resUpcoming = resolveFinancialStatus(txUpcoming, { referenceDate: baseReferenceDate });
+assert.equal(resUpcoming.tier, 'upcoming', 'Bill > 3 days out must be upcoming');
+assert.equal(resUpcoming.outlineClass, 'kredo-status-outline-upcoming', 'Upcoming class must be kredo-status-outline-upcoming');
+assert.ok(resUpcoming.daysToDue > 3, 'Days to due must be > 3');
+assert.ok(resUpcoming.highlightReason.toLowerCase().includes('upcoming'), 'Reason must explain upcoming obligation');
+
+// Case C: Due Within 3 Days -> Orange
+const txDueSoon = {
+  merchant: 'Airtel Broadband Bill',
+  amount: 1179,
+  nature: 'Bill',
+  status: 'Pending',
+  dueDate: '2026-04-02', // 2 days out from 2026-03-31
+};
+const resDueSoon = resolveFinancialStatus(txDueSoon, { referenceDate: baseReferenceDate });
+assert.equal(resDueSoon.tier, 'due-soon', 'Bill within 3 days must resolve to due-soon');
+assert.equal(resDueSoon.outlineClass, 'kredo-status-outline-due-soon', 'Due soon class must be kredo-status-outline-due-soon');
+assert.equal(resDueSoon.daysToDue, 2, 'Days to due should be precisely 2');
+assert.ok(resDueSoon.highlightReason.toLowerCase().includes('2 day'), 'Reason must state exact countdown');
+
+// Case D: Due Today -> Orange
+const txDueToday = {
+  merchant: 'HDFC CC Payment',
+  amount: 24000,
+  nature: 'Bill',
+  dueDate: '2026-03-31', // Today
+};
+const resDueToday = resolveFinancialStatus(txDueToday, { referenceDate: baseReferenceDate });
+assert.equal(resDueToday.tier, 'due-today', 'Bill due on reference date must resolve to due-today');
+assert.equal(resDueToday.outlineClass, 'kredo-status-outline-due-today', 'Due today class must be kredo-status-outline-due-today');
+assert.equal(resDueToday.daysToDue, 0, 'Days to due must be 0 for today');
+assert.ok(resDueToday.badgeLabel.toLowerCase().includes('due today'), 'Badge label must state DUE TODAY');
+
+// Case E: Overdue -> Red
+const txOverdue = {
+  merchant: 'BESCOM Electricity Bill',
+  amount: 3450,
+  nature: 'Bill',
+  status: 'Unpaid',
+  dueDate: '2026-03-25', // 6 days overdue
+};
+const resOverdue = resolveFinancialStatus(txOverdue, { referenceDate: baseReferenceDate });
+assert.equal(resOverdue.tier, 'overdue', 'Past-due bill must resolve to overdue');
+assert.equal(resOverdue.outlineClass, 'kredo-status-outline-overdue', 'Overdue class must be kredo-status-outline-overdue');
+assert.equal(resOverdue.daysToDue, -6, 'Days to due must be negative for overdue');
+assert.ok(resOverdue.highlightReason.toLowerCase().includes('6 day'), 'Reason must explain days overdue');
+
+// Case F: Review Flagging & Audit
+const txFlagged = {
+  merchant: 'Unknown POS Swipe',
+  amount: 45000,
+  status: 'Completed',
+  reviewFlag: 'Flagged',
+  reviewReason: 'Suspicious overseas transaction',
+};
+const resFlagged = resolveFinancialStatus(txFlagged, { referenceDate: baseReferenceDate });
+assert.equal(resFlagged.isFlagged, true, 'Flagged review items must set isFlagged: true');
+assert.ok(resFlagged.highlightReason.includes('Suspicious overseas transaction'), 'Reason must include review reason');
+
+// Case G: Strict Zero-Emoji & Clean Text Invariant
+const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}]/u;
+const testResults = [resCompleted, resUpcoming, resDueSoon, resDueToday, resOverdue, resFlagged];
+for (const res of testResults) {
+  assert.equal(emojiRegex.test(res.badgeLabel), false, `Badge label "${res.badgeLabel}" must contain NO emojis`);
+  assert.equal(emojiRegex.test(res.highlightReason), false, `Highlight reason "${res.highlightReason}" must contain NO emojis`);
+}
+console.log('✓ Status Highlighting Engine verified: subtle green (completed), gray (upcoming), orange (due today/soon), red (overdue), amber (flagged) with zero emojis.');
+
+console.log('\n🎉 ALL KREDO STATUS & FINANCIAL INTELLIGENCE TESTS PASSED WITH 100% SUCCESS!\n');
+
 
