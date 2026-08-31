@@ -632,7 +632,21 @@ export class KredoController {
   }
 
   renderCanvasContent(analytics, hierarchicalWeeks, filteredTxs, availableMonths, isAllSelected, chartData) {
-    const { isLoading, activeTab, showBalance, timeRange, selectedMonth, typeFilter, inspectingPoint, cards, selectedCardIdFilter } = this.state;
+    const { 
+      isLoading, 
+      activeTab, 
+      showBalance, 
+      timeRange, 
+      selectedMonth, 
+      typeFilter, 
+      inspectingPoint, 
+      cards, 
+      selectedCardIdFilter,
+      dataSource,
+      sheetTransactions,
+      isSheetLoading,
+      lastSheetSync,
+    } = this.state;
     const displayAmount = showBalance ? formatINR(analytics.totalDebits || 0) : '••••••••';
 
     // SKELETON LOADING SCREEN (Zero flicker, ultra smooth startup)
@@ -887,7 +901,15 @@ export class KredoController {
       const totalInflow = sheetTxs.filter(t => t.type === 'credit').reduce((s, t) => s + (t.amount || 0), 0);
       const totalOutflow = sheetTxs.filter(t => t.type === 'debit').reduce((s, t) => s + (t.amount || 0), 0);
       const netSheetFlow = totalInflow - totalOutflow;
-      const lastSyncStr = this.state.lastSheetSync ? this.state.lastSheetSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Pending';
+      let lastSyncStr = 'Pending';
+      if (this.state.lastSheetSync) {
+        try {
+          const syncDate = this.state.lastSheetSync instanceof Date ? this.state.lastSheetSync : new Date(this.state.lastSheetSync);
+          lastSyncStr = !isNaN(syncDate.getTime()) ? syncDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Synced';
+        } catch {
+          lastSyncStr = 'Synced';
+        }
+      }
 
       return `
         <div style="display: flex; flex-direction: column; gap: 20px;">
