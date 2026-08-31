@@ -50,17 +50,17 @@ export function getCategoryColor(catName = '') {
  * 1. INTERACTIVE DONUT / PIE CHART (Category Allocation Portfolio)
  */
 export function renderDonutChart(categoryData = [], totalSpend = 0, options = {}) {
-  const { size = 260, strokeWidth = 34, activeCategory = null } = options;
+  const { size = 240, strokeWidth = 32, activeCategory = null } = options;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const center = size / 2;
 
   if (!categoryData || categoryData.length === 0 || totalSpend <= 0) {
     return `
-      <div class="kredo-chart-empty" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: ${size}px; color: var(--kredo-outline); text-align: center;">
-        <span class="material-symbols-outlined text-[36px]" style="margin-bottom: 8px; opacity: 0.4;">pie_chart</span>
-        <span style="font-size: 13px; font-weight: 600; color: var(--kredo-on-surface-variant);">No Outflow Recorded</span>
-        <span style="font-size: 11px; color: var(--kredo-outline); margin-top: 2px;">Adjust filters or time window to inspect spending</span>
+      <div class="kredo-chart-empty" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px; color: var(--kredo-outline); text-align: center; width: 100%;">
+        <span class="material-symbols-outlined text-[32px]" style="margin-bottom: 6px; opacity: 0.35; color: var(--kredo-primary);">pie_chart</span>
+        <span style="font-size: 13px; font-weight: 700; color: var(--kredo-secondary);">No Outflows In This Filter</span>
+        <span style="font-size: 11.5px; color: var(--kredo-outline); margin-top: 2px;">Try selecting "All Time" or switching streams above</span>
       </div>
     `;
   }
@@ -98,8 +98,8 @@ export function renderDonutChart(categoryData = [], totalSpend = 0, options = {}
   }).join('');
 
   return `
-    <div class="kredo-donut-container" style="position: relative; width: ${size}px; height: ${size}px; margin: 0 auto;">
-      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="overflow: visible;">
+    <div class="kredo-donut-container" style="position: relative; width: 100%; max-width: ${size}px; height: auto; aspect-ratio: 1; margin: 0 auto;">
+      <svg width="100%" height="100%" viewBox="0 0 ${size} ${size}" style="overflow: visible; display: block;">
         <!-- Background track -->
         <circle cx="${center}" cy="${center}" r="${radius}" fill="transparent" stroke="var(--kredo-surface-container)" stroke-width="${strokeWidth}" />
         <!-- Slices -->
@@ -107,9 +107,9 @@ export function renderDonutChart(categoryData = [], totalSpend = 0, options = {}
       </svg>
       <!-- Center Donut KPI Telemetry (Live updates on hover/click) -->
       <div class="kredo-donut-center" id="donut-center-box" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; text-align: center; padding: 12px;">
-        <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline);" id="donut-center-label">${activeCategory ? activeCategory : 'Total Outflow'}</span>
-        <strong style="font-size: 18px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary);" id="donut-center-val">${formatINR(activeCategory ? (categoryData.find(c => c.category === activeCategory)?.amount || totalSpend) : totalSpend)}</strong>
-        <span style="font-size: 11px; color: var(--kredo-primary); font-weight: 600;" id="donut-center-sub">${activeCategory ? `${categoryData.find(c => c.category === activeCategory)?.percentage || 0}% of spend` : `${categoryData.length} Categories`}</span>
+        <span style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline); max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="donut-center-label">${activeCategory ? activeCategory : 'Total Outflow'}</span>
+        <strong style="font-size: 17px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary);" id="donut-center-val">${formatINR(activeCategory ? (categoryData.find(c => c.category === activeCategory)?.amount || totalSpend) : totalSpend)}</strong>
+        <span style="font-size: 10.5px; color: var(--kredo-primary); font-weight: 700;" id="donut-center-sub">${activeCategory ? `${categoryData.find(c => c.category === activeCategory)?.percentage || 0}% of spend` : `${categoryData.length} Categories`}</span>
       </div>
     </div>
   `;
@@ -134,13 +134,13 @@ export function renderCategoryLegend(categoryData = [], activeCategory = null) {
             title="Click to isolate ${item.category} analytics"
             style="border-color: ${isActive ? color : 'var(--kredo-outline-variant)'}; background: ${isActive ? `${color}14` : 'var(--kredo-surface-container-low)'};"
           >
-            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1;">
               <span class="kredo-legend-color-dot" style="background-color: ${color}; box-shadow: 0 0 6px ${color}60;"></span>
-              <span class="kredo-legend-cat-name" style="font-size: 12.5px; font-weight: 600; color: var(--kredo-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.category}</span>
+              <span class="kredo-legend-cat-name" style="font-size: 12px; font-weight: 600; color: var(--kredo-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.category}</span>
             </div>
-            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-              <span class="kredo-legend-pct-badge" style="background: ${color}20; color: ${color}; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; font-family: var(--kredo-mono);">${item.percentage}%</span>
-              <span class="kredo-legend-amount" style="font-size: 12.5px; font-family: var(--kredo-mono); font-weight: 700; color: var(--kredo-secondary);">${formatINR(item.amount)}</span>
+            <div style="display: flex; align-items: center; gap: 5px; flex-shrink: 0;">
+              <span class="kredo-legend-pct-badge" style="background: ${color}20; color: ${color}; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 4px; font-family: var(--kredo-mono);">${item.percentage}%</span>
+              <span class="kredo-legend-amount" style="font-size: 11.5px; font-family: var(--kredo-mono); font-weight: 700; color: var(--kredo-secondary);">${formatINR(item.amount)}</span>
             </div>
           </button>
         `;
@@ -153,35 +153,36 @@ export function renderCategoryLegend(categoryData = [], activeCategory = null) {
  * 2. DUAL CASHFLOW VELOCITY BAR CHART (Inflows vs Outflows Periodic Comparison)
  */
 export function renderVelocityBarChart(periods = [], options = {}) {
-  const { width = 640, height = 230, activePeriod = null } = options;
+  const { width = 500, height = 210, activePeriod = null } = options;
   if (!periods || periods.length === 0) {
     return `
-      <div class="kredo-chart-empty" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: ${height}px; color: var(--kredo-outline); font-size: 13px;">
-        <span class="material-symbols-outlined text-[32px]" style="margin-bottom: 6px; opacity: 0.4;">bar_chart</span>
-        <span>No periodic cashflow data recorded.</span>
+      <div class="kredo-chart-empty" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px; color: var(--kredo-outline); font-size: 13px; text-align: center; width: 100%;">
+        <span class="material-symbols-outlined text-[30px]" style="margin-bottom: 6px; opacity: 0.35; color: var(--kredo-primary);">bar_chart</span>
+        <span style="font-size: 13px; font-weight: 700; color: var(--kredo-secondary);">No Velocity Recorded</span>
+        <span style="font-size: 11.5px; color: var(--kredo-outline); margin-top: 2px;">Transactions in this window will display periodic cashflow comparisons</span>
       </div>
     `;
   }
 
   const maxVal = Math.max(...periods.map(p => Math.max(p.debits || 0, p.credits || 0)), 1000);
-  const paddingLeft = 52;
-  const paddingRight = 16;
-  const paddingTop = 24;
-  const paddingBottom = 34;
+  const paddingLeft = 46;
+  const paddingRight = 12;
+  const paddingTop = 20;
+  const paddingBottom = 32;
 
   const chartW = width - paddingLeft - paddingRight;
   const chartH = height - paddingTop - paddingBottom;
   const barGroupWidth = chartW / periods.length;
-  const barWidth = Math.max(6, Math.min(22, (barGroupWidth - 8) / 2));
+  const barWidth = Math.max(4, Math.min(18, (barGroupWidth - 6) / 2));
 
   // Y-axis gridlines & ticks
-  const yTicks = [0, 0.33, 0.66, 1].map(frac => {
+  const yTicks = [0, 0.5, 1].map(frac => {
     const yVal = Math.round(maxVal * frac);
     const yPos = paddingTop + chartH - (frac * chartH);
     return `
       <g>
         <line x1="${paddingLeft}" y1="${yPos}" x2="${width - paddingRight}" y2="${yPos}" stroke="var(--kredo-outline-variant)" stroke-dasharray="3,3" stroke-width="1" opacity="0.6" />
-        <text x="${paddingLeft - 8}" y="${yPos + 4}" text-anchor="end" font-size="10" fill="var(--kredo-outline)" font-family="var(--kredo-mono)">₹${yVal >= 100000 ? `${(yVal/100000).toFixed(1)}L` : (yVal >= 1000 ? `${Math.round(yVal/1000)}k` : yVal)}</text>
+        <text x="${paddingLeft - 6}" y="${yPos + 3.5}" text-anchor="end" font-size="9" fill="var(--kredo-outline)" font-family="var(--kredo-mono)">₹${yVal >= 100000 ? `${(yVal/100000).toFixed(1)}L` : (yVal >= 1000 ? `${Math.round(yVal/1000)}k` : yVal)}</text>
       </g>
     `;
   }).join('');
@@ -214,7 +215,7 @@ export function renderVelocityBarChart(periods = [], options = {}) {
             y="${debitY}"
             width="${barWidth}"
             height="${debitH}"
-            rx="3"
+            rx="2.5"
             fill="var(--kredo-secondary)"
             style="transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);"
           >
@@ -228,7 +229,7 @@ export function renderVelocityBarChart(periods = [], options = {}) {
             y="${creditY}"
             width="${barWidth}"
             height="${creditH}"
-            rx="3"
+            rx="2.5"
             fill="var(--kredo-green)"
             style="transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);"
           >
@@ -248,9 +249,9 @@ export function renderVelocityBarChart(periods = [], options = {}) {
         <!-- X-Axis Label -->
         <text
           x="${groupX}"
-          y="${height - 12}"
+          y="${height - 10}"
           text-anchor="middle"
-          font-size="10"
+          font-size="9"
           font-weight="600"
           fill="var(--kredo-outline)"
         >${label.length > 8 ? label.slice(5) : label}</text>
@@ -259,8 +260,8 @@ export function renderVelocityBarChart(periods = [], options = {}) {
   }).join('');
 
   return `
-    <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;" class="kredo-scroll-area">
-      <svg viewBox="0 0 ${width} ${height}" style="width: 100%; min-width: 480px; height: auto; overflow: visible;">
+    <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; box-sizing: border-box;" class="kredo-scroll-area">
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; max-width: 100%; display: block; overflow: visible;">
         ${yTicks}
         ${bars}
       </svg>
@@ -272,20 +273,21 @@ export function renderVelocityBarChart(periods = [], options = {}) {
  * 3. CUMULATIVE LIQUIDITY & BURN CURVE (Smooth Bezier Line with Area Fill)
  */
 export function renderCumulativeLineChart(trendPoints = [], options = {}) {
-  const { width = 640, height = 210 } = options;
+  const { width = 500, height = 190 } = options;
   if (!trendPoints || trendPoints.length === 0) {
     return `
-      <div class="kredo-chart-empty" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: ${height}px; color: var(--kredo-outline); font-size: 13px;">
-        <span class="material-symbols-outlined text-[32px]" style="margin-bottom: 6px; opacity: 0.4;">show_chart</span>
-        <span>No cumulative burn trajectory recorded.</span>
+      <div class="kredo-chart-empty" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px; color: var(--kredo-outline); font-size: 13px; text-align: center; width: 100%;">
+        <span class="material-symbols-outlined text-[30px]" style="margin-bottom: 6px; opacity: 0.35; color: var(--kredo-primary);">show_chart</span>
+        <span style="font-size: 13px; font-weight: 700; color: var(--kredo-secondary);">No Trajectory Recorded</span>
+        <span style="font-size: 11.5px; color: var(--kredo-outline); margin-top: 2px;">Cumulative spending curve will appear when outflow transactions exist</span>
       </div>
     `;
   }
 
-  const paddingLeft = 52;
-  const paddingRight = 20;
-  const paddingTop = 20;
-  const paddingBottom = 30;
+  const paddingLeft = 46;
+  const paddingRight = 16;
+  const paddingTop = 16;
+  const paddingBottom = 26;
 
   const chartW = width - paddingLeft - paddingRight;
   const chartH = height - paddingTop - paddingBottom;
@@ -323,7 +325,7 @@ export function renderCumulativeLineChart(trendPoints = [], options = {}) {
     return `
       <g>
         <line x1="${paddingLeft}" y1="${yPos}" x2="${width - paddingRight}" y2="${yPos}" stroke="var(--kredo-outline-variant)" stroke-dasharray="3,3" stroke-width="1" opacity="0.6" />
-        <text x="${paddingLeft - 8}" y="${yPos + 4}" text-anchor="end" font-size="10" fill="var(--kredo-outline)" font-family="var(--kredo-mono)">₹${val >= 100000 ? `${(val/100000).toFixed(1)}L` : (val >= 1000 ? `${Math.round(val/1000)}k` : val)}</text>
+        <text x="${paddingLeft - 6}" y="${yPos + 3.5}" text-anchor="end" font-size="9" fill="var(--kredo-outline)" font-family="var(--kredo-mono)">₹${val >= 100000 ? `${(val/100000).toFixed(1)}L` : (val >= 1000 ? `${Math.round(val/1000)}k` : val)}</text>
       </g>
     `;
   }).join('');
@@ -331,15 +333,15 @@ export function renderCumulativeLineChart(trendPoints = [], options = {}) {
   // Interactive Data Points
   const dots = coords.map((c) => `
     <g class="kredo-trend-dot" style="cursor: pointer;">
-      <circle cx="${c.x}" cy="${c.y}" r="3.5" fill="#ffffff" stroke="var(--kredo-primary)" stroke-width="2.5" />
-      <circle cx="${c.x}" cy="${c.y}" r="12" fill="transparent" />
+      <circle cx="${c.x}" cy="${c.y}" r="3" fill="#ffffff" stroke="var(--kredo-primary)" stroke-width="2" />
+      <circle cx="${c.x}" cy="${c.y}" r="10" fill="transparent" />
       <title>${c.pt.label || c.pt.date}: Cumulative Outflow ${formatINR(c.pt.cumulative)} (Daily: ${formatINR(c.pt.dailyDebit || 0)})</title>
     </g>
   `).join('');
 
   return `
-    <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;" class="kredo-scroll-area">
-      <svg viewBox="0 0 ${width} ${height}" style="width: 100%; min-width: 480px; height: auto; overflow: visible;">
+    <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; box-sizing: border-box;" class="kredo-scroll-area">
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; max-width: 100%; display: block; overflow: visible;">
         <defs>
           <linearGradient id="kredoCurveGradient" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stop-color="var(--kredo-primary)" stop-opacity="0.25" />
@@ -350,7 +352,7 @@ export function renderCumulativeLineChart(trendPoints = [], options = {}) {
         <!-- Area fill -->
         <path d="${areaD}" fill="url(#kredoCurveGradient)" />
         <!-- Stroke Line -->
-        <path d="${pathD}" fill="none" stroke="var(--kredo-primary)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="${pathD}" fill="none" stroke="var(--kredo-primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
         <!-- Data Dots -->
         ${dots}
       </svg>
@@ -365,8 +367,10 @@ export function renderHorizontalBarRanking(items = [], options = {}) {
   const { total = 0, maxItems = 6 } = options;
   if (!items || items.length === 0) {
     return `
-      <div style="padding: 16px 0; text-align: center; color: var(--kredo-outline); font-size: 13px;">
-        No ranking records available.
+      <div style="padding: 28px 16px; text-align: center; color: var(--kredo-outline); font-size: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <span class="material-symbols-outlined text-[28px]" style="opacity: 0.35; margin-bottom: 4px; color: var(--kredo-primary);">storefront</span>
+        <span style="font-weight: 700; color: var(--kredo-secondary);">No Merchant Rankings</span>
+        <span style="font-size: 11.5px; color: var(--kredo-outline); margin-top: 2px;">Payee rankings will appear when expense data is present</span>
       </div>
     `;
   }
@@ -375,27 +379,27 @@ export function renderHorizontalBarRanking(items = [], options = {}) {
   const maxAmount = Math.max(...list.map(i => i.amount || 0), 1);
 
   return `
-    <div class="kredo-ranking-list" style="display: flex; flex-direction: column; gap: 10px;">
+    <div class="kredo-ranking-list" style="display: flex; flex-direction: column; gap: 8px;">
       ${list.map((item, idx) => {
         const pct = total > 0 ? Math.round((item.amount / total) * 100) : Math.round((item.amount / maxAmount) * 100);
         const barWidth = Math.max(3, Math.min(100, Math.round((item.amount / maxAmount) * 100)));
         const color = getCategoryColor(item.category || item.name || 'General');
 
         return `
-          <div class="kredo-ranking-row" style="display: flex; flex-direction: column; gap: 4px; background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 10px; padding: 10px 14px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-                <span style="font-size: 11px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-outline); width: 16px;">#${idx + 1}</span>
-                <strong style="font-size: 13px; color: var(--kredo-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.merchant || item.name || item.method}</strong>
-                ${item.category ? `<span style="font-size: 10px; background: ${color}15; color: ${color}; padding: 1px 6px; border-radius: 4px; font-weight: 600;">${item.category}</span>` : ''}
+          <div class="kredo-ranking-row" style="display: flex; flex-direction: column; gap: 4px; background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 10px; padding: 9px 12px; box-sizing: border-box;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;">
+                <span style="font-size: 10.5px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-outline); width: 16px; flex-shrink: 0;">#${idx + 1}</span>
+                <strong style="font-size: 12.5px; color: var(--kredo-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1;">${item.merchant || item.name || item.method}</strong>
+                ${item.category ? `<span style="font-size: 9.5px; background: ${color}15; color: ${color}; padding: 1px 5px; border-radius: 4px; font-weight: 700; flex-shrink: 0;">${item.category}</span>` : ''}
               </div>
               <div style="text-align: right; flex-shrink: 0;">
-                <strong style="font-size: 13px; font-family: var(--kredo-mono); color: var(--kredo-secondary);">${formatINR(item.amount)}</strong>
-                <span style="font-size: 10.5px; color: var(--kredo-outline); margin-left: 4px;">(${pct}%)</span>
+                <strong style="font-size: 12.5px; font-family: var(--kredo-mono); color: var(--kredo-secondary);">${formatINR(item.amount)}</strong>
+                <span style="font-size: 10px; color: var(--kredo-outline); margin-left: 3px;">(${pct}%)</span>
               </div>
             </div>
-            <div style="height: 5px; background: rgba(0,0,0,0.06); border-radius: 3px; overflow: hidden;">
-              <div style="height: 100%; width: ${barWidth}%; background: ${color}; border-radius: 3px; transition: width 0.3s ease;"></div>
+            <div style="height: 4px; background: rgba(0,0,0,0.06); border-radius: 2px; overflow: hidden;">
+              <div style="height: 100%; width: ${barWidth}%; background: ${color}; border-radius: 2px; transition: width 0.3s ease;"></div>
             </div>
           </div>
         `;

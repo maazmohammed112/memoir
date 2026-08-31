@@ -1479,41 +1479,41 @@ export class KredoController {
 
       return `
         <!-- PowerBI Executive Visual Analytics & Multi-Tier Insights Engine -->
-        <div class="kredo-insights-root" style="display: flex; flex-direction: column; gap: 20px;">
+        <div class="kredo-insights-root">
           
           <!-- PowerBI Multi-Dimensional Slicer & Filter Ribbon -->
-          <section class="kredo-insights-filter-card" style="background: var(--kredo-surface-container-lowest); border: 1px solid var(--kredo-outline-variant); border-radius: 16px; padding: 18px 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03);">
+          <section class="kredo-insights-filter-card">
             
             <!-- Filter Row 1: Data Stream Segmented Switcher & Flow Direction -->
-            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--kredo-outline-variant);">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--kredo-outline-variant);">
               
               <!-- Left Slicers: Data Stream -->
-              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline); display: flex; align-items: center; gap: 4px;">
-                  <span class="material-symbols-outlined text-[16px]">database</span> Data Stream:
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--kredo-outline); display: flex; align-items: center; gap: 4px;">
+                  <span class="material-symbols-outlined text-[15px]">database</span> Stream:
                 </span>
-                <div class="kredo-source-segmented" role="tablist">
+                <div class="kredo-source-segmented" role="tablist" style="margin: 0;">
                   <button type="button" class="kredo-source-seg-btn ${currentSource === 'kredo' ? 'active' : ''}" data-insights-source="kredo" title="Kredo Email Vault Data Only">
-                    <span class="material-symbols-outlined text-[14px]">mail</span>
-                    <span class="kredo-seg-text">Email Vault</span>
+                    <span class="material-symbols-outlined text-[13px]">mail</span>
+                    <span class="kredo-seg-text">Email</span>
                   </button>
                   <button type="button" class="kredo-source-seg-btn ${currentSource === 'sheet' ? 'active' : ''}" data-insights-source="sheet" title="Live Google Sheet Stream Only">
-                    <span class="material-symbols-outlined text-[14px]">table_chart</span>
-                    <span class="kredo-seg-text">Google Sheet</span>
+                    <span class="material-symbols-outlined text-[13px]">table_chart</span>
+                    <span class="kredo-seg-text">Sheet</span>
                     <span class="kredo-live-micro-dot"></span>
                   </button>
                   <button type="button" class="kredo-source-seg-btn ${currentSource === 'all' ? 'active' : ''}" data-insights-source="all" title="Unified Both Streams">
-                    <span class="material-symbols-outlined text-[14px]">sync_alt</span>
-                    <span class="kredo-seg-text">Unified (All)</span>
+                    <span class="material-symbols-outlined text-[13px]">sync_alt</span>
+                    <span class="kredo-seg-text">Unified</span>
                   </button>
                 </div>
               </div>
 
               <!-- Right Slicers: Flow Direction (All / Outflow / Inflow) -->
-              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline);">Flow:</span>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--kredo-outline);">Flow:</span>
                 <div class="kredo-filter-pills" style="margin: 0;">
-                  <button class="kredo-filter-pill ${insightsTypeFilter === 'all' ? 'active' : ''}" data-insights-type="all">All Flows</button>
+                  <button class="kredo-filter-pill ${insightsTypeFilter === 'all' ? 'active' : ''}" data-insights-type="all">All</button>
                   <button class="kredo-filter-pill ${insightsTypeFilter === 'debit' ? 'active' : ''}" data-insights-type="debit">Outflows</button>
                   <button class="kredo-filter-pill ${insightsTypeFilter === 'credit' ? 'active' : ''}" data-insights-type="credit">Inflows</button>
                 </div>
@@ -1521,27 +1521,29 @@ export class KredoController {
 
             </div>
 
-            <!-- Filter Row 2: Date Range Presets, Month Dropdown & Custom Range Pickers -->
-            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: ${insightsTimePreset === 'custom' || isFilterActive ? '14px' : '0'};">
+            <!-- Filter Row 2: Date Range Presets & Dimension Selectors -->
+            <div style="display: flex; flex-direction: column; gap: 10px;">
               
-              <!-- Time Presets Pills -->
-              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline); margin-right: 4px;">Time:</span>
-                <button class="kredo-preset-pill ${insightsTimePreset === 'all' ? 'active' : ''}" data-insights-preset="all">All Time</button>
-                <button class="kredo-preset-pill ${insightsTimePreset === 'ytd' ? 'active' : ''}" data-insights-preset="ytd">YTD</button>
-                <button class="kredo-preset-pill ${insightsTimePreset === 'this_month' ? 'active' : ''}" data-insights-preset="this_month">This Month</button>
-                <button class="kredo-preset-pill ${insightsTimePreset === 'prev_month' ? 'active' : ''}" data-insights-preset="prev_month">Last Month</button>
-                <button class="kredo-preset-pill ${insightsTimePreset === '30d' ? 'active' : ''}" data-insights-preset="30d">Last 30D</button>
-                <button class="kredo-preset-pill ${insightsTimePreset === '7d' ? 'active' : ''}" data-insights-preset="7d">Last 7D</button>
-                <button class="kredo-preset-pill ${insightsTimePreset === 'custom' ? 'active' : ''}" data-insights-preset="custom">
-                  <span class="material-symbols-outlined text-[13px]">calendar_today</span> Custom
-                </button>
+              <!-- Time Presets Pills (Horizontal Scrollable Strip on Mobile) -->
+              <div style="display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0;">
+                <span style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--kredo-outline); flex-shrink: 0;">Time:</span>
+                <div class="kredo-preset-strip">
+                  <button class="kredo-preset-pill ${insightsTimePreset === 'all' ? 'active' : ''}" data-insights-preset="all">All Time</button>
+                  <button class="kredo-preset-pill ${insightsTimePreset === 'ytd' ? 'active' : ''}" data-insights-preset="ytd">YTD</button>
+                  <button class="kredo-preset-pill ${insightsTimePreset === 'this_month' ? 'active' : ''}" data-insights-preset="this_month">This Month</button>
+                  <button class="kredo-preset-pill ${insightsTimePreset === 'prev_month' ? 'active' : ''}" data-insights-preset="prev_month">Last Month</button>
+                  <button class="kredo-preset-pill ${insightsTimePreset === '30d' ? 'active' : ''}" data-insights-preset="30d">Last 30D</button>
+                  <button class="kredo-preset-pill ${insightsTimePreset === '7d' ? 'active' : ''}" data-insights-preset="7d">Last 7D</button>
+                  <button class="kredo-preset-pill ${insightsTimePreset === 'custom' ? 'active' : ''}" data-insights-preset="custom">
+                    <span class="material-symbols-outlined text-[12px]">calendar_today</span> Custom
+                  </button>
+                </div>
               </div>
 
-              <!-- Month & Dimension Selectors -->
-              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <!-- Month & Dimension Selectors (Responsive Flex Wrap) -->
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%;">
                 <!-- Month Dropdown -->
-                <select class="kredo-month-select" id="kredo-insights-month-select" style="min-width: 140px;" title="Filter by Specific Month">
+                <select class="kredo-month-select" id="kredo-insights-month-select" style="flex: 1 1 110px; min-width: 0; font-size: 12px;" title="Filter by Specific Month">
                   <option value="all" ${selectedMonth === 'all' ? 'selected' : ''}>All Months (${insMonths.length})</option>
                   ${insMonths.map(m => `
                     <option value="${m.key}" ${selectedMonth === m.key ? 'selected' : ''}>${m.label} (${m.count})</option>
@@ -1549,7 +1551,7 @@ export class KredoController {
                 </select>
 
                 <!-- Category Slicer Dropdown -->
-                <select class="kredo-month-select" id="kredo-insights-category-select" style="min-width: 140px;" title="Filter by Category">
+                <select class="kredo-month-select" id="kredo-insights-category-select" style="flex: 1 1 110px; min-width: 0; font-size: 12px;" title="Filter by Category">
                   <option value="all" ${insightsCategoryFilter === 'all' && !insightsActiveCategory ? 'selected' : ''}>All Categories</option>
                   ${insightsAvailableCategories.map(cat => `
                     <option value="${cat}" ${(insightsActiveCategory === cat || insightsCategoryFilter === cat) ? 'selected' : ''}>${cat}</option>
@@ -1557,7 +1559,7 @@ export class KredoController {
                 </select>
 
                 <!-- Payment Method Slicer Dropdown -->
-                <select class="kredo-month-select" id="kredo-insights-method-select" style="min-width: 130px;" title="Filter by Payment Channel">
+                <select class="kredo-month-select" id="kredo-insights-method-select" style="flex: 1 1 100px; min-width: 0; font-size: 12px;" title="Filter by Payment Channel">
                   <option value="all" ${insightsMethodFilter === 'all' ? 'selected' : ''}>All Methods</option>
                   ${insightsAvailableMethods.map(m => `
                     <option value="${m}" ${insightsMethodFilter === m ? 'selected' : ''}>${m}</option>
@@ -1569,31 +1571,31 @@ export class KredoController {
 
             <!-- Custom Date Inputs (Conditionally revealed when 'custom' preset is active) -->
             ${insightsTimePreset === 'custom' ? `
-              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--kredo-surface-container-low); padding: 10px 14px; border-radius: 10px; margin-top: 12px; border: 1px solid var(--kredo-outline-variant);">
-                <span style="font-size: 12px; font-weight: 700; color: var(--kredo-secondary); display: flex; align-items: center; gap: 4px;">
-                  <span class="material-symbols-outlined text-[16px] text-boro-primary">date_range</span> Custom Date Span:
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--kredo-surface-container-low); padding: 8px 12px; border-radius: 10px; margin-top: 10px; border: 1px solid var(--kredo-outline-variant);">
+                <span style="font-size: 11.5px; font-weight: 700; color: var(--kredo-secondary); display: flex; align-items: center; gap: 4px;">
+                  <span class="material-symbols-outlined text-[15px] text-boro-primary">date_range</span> Span:
                 </span>
-                <input type="date" id="kredo-insights-start-date" value="${insightsCustomStart || ''}" class="kredo-date-input" style="padding: 6px 10px; border-radius: 8px; border: 1px solid var(--kredo-outline-variant); font-family: var(--kredo-mono); font-size: 12px; background: #fff;">
-                <span style="font-size: 12px; color: var(--kredo-outline);">➔</span>
-                <input type="date" id="kredo-insights-end-date" value="${insightsCustomEnd || ''}" class="kredo-date-input" style="padding: 6px 10px; border-radius: 8px; border: 1px solid var(--kredo-outline-variant); font-family: var(--kredo-mono); font-size: 12px; background: #fff;">
+                <input type="date" id="kredo-insights-start-date" value="${insightsCustomStart || ''}" class="kredo-date-input" style="padding: 5px 8px; border-radius: 6px; border: 1px solid var(--kredo-outline-variant); font-family: var(--kredo-mono); font-size: 11.5px; background: #fff; flex: 1 1 110px;">
+                <span style="font-size: 11px; color: var(--kredo-outline);">➔</span>
+                <input type="date" id="kredo-insights-end-date" value="${insightsCustomEnd || ''}" class="kredo-date-input" style="padding: 5px 8px; border-radius: 6px; border: 1px solid var(--kredo-outline-variant); font-family: var(--kredo-mono); font-size: 11.5px; background: #fff; flex: 1 1 110px;">
               </div>
             ` : ''}
 
             <!-- Active Filter Badges Bar & 1-Click Reset -->
             ${isFilterActive ? `
-              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--kredo-outline-variant);">
-                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                  <span style="font-size: 11px; font-weight: 700; color: var(--kredo-outline); text-transform: uppercase;">Active Slicers:</span>
+              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--kredo-outline-variant);">
+                <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+                  <span style="font-size: 10px; font-weight: 800; color: var(--kredo-outline); text-transform: uppercase;">Active Slicers:</span>
                   ${currentSource !== 'kredo' ? `<span class="kredo-active-chip">Stream: ${currentSource === 'sheet' ? 'Google Sheet' : 'Unified'}</span>` : ''}
                   ${insightsTimePreset !== 'all' ? `<span class="kredo-active-chip">Window: ${insightsTimePreset.toUpperCase()}</span>` : ''}
                   ${selectedMonth !== 'all' ? `<span class="kredo-active-chip">Month: ${selectedMonth}</span>` : ''}
                   ${insightsTypeFilter !== 'all' ? `<span class="kredo-active-chip">Flow: ${insightsTypeFilter}</span>` : ''}
                   ${insightsActiveCategory ? `<span class="kredo-active-chip" style="background: ${getCategoryColor(insightsActiveCategory)}20; color: ${getCategoryColor(insightsActiveCategory)}; border-color: ${getCategoryColor(insightsActiveCategory)}60;">Category: ${insightsActiveCategory}</span>` : (insightsCategoryFilter !== 'all' ? `<span class="kredo-active-chip">Category: ${insightsCategoryFilter}</span>` : '')}
                   ${insightsMethodFilter !== 'all' ? `<span class="kredo-active-chip">Channel: ${insightsMethodFilter}</span>` : ''}
-                  <span style="font-size: 11.5px; font-weight: 600; color: var(--kredo-outline); margin-left: 4px;">(${insightsFilteredTxs.length} matching rows)</span>
+                  <span style="font-size: 11px; font-weight: 600; color: var(--kredo-outline); margin-left: 2px;">(${insightsFilteredTxs.length} rows)</span>
                 </div>
                 <button type="button" id="kredo-reset-insights-filters-btn" class="kredo-reset-filters-btn">
-                  <span class="material-symbols-outlined text-[14px]">restart_alt</span> Reset Slicers
+                  <span class="material-symbols-outlined text-[13px]">restart_alt</span> Reset Slicers
                 </button>
               </div>
             ` : ''}
@@ -1601,123 +1603,123 @@ export class KredoController {
           </section>
 
           <!-- PowerBI Executive KPI Metric Ribbon (6 High-Density Telemetry Cards) -->
-          <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px;">
+          <section class="kredo-kpi-ribbon">
             
             <!-- Outflows KPI -->
-            <div class="kredo-card" style="padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between; border-left: 4px solid var(--kredo-secondary);">
+            <div class="kredo-card" style="padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; border-left: 3.5px solid var(--kredo-secondary);">
               <div>
-                <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline); display: flex; align-items: center; gap: 4px;">
-                  <span class="material-symbols-outlined text-[14px]">arrow_outward</span> Total Outflow
+                <span style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--kredo-outline); display: flex; align-items: center; gap: 3px;">
+                  <span class="material-symbols-outlined text-[13px]">arrow_outward</span> Outflows
                 </span>
-                <strong style="font-size: 22px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary); display: block; margin-top: 4px;">
+                <strong style="font-size: 18px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary); display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                   ${formatINR(totalOutflow)}
                 </strong>
               </div>
-              <span style="font-size: 11px; font-weight: 600; color: var(--kredo-outline); margin-top: 6px;">
-                ${insAnalytics.debitsCount || 0} outflow payments
+              <span style="font-size: 10.5px; font-weight: 600; color: var(--kredo-outline); margin-top: 4px;">
+                ${insAnalytics.debitsCount || 0} debits
               </span>
             </div>
 
             <!-- Inflows KPI -->
-            <div class="kredo-card" style="padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between; border-left: 4px solid var(--kredo-green);">
+            <div class="kredo-card" style="padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; border-left: 3.5px solid var(--kredo-green);">
               <div>
-                <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline); display: flex; align-items: center; gap: 4px;">
-                  <span class="material-symbols-outlined text-[14px]">call_received</span> Total Inflow
+                <span style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--kredo-outline); display: flex; align-items: center; gap: 3px;">
+                  <span class="material-symbols-outlined text-[13px]">call_received</span> Inflows
                 </span>
-                <strong style="font-size: 22px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-green); display: block; margin-top: 4px;">
+                <strong style="font-size: 18px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-green); display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                   ${formatINR(totalInflow)}
                 </strong>
               </div>
-              <span style="font-size: 11px; font-weight: 600; color: var(--kredo-outline); margin-top: 6px;">
-                ${insAnalytics.creditsCount || 0} income credits
+              <span style="font-size: 10.5px; font-weight: 600; color: var(--kredo-outline); margin-top: 4px;">
+                ${insAnalytics.creditsCount || 0} credits
               </span>
             </div>
 
             <!-- Net Cashflow KPI -->
-            <div class="kredo-card" style="padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between; border-left: 4px solid ${netFlow >= 0 ? 'var(--kredo-primary)' : 'var(--kredo-error)'};">
+            <div class="kredo-card" style="padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; border-left: 3.5px solid ${netFlow >= 0 ? 'var(--kredo-primary)' : 'var(--kredo-error)'};">
               <div>
-                <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline); display: flex; align-items: center; gap: 4px;">
-                  <span class="material-symbols-outlined text-[14px]">account_balance_wallet</span> Net Liquidity
+                <span style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--kredo-outline); display: flex; align-items: center; gap: 3px;">
+                  <span class="material-symbols-outlined text-[13px]">account_balance_wallet</span> Net
                 </span>
-                <strong style="font-size: 22px; font-weight: 800; font-family: var(--kredo-mono); color: ${netFlow >= 0 ? 'var(--kredo-primary)' : 'var(--kredo-error)'}; display: block; margin-top: 4px;">
+                <strong style="font-size: 18px; font-weight: 800; font-family: var(--kredo-mono); color: ${netFlow >= 0 ? 'var(--kredo-primary)' : 'var(--kredo-error)'}; display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                   ${netFlow >= 0 ? '+' : ''}${formatINR(netFlow)}
                 </strong>
               </div>
-              <span style="font-size: 11px; font-weight: 600; color: ${netFlow >= 0 ? 'var(--kredo-primary)' : 'var(--kredo-error)'}; margin-top: 6px;">
-                ${insAnalytics.savingsRatio}% savings retention
+              <span style="font-size: 10.5px; font-weight: 600; color: ${netFlow >= 0 ? 'var(--kredo-primary)' : 'var(--kredo-error)'}; margin-top: 4px;">
+                ${insAnalytics.savingsRatio}% saved
               </span>
             </div>
 
             <!-- Daily Burn Pace KPI -->
-            <div class="kredo-card" style="padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div class="kredo-card" style="padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between;">
               <div>
-                <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline); display: flex; align-items: center; gap: 4px;">
-                  <span class="material-symbols-outlined text-[14px]">local_fire_department</span> Daily Burn Rate
+                <span style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--kredo-outline); display: flex; align-items: center; gap: 3px;">
+                  <span class="material-symbols-outlined text-[13px]">local_fire_department</span> Burn Pace
                 </span>
-                <strong style="font-size: 20px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary); display: block; margin-top: 4px;">
-                  ${formatINR(insAnalytics.dailyAverageSpend || 0)} / d
+                <strong style="font-size: 17px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary); display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  ${formatINR(insAnalytics.dailyAverageSpend || 0)}/d
                 </strong>
               </div>
-              <span style="font-size: 11px; font-weight: 600; color: var(--kredo-outline); margin-top: 6px;">
-                ${Object.keys(insAnalytics.dailyMap || {}).length} active spend days
+              <span style="font-size: 10.5px; font-weight: 600; color: var(--kredo-outline); margin-top: 4px;">
+                ${Object.keys(insAnalytics.dailyMap || {}).length} active days
               </span>
             </div>
 
             <!-- Peak Incident KPI -->
-            <div class="kredo-card" style="padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div class="kredo-card" style="padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between;">
               <div>
-                <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline); display: flex; align-items: center; gap: 4px;">
-                  <span class="material-symbols-outlined text-[14px]">trending_up</span> Peak Incident
+                <span style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--kredo-outline); display: flex; align-items: center; gap: 3px;">
+                  <span class="material-symbols-outlined text-[13px]">trending_up</span> Peak Event
                 </span>
-                <strong style="font-size: 18px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary); display: block; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                <strong style="font-size: 16px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary); display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                   ${insAnalytics.highestPaymentPeriod ? formatINR(insAnalytics.highestPaymentPeriod.amount) : 'None'}
                 </strong>
               </div>
-              <span style="font-size: 11px; font-weight: 600; color: var(--kredo-outline); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                ${insAnalytics.highestPaymentPeriod ? `${insAnalytics.highestPaymentPeriod.merchant} (${insAnalytics.highestPaymentPeriod.date.slice(5)})` : 'No debits'}
+              <span style="font-size: 10.5px; font-weight: 600; color: var(--kredo-outline); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ${insAnalytics.highestPaymentPeriod ? `${insAnalytics.highestPaymentPeriod.merchant}` : 'No debits'}
               </span>
             </div>
 
             <!-- Total Transactions KPI -->
-            <div class="kredo-card" style="padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div class="kredo-card" style="padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between;">
               <div>
-                <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--kredo-outline); display: flex; align-items: center; gap: 4px;">
-                  <span class="material-symbols-outlined text-[14px]">speed</span> Volume & Cadence
+                <span style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--kredo-outline); display: flex; align-items: center; gap: 3px;">
+                  <span class="material-symbols-outlined text-[13px]">speed</span> Volume
                 </span>
-                <strong style="font-size: 20px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary); display: block; margin-top: 4px;">
-                  ${totalTxCount} events
+                <strong style="font-size: 17px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary); display: block; margin-top: 3px;">
+                  ${totalTxCount} txs
                 </strong>
               </div>
-              <span style="font-size: 11px; font-weight: 600; color: var(--kredo-outline); margin-top: 6px;">
-                ${categories.length} distinct categories
+              <span style="font-size: 10.5px; font-weight: 600; color: var(--kredo-outline); margin-top: 4px;">
+                ${categories.length} categories
               </span>
             </div>
 
           </section>
 
-          <!-- PowerBI Visual Analytics Canvas (2-Column Grid) -->
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 24px;">
+          <!-- PowerBI Visual Analytics Canvas (Responsive Grid) -->
+          <div class="kredo-powerbi-grid">
             
             <!-- VISUAL 1: Interactive Category Allocation Donut / Pie Chart & Interactive Slicer Legend -->
-            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                <div>
-                  <h3 style="font-size: 16.5px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
-                    <span class="material-symbols-outlined text-[19px] text-boro-primary">pie_chart</span> Category Allocation Portfolio
+            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; width: 100%;">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;">
+                <div style="min-width: 0;">
+                  <h3 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
+                    <span class="material-symbols-outlined text-[18px] text-boro-primary">pie_chart</span> Category Allocation
                   </h3>
-                  <span style="font-size: 11.5px; color: var(--kredo-outline);">Click any slice or legend item to isolate spend</span>
+                  <span style="font-size: 11px; color: var(--kredo-outline);">Click slice or legend to isolate</span>
                 </div>
                 ${insightsActiveCategory ? `
-                  <button type="button" class="kredo-mini-reset-btn" data-filter-cat="${encodeURIComponent(insightsActiveCategory)}" title="Clear category filter">
-                    <span>Clear Isolate (${insightsActiveCategory})</span>
-                    <span class="material-symbols-outlined text-[13px]">close</span>
+                  <button type="button" class="kredo-mini-reset-btn" data-filter-cat="${encodeURIComponent(insightsActiveCategory)}" title="Clear category filter" style="flex-shrink: 0;">
+                    <span>Clear (${insightsActiveCategory})</span>
+                    <span class="material-symbols-outlined text-[12px]">close</span>
                   </button>
-                ` : `<span style="font-size: 12px; font-weight: 700; font-family: var(--kredo-mono); color: var(--kredo-primary);">${categories.length} Categories</span>`}
+                ` : `<span style="font-size: 11.5px; font-weight: 700; font-family: var(--kredo-mono); color: var(--kredo-primary); flex-shrink: 0;">${categories.length} Categories</span>`}
               </div>
 
               <!-- Donut Chart Canvas -->
-              <div style="display: flex; flex-direction: column; align-items: center; padding: 10px 0;">
-                ${renderDonutChart(categories, totalOutflow, { size: 250, strokeWidth: 32, activeCategory: insightsActiveCategory })}
+              <div style="display: flex; flex-direction: column; align-items: center; padding: 6px 0; width: 100%; box-sizing: border-box;">
+                ${renderDonutChart(categories, totalOutflow, { size: 240, strokeWidth: 32, activeCategory: insightsActiveCategory })}
               </div>
 
               <!-- Interactive Category Slicer Legend -->
@@ -1725,68 +1727,68 @@ export class KredoController {
             </div>
 
             <!-- VISUAL 2: Dual Periodic Cashflow Velocity Bar Chart (Inflow vs Outflow) -->
-            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; width: 100%;">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;">
                 <div>
-                  <h3 style="font-size: 16.5px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
-                    <span class="material-symbols-outlined text-[19px] text-boro-primary">bar_chart</span> Periodic Cashflow Velocity
+                  <h3 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
+                    <span class="material-symbols-outlined text-[18px] text-boro-primary">bar_chart</span> Periodic Cashflow Velocity
                   </h3>
-                  <span style="font-size: 11.5px; color: var(--kredo-outline);">Comparing Inflows (Emerald) vs Outflows (Obsidian)</span>
+                  <span style="font-size: 11px; color: var(--kredo-outline);">Inflows (Emerald) vs Outflows (Obsidian)</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 700;">
-                  <span style="display: flex; align-items: center; gap: 4px; color: var(--kredo-secondary);">
-                    <span style="width: 8px; height: 8px; border-radius: 2px; background: var(--kredo-secondary);"></span> Outflows
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 10.5px; font-weight: 700;">
+                  <span style="display: flex; align-items: center; gap: 3px; color: var(--kredo-secondary);">
+                    <span style="width: 7px; height: 7px; border-radius: 2px; background: var(--kredo-secondary);"></span> Outflows
                   </span>
-                  <span style="display: flex; align-items: center; gap: 4px; color: var(--kredo-green);">
-                    <span style="width: 8px; height: 8px; border-radius: 2px; background: var(--kredo-green);"></span> Inflows
+                  <span style="display: flex; align-items: center; gap: 3px; color: var(--kredo-green);">
+                    <span style="width: 7px; height: 7px; border-radius: 2px; background: var(--kredo-green);"></span> Inflows
                   </span>
                 </div>
               </div>
 
               <!-- Velocity Bar Chart Canvas -->
-              <div style="padding: 10px 0;">
-                ${renderVelocityBarChart(velocityPeriods, { width: 620, height: 230 })}
+              <div style="padding: 4px 0; width: 100%; box-sizing: border-box; overflow: hidden;">
+                ${renderVelocityBarChart(velocityPeriods, { width: 500, height: 210 })}
               </div>
 
-              <div style="background: var(--kredo-surface-container-low); border-radius: 10px; padding: 10px 14px; font-size: 12px; color: var(--kredo-on-surface-variant); display: flex; justify-content: space-between; align-items: center;">
-                <span>Total Active Velocity Periods: <strong>${velocityPeriods.length}</strong></span>
+              <div style="background: var(--kredo-surface-container-low); border-radius: 8px; padding: 8px 12px; font-size: 11.5px; color: var(--kredo-on-surface-variant); display: flex; justify-content: space-between; align-items: center;">
+                <span>Velocity Periods: <strong>${velocityPeriods.length}</strong></span>
                 <span style="font-family: var(--kredo-mono); font-weight: 700; color: var(--kredo-secondary);">Net: ${netFlow >= 0 ? '+' : ''}${formatINR(netFlow)}</span>
               </div>
             </div>
 
             <!-- VISUAL 3: Cumulative Liquidity & Burn Trajectory (Spline Curve Area Fill) -->
-            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; width: 100%;">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;">
                 <div>
-                  <h3 style="font-size: 16.5px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
-                    <span class="material-symbols-outlined text-[19px] text-boro-primary">show_chart</span> Cumulative Burn Trajectory
+                  <h3 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
+                    <span class="material-symbols-outlined text-[18px] text-boro-primary">show_chart</span> Cumulative Burn Trajectory
                   </h3>
-                  <span style="font-size: 11.5px; color: var(--kredo-outline);">Running cumulative spend progression curve</span>
+                  <span style="font-size: 11px; color: var(--kredo-outline);">Running cumulative spend progression</span>
                 </div>
-                <span style="font-size: 12px; font-weight: 700; font-family: var(--kredo-mono); color: var(--kredo-secondary);">Peak: ${formatINR(totalOutflow)}</span>
+                <span style="font-size: 11.5px; font-weight: 700; font-family: var(--kredo-mono); color: var(--kredo-secondary);">Peak: ${formatINR(totalOutflow)}</span>
               </div>
 
               <!-- Spline Curve Canvas -->
-              <div style="padding: 10px 0;">
-                ${renderCumulativeLineChart(cumulativeTrajectory, { width: 620, height: 210 })}
+              <div style="padding: 4px 0; width: 100%; box-sizing: border-box; overflow: hidden;">
+                ${renderCumulativeLineChart(cumulativeTrajectory, { width: 500, height: 190 })}
               </div>
 
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--kredo-outline);">
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--kredo-outline);">
                 <span>Start: ${cumulativeTrajectory[0]?.date || '—'}</span>
                 <span>End: ${cumulativeTrajectory[cumulativeTrajectory.length - 1]?.date || '—'}</span>
               </div>
             </div>
 
             <!-- VISUAL 4: Top Spending Merchants & Hotspots (Horizontal Ranking Progress Bars) -->
-            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; width: 100%;">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;">
                 <div>
-                  <h3 style="font-size: 16.5px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
-                    <span class="material-symbols-outlined text-[19px] text-boro-primary">local_convenience_store</span> Top Outflow Merchants & Hotspots
+                  <h3 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
+                    <span class="material-symbols-outlined text-[18px] text-boro-primary">local_convenience_store</span> Top Outflow Merchants
                   </h3>
-                  <span style="font-size: 11.5px; color: var(--kredo-outline);">Highest volume payees by aggregate expenditure</span>
+                  <span style="font-size: 11px; color: var(--kredo-outline);">Highest volume payees by expenditure</span>
                 </div>
-                <span style="font-size: 12px; color: var(--kredo-outline);">Top ${Math.min(topMerchants.length, 6)} Payees</span>
+                <span style="font-size: 11px; color: var(--kredo-outline);">Top ${Math.min(topMerchants.length, 6)} Payees</span>
               </div>
 
               <!-- Horizontal Progress Bars -->
@@ -1794,55 +1796,63 @@ export class KredoController {
             </div>
 
             <!-- VISUAL 5: Payment Channel & Settlement Matrix -->
-            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; width: 100%;">
               <div>
-                <h3 style="font-size: 16.5px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
-                  <span class="material-symbols-outlined text-[19px] text-boro-primary">payments</span> Payment Channel Distribution
+                <h3 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
+                  <span class="material-symbols-outlined text-[18px] text-boro-primary">payments</span> Payment Channel Distribution
                 </h3>
-                <span style="font-size: 11.5px; color: var(--kredo-outline);">Outflow settlement breakdown across payment rails</span>
+                <span style="font-size: 11px; color: var(--kredo-outline);">Settlement breakdown across payment rails</span>
               </div>
 
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
-                ${paymentMethods.length > 0 ? paymentMethods.map(pm => `
-                  <div style="background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between;">
-                    <div>
-                      <span style="font-size: 11px; font-weight: 700; color: var(--kredo-outline); text-transform: uppercase;">${pm.method}</span>
-                      <strong style="font-size: 16px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary); display: block; margin-top: 4px;">
-                        ${formatINR(pm.amount)}
-                      </strong>
+              ${(paymentMethods.length > 0 && totalOutflow > 0) ? `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); gap: 10px;">
+                  ${paymentMethods.map(pm => `
+                    <div style="background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: space-between;">
+                      <div>
+                        <span style="font-size: 10px; font-weight: 700; color: var(--kredo-outline); text-transform: uppercase;">${pm.method}</span>
+                        <strong style="font-size: 14.5px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary); display: block; margin-top: 3px;">
+                          ${formatINR(pm.amount)}
+                        </strong>
+                      </div>
+                      <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 10.5px; color: var(--kredo-outline);">${pm.count} txs</span>
+                        <span style="font-size: 10.5px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-primary); background: var(--kredo-primary-fixed); padding: 1px 5px; border-radius: 4px;">${pm.percentage}%</span>
+                      </div>
                     </div>
-                    <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
-                      <span style="font-size: 11px; color: var(--kredo-outline);">${pm.count} txs</span>
-                      <span style="font-size: 11px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-primary); background: var(--kredo-primary-fixed); padding: 1px 6px; border-radius: 4px;">${pm.percentage}%</span>
-                    </div>
-                  </div>
-                `).join('') : '<p style="color: var(--kredo-outline); font-size: 13px; text-align: center; padding: 20px 0;">No payment methods recorded for this window.</p>'}
-              </div>
+                  `).join('')}
+                </div>
+              ` : `
+                <div style="padding: 24px 16px; text-align: center; color: var(--kredo-outline); font-size: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                  <span class="material-symbols-outlined text-[28px]" style="opacity: 0.35; margin-bottom: 4px; color: var(--kredo-primary);">credit_card</span>
+                  <span style="font-weight: 700; color: var(--kredo-secondary);">No Outflows In This Filter</span>
+                  <span style="font-size: 11.5px; color: var(--kredo-outline); margin-top: 2px;">Payment channel breakdown will display when outflow transactions exist</span>
+                </div>
+              `}
             </div>
 
             <!-- VISUAL 6: Actionable On-Device AI Financial Intelligence -->
-            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="kredo-card" style="display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; width: 100%;">
               <div>
-                <h3 style="font-size: 16.5px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
-                  <span class="material-symbols-outlined text-[19px] text-boro-primary">psychology</span> Executive AI Telemetry
+                <h3 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--kredo-secondary); display: flex; align-items: center; gap: 6px;">
+                  <span class="material-symbols-outlined text-[18px] text-boro-primary">psychology</span> Executive AI Telemetry
                 </h3>
-                <span style="font-size: 11.5px; color: var(--kredo-outline);">Privacy-first on-device financial intelligence</span>
+                <span style="font-size: 11px; color: var(--kredo-outline);">Privacy-first on-device financial intelligence</span>
               </div>
 
-              <div style="display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; flex-direction: column; gap: 10px;">
                 ${aiInsights.length > 0 ? aiInsights.map(ai => `
-                  <div style="background: #ffffff; border-left: 4px solid ${ai.color || 'var(--kredo-primary)'}; border-radius: 10px; padding: 12px 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); border-top: 1px solid var(--kredo-outline-variant); border-right: 1px solid var(--kredo-outline-variant); border-bottom: 1px solid var(--kredo-outline-variant);">
-                    <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: ${ai.color || 'var(--kredo-primary)'}; margin-bottom: 2px;">
+                  <div style="background: #ffffff; border-left: 3.5px solid ${ai.color || 'var(--kredo-primary)'}; border-radius: 8px; padding: 10px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); border-top: 1px solid var(--kredo-outline-variant); border-right: 1px solid var(--kredo-outline-variant); border-bottom: 1px solid var(--kredo-outline-variant);">
+                    <div style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; color: ${ai.color || 'var(--kredo-primary)'}; margin-bottom: 2px;">
                       ${ai.tag || 'AI TELEMETRY'}
                     </div>
-                    <strong style="font-size: 13.5px; color: var(--kredo-secondary); display: block; margin-bottom: 3px;">
+                    <strong style="font-size: 13px; color: var(--kredo-secondary); display: block; margin-bottom: 2px;">
                       ${ai.title || 'Financial Pace'}
                     </strong>
-                    <p style="font-size: 12px; color: var(--kredo-on-surface-variant); margin: 0; line-height: 1.4;">
+                    <p style="font-size: 11.5px; color: var(--kredo-on-surface-variant); margin: 0; line-height: 1.35;">
                       ${ai.desc || ai.message || ''}
                     </p>
                   </div>
-                `).join('') : '<p style="color: var(--kredo-outline); font-size: 13px; text-align: center; padding: 20px 0;">Record transactions to view on-device AI intelligence.</p>'}
+                `).join('') : '<p style="color: var(--kredo-outline); font-size: 12px; text-align: center; padding: 16px 0;">Record transactions to view on-device AI intelligence.</p>'}
               </div>
             </div>
 
