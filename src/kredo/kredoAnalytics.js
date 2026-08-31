@@ -37,12 +37,12 @@ export function format12HourTime(rawTime = '') {
 }
 
 export const DATE_RANGE_MODES = [
-  { id: 'all', label: 'All History' },
-  { id: 'ytd', label: 'Year to Date (Jan – Now)' },
+  { id: 'all', label: 'All Time' },
+  { id: 'ytd', label: 'Year to Date' },
   { id: 'this_month', label: 'This Month' },
-  { id: 'prev_month', label: 'Previous Month' },
-  { id: 'this_week', label: 'This Week' },
-  { id: 'today', label: 'Today' },
+  { id: 'prev_month', label: 'Last Month' },
+  { id: '30d', label: 'Last 30 Days' },
+  { id: '7d', label: 'Last 7 Days' },
   { id: 'custom', label: 'Custom Range' },
 ];
 
@@ -81,7 +81,7 @@ export function getAvailableMonths(transactions = []) {
 }
 
 /**
- * Multi-dimensional search and filter engine
+ * Multi-dimensional search and filter engine with Time Presets, Months, Weeks, Direction, Category, and Channels
  */
 export function filterTransactions(transactions = [], filters = {}) {
   const {
@@ -93,29 +93,62 @@ export function filterTransactions(transactions = [], filters = {}) {
     dateRangeMode = 'all',
     customStart = null,
     customEnd = null,
+    selectedWeek = 'all',
   } = filters;
 
   const normalizedQuery = String(query || '').trim().toLowerCase();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
 
   return transactions.filter(tx => {
-    // 1. Month filter (e.g. '2026-03')
+    const d = parseTxDate(tx);
+
+    // 1. Time Presets & Range Filtering
+    if (dateRangeMode === '7d') {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      sevenDaysAgo.setHours(0, 0, 0, 0);
+      if (d < sevenDaysAgo) return false;
+    } else if (dateRangeMode === '30d') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
+      if (d < thirtyDaysAgo) return false;
+    } else if (dateRangeMode === 'this_month') {
+      if (d.getFullYear() !== currentYear || d.getMonth() !== currentMonth) return false;
+    } else if (dateRangeMode === 'prev_month') {
+      const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
+      if (d.getFullYear() !== prevMonthDate.getFullYear() || d.getMonth() !== prevMonthDate.getMonth()) return false;
+    } else if (dateRangeMode === 'ytd') {
+      if (d.getFullYear() !== currentYear) return false;
+    } else if (dateRangeMode === 'today') {
+      if (d.getFullYear() !== currentYear || d.getMonth() !== currentMonth || d.getDate() !== now.getDate()) return false;
+    } else if (dateRangeMode === 'custom' && (customStart || customEnd)) {
+      const dTime = d.getTime();
+      const sTime = customStart ? new Date(customStart).setHours(0, 0, 0, 0) : 0;
+      const eTime = customEnd ? new Date(customEnd).setHours(23, 59, 59, 999) : Infinity;
+      if (dTime < sTime || dTime > eTime) return false;
+    }
+
+    // 2. Explicit Month filter (e.g. '2026-03') if not 'all'
     if (month && month !== 'all') {
       if (!tx.date || !tx.date.startsWith(month)) {
         return false;
       }
     }
 
-    // 2. Type filter
+    // 3. Cashflow Direction (Type: all, debit, credit)
     if (type !== 'all' && tx.type !== type) {
       return false;
     }
 
-    // 3. Category filter
+    // 4. Category filter
     if (category !== 'all' && tx.category !== category) {
       return false;
     }
 
-    // 4. Payment method filter
+    // 5. Payment method filter
     if (paymentMethod !== 'all') {
       const mStr = String(tx.paymentMethod || '').toLowerCase();
       const filterStr = String(paymentMethod).toLowerCase();
@@ -124,7 +157,7 @@ export function filterTransactions(transactions = [], filters = {}) {
       }
     }
 
-    // 5. Query search
+    // 6. Query search across merchant, notes, sub, referenceId, category, paymentMethod, amount
     if (normalizedQuery) {
       const matchMerchant = String(tx.merchant || '').toLowerCase().includes(normalizedQuery);
       const matchSub = String(tx.displaySub || '').toLowerCase().includes(normalizedQuery);
@@ -137,14 +170,6 @@ export function filterTransactions(transactions = [], filters = {}) {
       if (!matchMerchant && !matchSub && !matchNotes && !matchRef && !matchCategory && !matchMethod && !matchAmount) {
         return false;
       }
-    }
-
-    // 6. Custom date range filter (if active)
-    if (dateRangeMode === 'custom' && (customStart || customEnd)) {
-      const dTime = parseTxDate(tx).getTime();
-      const sTime = customStart ? new Date(customStart).setHours(0, 0, 0, 0) : 0;
-      const eTime = customEnd ? new Date(customEnd).setHours(23, 59, 59, 999) : Infinity;
-      if (dTime < sTime || dTime > eTime) return false;
     }
 
     return true;
@@ -268,7 +293,7 @@ export function groupTransactionsHierarchically(transactions = []) {
 }
 
 /**
- * Calculates executive KPI analytics
+ * Calculates executive KPI analytics, time-series velocity periods, cumulative burn, and ranking models
  */
 export function computeKredoAnalytics(allTransactions = [], filteredTransactions = [], options = {}) {
   const { monthlyBudget = 60000 } = options;
@@ -293,6 +318,8 @@ export function computeKredoAnalytics(allTransactions = [], filteredTransactions
   };
 
   const categoryStats = {};
+  const merchantStats = {};
+  const periodVelocityMap = {};
   const dailyMap = {};
 
   for (const tx of filteredTransactions) {
@@ -300,13 +327,21 @@ export function computeKredoAnalytics(allTransactions = [], filteredTransactions
     const isCredit = tx.type === 'credit';
     const d = parseTxDate(tx);
     const isToday = d.getFullYear() === currentYear && d.getMonth() === currentMonth && d.getDate() === now.getDate();
+    const dateKey = tx.date || d.toISOString().slice(0, 10);
+
+    if (!periodVelocityMap[dateKey]) {
+      periodVelocityMap[dateKey] = { dateKey, label: dateKey.slice(5), debits: 0, credits: 0, count: 0 };
+    }
+    periodVelocityMap[dateKey].count++;
 
     if (isCredit) {
       totalCredits += amt;
       creditsCount++;
+      periodVelocityMap[dateKey].credits += amt;
     } else {
       totalDebits += amt;
       debitsCount++;
+      periodVelocityMap[dateKey].debits += amt;
 
       if (!highestPaymentPeriod || amt > highestPaymentPeriod.amount) {
         highestPaymentPeriod = {
@@ -343,8 +378,46 @@ export function computeKredoAnalytics(allTransactions = [], filteredTransactions
       categoryStats[cat].amount += amt;
       categoryStats[cat].count++;
 
-      const dateKey = tx.date || d.toISOString().slice(0, 10);
+      const merchantName = tx.merchant || 'Unknown Payee';
+      if (!merchantStats[merchantName]) merchantStats[merchantName] = { merchant: merchantName, amount: 0, count: 0, category: cat };
+      merchantStats[merchantName].amount += amt;
+      merchantStats[merchantName].count++;
+
       dailyMap[dateKey] = (dailyMap[dateKey] || 0) + amt;
+    }
+  }
+
+  // Top Spending Merchants Ranking
+  const topMerchants = Object.values(merchantStats)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 7)
+    .map(m => ({
+      ...m,
+      percentage: Math.round((m.amount / (totalDebits || 1)) * 100),
+    }));
+
+  // Chronological Time-Series Velocity Buckets (for Dual Bar Chart)
+  const velocityPeriods = Object.values(periodVelocityMap).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+
+  // Cumulative Spending Trajectory (for Bezier Line Chart)
+  let runningCumulative = 0;
+  const cumulativeTrajectory = velocityPeriods.map(p => {
+    runningCumulative += p.debits;
+    return {
+      date: p.dateKey,
+      label: p.label,
+      dailyDebit: p.debits,
+      cumulative: runningCumulative,
+    };
+  });
+
+  // Peak Outflow Day
+  let peakDay = null;
+  let maxDaySpend = 0;
+  for (const [dKey, dAmt] of Object.entries(dailyMap)) {
+    if (dAmt > maxDaySpend) {
+      maxDaySpend = dAmt;
+      peakDay = { date: dKey, amount: dAmt };
     }
   }
 
@@ -389,6 +462,15 @@ export function computeKredoAnalytics(allTransactions = [], filteredTransactions
   const activeDays = Object.keys(dailyMap).length || 1;
   const dailyAverageSpend = Math.round(totalDebits / activeDays);
 
+  // Financial Health Metrics & Ratios
+  const netCashflow = totalCredits - totalDebits;
+  const savingsRatio = totalCredits > 0 ? Math.round((netCashflow / totalCredits) * 100) : (totalDebits > 0 ? -100 : 0);
+  const expenseToIncomeRatio = totalCredits > 0 ? Math.round((totalDebits / totalCredits) * 100) : 100;
+  
+  const dayOfMonth = now.getDate() || 1;
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const projectedMonthEnd = Math.round((totalDebits / dayOfMonth) * daysInMonth);
+
   const localAiInsights = generateLocalAiInsights({
     filteredTransactions,
     allTransactions,
@@ -403,12 +485,19 @@ export function computeKredoAnalytics(allTransactions = [], filteredTransactions
   return {
     totalDebits,
     totalCredits,
-    netCashflow: totalCredits - totalDebits,
+    netCashflow,
+    savingsRatio,
+    expenseToIncomeRatio,
+    projectedMonthEnd,
     debitsCount,
     creditsCount,
     highestPaymentPeriod,
     highestPaymentToday,
+    peakDay,
     dailyAverageSpend,
+    topMerchants,
+    velocityPeriods,
+    cumulativeTrajectory,
     monthlyTotals: Object.values(monthlyTotals).sort((a, b) => a.key.localeCompare(b.key)),
     paymentMethodShare,
     categoryShare,
