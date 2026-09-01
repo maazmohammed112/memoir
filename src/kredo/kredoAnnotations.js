@@ -109,12 +109,16 @@ export function getTransactionAnnotationOverrides() {
 /**
  * Sets individual transaction annotation override
  */
-export function setTransactionAnnotationOverride(txId, annotation) {
+export function setTransactionAnnotationOverride(txId, annotation, options = {}) {
   if (!txId) return;
   const current = getTransactionAnnotationOverrides();
   const clean = String(annotation || '').trim();
   if (clean) {
     current[txId] = clean;
+  } else if (options.suppressInherited === true) {
+    // An explicit empty override means "no tag for this transaction" and
+    // prevents a fuzzy merchant-memory rule from immediately reapplying it.
+    current[txId] = '';
   } else {
     delete current[txId];
   }
@@ -123,6 +127,13 @@ export function setTransactionAnnotationOverride(txId, annotation) {
   } catch (e) {
     console.warn('Failed to save transaction annotation override:', e);
   }
+}
+
+/** Removes a visible transaction tag, optionally suppressing inherited memory. */
+export function removeTransactionAnnotation(txId, suppressInherited = true) {
+  if (!txId) return false;
+  setTransactionAnnotationOverride(txId, '', { suppressInherited });
+  return true;
 }
 
 /**

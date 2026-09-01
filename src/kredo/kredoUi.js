@@ -67,9 +67,11 @@ import {
 
 import {
   getMerchantAnnotations,
+  normalizeMerchantKey,
   setMerchantAnnotation,
   removeMerchantAnnotation,
   setTransactionAnnotationOverride,
+  removeTransactionAnnotation,
   resolveTransactionAnnotation,
   attachAnnotationsToTransactions,
 } from './kredoAnnotations.js';
@@ -181,12 +183,19 @@ export class KredoController {
       importAnalysis: null,
       settings: getKredoSettings(),
     };
+    this.lastWorkbookSignature = '';
 
     // Auto-poll Google Sheet every 10s for real-time live sync
     this.sheetUnsubscribe = subscribeToSheetUpdates((data) => {
+      const nextSignature = this.getWorkbookSignature(data);
+      if (nextSignature && nextSignature === this.lastWorkbookSignature) {
+        this.state.lastSheetSync = data.lastSync;
+        return;
+      }
       this.state.sheetTransactions = data.transactions || [];
       this.applyWorkbookState(data);
       this.state.lastSheetSync = data.lastSync;
+      this.lastWorkbookSignature = nextSignature;
       // Do not re-render if a modal is open to avoid glitching/flickering
       if (!this.state.activeModal && (this.state.activeTab === 'sheet' || this.state.dataSource === 'sheet' || this.state.activeTab === 'insights')) {
         this.render();
@@ -212,6 +221,7 @@ export class KredoController {
         this.state.sheetTransactions = sheetRes.transactions;
         this.applyWorkbookState(sheetRes);
         this.state.lastSheetSync = sheetRes.lastSync;
+        this.lastWorkbookSignature = this.getWorkbookSignature(sheetRes);
       }
       // Keep the initial scope at All Months so fresh Sheet rows cannot be
       // silently hidden by the newest month from the Email-only stream.
@@ -231,6 +241,36 @@ export class KredoController {
     if (data.rules) this.state.sheetRules = data.rules;
     if (data.dashboard) this.state.sheetDashboard = data.dashboard;
     if (data.calcData) this.state.sheetCalcData = data.calcData;
+  }
+
+  getWorkbookSignature(data = {}) {
+    const compact = records => (records || []).map(record => {
+      const fields = record?.fields || {};
+      return [record?.id || record?.transactionId || '', record?.updatedAt || fields['Updated At'] || '', record?.status || fields.Status || '', record?.reviewFlag || fields['Review Flag'] || '', record?.annotation || ''];
+    });
+    return JSON.stringify({
+      transactions: compact(data.transactions),
+      bills: compact(data.bills),
+      alerts: compact(data.alerts),
+      rules: compact(data.rules),
+      dashboard: compact(data.dashboard),
+      calcData: compact(data.calcData),
+    });
+  }
+
+  removeMerchantTagEverywhere(merchant, transactionId = '') {
+    const merchantKey = normalizeMerchantKey(merchant);
+    removeMerchantAnnotation(merchant);
+    const seen = new Set();
+    [...(this.state.transactions || []), ...(this.state.sheetTransactions || [])].forEach(tx => {
+      if (!tx?.id || seen.has(tx.id)) return;
+      const txKey = normalizeMerchantKey(tx.merchant || tx.title || '');
+      if (tx.id === transactionId || (merchantKey && txKey && (txKey.includes(merchantKey) || merchantKey.includes(txKey)))) {
+        removeTransactionAnnotation(tx.id, true);
+        seen.add(tx.id);
+      }
+    });
+    if (transactionId && !seen.has(transactionId)) removeTransactionAnnotation(transactionId, true);
   }
 
   async refreshSheetWorkbook(successMessage = '') {
@@ -290,6 +330,7 @@ export class KredoController {
     this.state.activeModal = null;
     this.state.selectedTx = null;
     this.state.selectedCard = null;
+    this.state.annotationTx = null;
     this.state.importDraft = '';
     this.state.importAnalysis = null;
     this.render();
@@ -1371,9 +1412,9 @@ export class KredoController {
                           </td>
                           <td>
                             ${tx.annotation ? `
-                              <span class="kredo-annotation-pill" data-edit-annotation="${tx.id}" title="Merchant Annotation">
+                              <button type="button" class="kredo-annotation-pill" data-edit-annotation="${tx.id}" title="Edit or remove merchant tag">
                                 <span class="material-symbols-outlined text-[10px]">label</span> ${tx.annotation}
-                              </span>
+                              </button>
                             ` : `
                               <button type="button" class="kredo-annotation-pill empty-add" data-add-annotation="${tx.id}" title="Add tag">
                                 <span class="material-symbols-outlined text-[10px]">add</span>Tag
@@ -1625,9 +1666,9 @@ export class KredoController {
                                     <span class="kredo-merged-badge-pill" style="font-size: 9.5px;">Unified</span>
                                   ` : ''}
                                   ${tx.annotation ? `
-                                    <span class="kredo-annotation-pill" data-edit-annotation="${tx.id}" title="Merchant Annotation (Auto-remembered)">
+                                    <button type="button" class="kredo-annotation-pill" data-edit-annotation="${tx.id}" title="Edit or remove merchant tag">
                                       <span class="material-symbols-outlined text-[11px]">label</span>${tx.annotation}
-                                    </span>
+                                    </button>
                                   ` : `
                                     <button type="button" class="kredo-annotation-pill empty-add" data-add-annotation="${tx.id}" title="Add merchant annotation">
                                       <span class="material-symbols-outlined text-[11px]">add</span>Tag
@@ -3369,11 +3410,13 @@ export class KredoController {
     // EDIT MERCHANT ANNOTATION MODAL
     if (activeModal === 'edit-annotation' && this.state.annotationTx) {
       const tx = this.state.annotationTx;
-      const currentAnnotation = tx.annotation || '';
+      const currentAnnotation = resolveTransactionAnnotation(tx) || tx.annotation || '';
+      const merchantName = String(tx.merchant || '').trim();
+      const canRememberMerchant = Boolean(merchantName && normalizeMerchantKey(merchantName) !== 'transaction');
 
       return `
         <div class="kredo-modal-backdrop" id="kredo-modal-bg">
-          <div class="kredo-modal-sheet" style="max-width: 460px;">
+          <div class="kredo-modal-sheet kredo-annotation-modal">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
               <div style="display: flex; align-items: center; gap: 8px;">
                 <span class="material-symbols-outlined text-[22px]" style="color: #4f46e5;">label</span>
@@ -3385,12 +3428,12 @@ export class KredoController {
             </div>
 
             <p style="font-size: 12px; color: var(--kredo-outline); margin-bottom: 12px;">
-              Tag transactions from <strong>${tx.merchant}</strong> (e.g. <em>chips</em>, <em>dinner</em>, <em>office coffee</em>). The memory engine will auto-apply this tag to existing and future transactions from this merchant.
+              ${canRememberMerchant ? `Tag transactions from <strong>${merchantName}</strong>. The memory engine can apply the tag to existing and future matching transactions.` : 'This record has no reliable merchant name, so the tag will stay on this transaction only.'}
             </p>
 
             <form id="kredo-annotation-form">
               <input type="hidden" id="annotation-tx-id" value="${tx.id}" />
-              <input type="hidden" id="annotation-tx-merchant" value="${tx.merchant}" />
+              <input type="hidden" id="annotation-tx-merchant" value="${merchantName}" />
 
               <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 6px;">Tag / Annotation</label>
               <input type="text" class="kredo-form-input" id="annotation-input" value="${currentAnnotation}" placeholder="e.g. chips, swiggy dineout, taxi, wifi" required />
@@ -3403,17 +3446,18 @@ export class KredoController {
                 `).join('')}
               </div>
 
-              <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--kredo-secondary); cursor: pointer; margin-bottom: 16px; background: var(--kredo-surface-container-low); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--kredo-outline-variant);">
-                <input type="checkbox" id="annotation-remember-merchant" checked style="margin-top: 2px;" />
-                <div>
-                  <strong>Remember for all transactions from "${tx.merchant}"</strong>
-                  <span style="font-size: 11px; color: var(--kredo-outline); display: block;">Automatically tags any future import from ${tx.merchant}.</span>
+              <label class="kredo-annotation-memory-option ${canRememberMerchant ? '' : 'disabled'}">
+                <input type="checkbox" id="annotation-remember-merchant" ${canRememberMerchant ? 'checked' : 'disabled'} />
+                <div class="kredo-annotation-memory-copy">
+                  <strong>${canRememberMerchant ? `Remember for all “${merchantName}” transactions` : 'Transaction-only tag'}</strong>
+                  <span>${canRememberMerchant ? `Automatically tags future imports recognized as ${merchantName}.` : 'Merchant memory is disabled because this record is labelled only as “Transaction”.'}</span>
                 </div>
               </label>
 
-              <div style="display: flex; gap: 10px;">
-                <button type="button" class="kredo-btn-action secondary" id="close-modal-btn-2" style="flex: 1;">Cancel</button>
-                <button type="submit" class="kredo-btn-action" style="flex: 2;">Save Annotation</button>
+              <div class="kredo-annotation-actions">
+                ${currentAnnotation ? `<button type="button" class="kredo-btn-action kredo-remove-tag-btn" data-remove-annotation="${tx.id}" data-remove-annotation-merchant="${merchantName}"><span class="material-symbols-outlined text-[16px]">label_off</span>Remove tag</button>` : ''}
+                <button type="button" class="kredo-btn-action secondary" id="close-modal-btn-2">Cancel</button>
+                <button type="submit" class="kredo-btn-action">${currentAnnotation ? 'Save Changes' : 'Save Annotation'}</button>
               </div>
             </form>
           </div>
@@ -3445,19 +3489,23 @@ export class KredoController {
 
             ${entries.length > 0 ? `
               <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
-                ${entries.map(([merchant, tag]) => `
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 8px;">
-                    <div>
-                      <strong style="font-size: 13px; color: var(--kredo-secondary);">${merchant}</strong>
+                ${entries.map(([merchantKey, rule]) => {
+                  const merchant = rule?.originalMerchant || merchantKey;
+                  const tag = rule?.annotation || '';
+                  return `
+                  <div class="kredo-memory-rule-row">
+                    <div class="kredo-memory-rule-copy">
+                      <strong>${merchant}</strong>
                       <div style="margin-top: 2px;">
                         <span class="kredo-annotation-pill"><span class="material-symbols-outlined text-[10px]">label</span> ${tag}</span>
                       </div>
                     </div>
-                    <button type="button" class="kredo-mini-btn danger" data-delete-annotation-merchant="${merchant}" title="Delete memory rule" style="width: 28px; height: 28px;">
-                      <span class="material-symbols-outlined text-[15px]">delete</span>
-                    </button>
+                    <div class="kredo-memory-rule-actions">
+                      <button type="button" class="kredo-mini-btn" data-edit-annotation-rule="${merchantKey}" title="Edit tag"><span class="material-symbols-outlined text-[15px]">edit</span></button>
+                      <button type="button" class="kredo-mini-btn danger" data-delete-annotation-merchant="${merchant}" title="Remove tag and memory"><span class="material-symbols-outlined text-[15px]">delete</span></button>
+                    </div>
                   </div>
-                `).join('')}
+                `; }).join('')}
               </div>
             ` : `
               <div style="text-align: center; padding: 24px; color: var(--kredo-outline); font-size: 12px;">
@@ -5295,12 +5343,39 @@ export class KredoController {
 
       this.closeModal();
       this.showToast(`Saved annotation "${tag}" for ${merchant || 'transaction'}!`);
-      this.render();
+    });
+
+    // Remove both the visible transaction override and its merchant memory rule.
+    this.container.querySelectorAll('[data-remove-annotation]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const txId = btn.dataset.removeAnnotation;
+        const merchant = btn.dataset.removeAnnotationMerchant || this.state.annotationTx?.merchant || '';
+        this.removeMerchantTagEverywhere(merchant, txId);
+        this.closeModal();
+        this.showToast('Tag removed from this merchant and matching transactions');
+      });
     });
 
     // Open Manage Annotations Modal
     this.container.querySelector('#quick-action-annotations-btn')?.addEventListener('click', () => {
       this.openModal('manage-annotations');
+    });
+
+    // Edit a saved memory rule even when no transaction row is currently open.
+    this.container.querySelectorAll('[data-edit-annotation-rule]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rule = getMerchantAnnotations()[btn.dataset.editAnnotationRule];
+        if (!rule) return;
+        this.state.annotationTx = {
+          id: '',
+          merchant: rule.originalMerchant || btn.dataset.editAnnotationRule,
+          annotation: rule.annotation || '',
+        };
+        this.openModal('edit-annotation');
+      });
     });
 
     // Delete Annotation Memory Rule
@@ -5309,8 +5384,8 @@ export class KredoController {
         e.stopPropagation();
         const merchant = btn.dataset.deleteAnnotationMerchant;
         if (merchant) {
-          removeMerchantAnnotation(merchant);
-          this.showToast(`Deleted memory rule for ${merchant}`);
+          this.removeMerchantTagEverywhere(merchant);
+          this.showToast(`Removed tag and memory rule for ${merchant}`);
           this.render();
         }
       });

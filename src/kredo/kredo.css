@@ -2653,6 +2653,128 @@ body.dark .kredo-app-root,
   color: var(--kredo-primary);
 }
 
+.kredo-annotation-modal {
+  width: min(460px, calc(100vw - 24px));
+  max-width: 460px;
+  max-height: min(88vh, 720px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.kredo-annotation-memory-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 10px;
+  background: var(--kredo-surface-container-low);
+  color: var(--kredo-secondary);
+  cursor: pointer;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+.kredo-annotation-memory-option.disabled {
+  cursor: default;
+  opacity: 0.78;
+}
+
+.kredo-annotation-memory-option input {
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+}
+
+.kredo-annotation-memory-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.kredo-annotation-memory-copy strong,
+.kredo-annotation-memory-copy span {
+  display: block;
+  max-width: 100%;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  white-space: normal;
+}
+
+.kredo-annotation-memory-copy strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.kredo-annotation-memory-copy span {
+  margin-top: 3px;
+  color: var(--kredo-outline);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.kredo-annotation-actions {
+  display: grid;
+  grid-template-columns: auto 1fr 1.5fr;
+  gap: 9px;
+}
+
+.kredo-annotation-actions .kredo-btn-action {
+  min-width: 0;
+  justify-content: center;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.kredo-remove-tag-btn {
+  background: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+  color: #be123c !important;
+}
+
+.kredo-memory-rule-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--kredo-surface-container-low);
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 10px;
+}
+
+.kredo-memory-rule-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kredo-memory-rule-copy > strong {
+  color: var(--kredo-secondary);
+  font-size: 13px;
+}
+
+.kredo-memory-rule-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.kredo-memory-rule-actions .kredo-mini-btn {
+  width: 30px;
+  height: 30px;
+}
+
+@media (max-width: 520px) {
+  .kredo-annotation-modal { width: calc(100vw - 20px); padding: 20px 18px; }
+  .kredo-annotation-actions { grid-template-columns: 1fr 1fr; }
+  .kredo-annotation-actions .kredo-remove-tag-btn { grid-column: 1 / -1; }
+}
+
 /* ==========================================================================
    RECONCILIATION AGENT CARDS & COMPARISON MODAL
    ========================================================================== */

@@ -35,6 +35,8 @@ import {
   getMerchantAnnotation,
   setMerchantAnnotation,
   removeMerchantAnnotation,
+  setTransactionAnnotationOverride,
+  removeTransactionAnnotation,
   resolveTransactionAnnotation,
   attachAnnotationsToTransactions,
 } from '../src/kredo/kredoAnnotations.js';
@@ -365,5 +367,14 @@ removeMerchantAnnotation('Blinkit');
 const cleanedAnnotations = getMerchantAnnotations();
 assert.equal(cleanedAnnotations['Blinkit'], undefined);
 console.log('✓ Merchant annotation removal rule verified.');
+
+setMerchantAnnotation('Uber', 'taxi');
+const uberTx = { id: 'uber-remove-1', merchant: 'Uber India', annotation: '' };
+setTransactionAnnotationOverride(uberTx.id, 'office taxi');
+assert.equal(resolveTransactionAnnotation(uberTx), 'office taxi');
+removeTransactionAnnotation(uberTx.id, true);
+assert.equal(resolveTransactionAnnotation(uberTx), '', 'An explicitly removed tag must not be re-inherited from fuzzy merchant memory');
+removeMerchantAnnotation('Uber');
+console.log('✓ Transaction tag suppression verified: removed tags do not reappear from merchant memory.');
 
 console.log('\n🎉 ALL RECONCILIATION, ANNOTATION & APPROVAL TESTS PASSED WITH 100% SUCCESS!\n');
