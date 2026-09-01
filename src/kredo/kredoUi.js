@@ -60,6 +60,7 @@ import {
   getSheetApprovals,
   setSheetApproval,
   batchSetSheetApprovals,
+  setSheetApprovalSyncState,
   decorateTransactionsWithApprovals,
   isTxApproved,
 } from './kredoReconciliation.js';
@@ -75,6 +76,7 @@ import {
 
 import {
   fetchGoogleSheetTransactions,
+  syncGoogleSheetApproval,
   subscribeToSheetUpdates,
   startSheetRealtimePolling,
   stopSheetRealtimePolling,
@@ -134,7 +136,7 @@ export class KredoController {
       typeFilter: 'all',
       categoryFilter: 'all',
       paymentMethodFilter: 'all',
-      insightsSource: 'kredo', // 'kredo' (Email) | 'sheet' (Google Sheet) | 'all' (Unified)
+      insightsSource: 'all', // Insights default to the complete reconciled Email + Sheet stream
       insightsCategoryFilter: 'all',
       insightsMethodFilter: 'all',
       insightsBankFilter: 'all',
@@ -156,6 +158,8 @@ export class KredoController {
       isSheetLoading: false,
       lastSheetSync: null,
       sheetError: null,
+      approvalSyncingIds: new Set(),
+      approvalSyncErrors: new Map(),
       activeModal: null,   // 'action-menu' | 'add' | 'edit' | 'preview' | 'import' | 'delete-confirm' | 'batch-delete-confirm' | 'add-card' | 'edit-card' | 'delete-card-confirm'
       selectedTx: null,
       selectedCard: null,
@@ -197,11 +201,9 @@ export class KredoController {
         this.state.sheetTransactions = sheetRes.transactions;
         this.state.lastSheetSync = sheetRes.lastSync;
       }
-      const activePool = this.state.dataSource === 'sheet' ? this.state.sheetTransactions : txs;
-      const months = getAvailableMonths(activePool);
-      if (months.length > 0) {
-        this.state.selectedMonth = months[0].key;
-      }
+      // Keep the initial scope at All Months so fresh Sheet rows cannot be
+      // silently hidden by the newest month from the Email-only stream.
+      this.state.selectedMonth = 'all';
     } catch (e) {
       console.warn('Kredo store init error:', e);
     } finally {
@@ -1035,10 +1037,16 @@ export class KredoController {
 
     // DEDICATED GOOGLE SHEET REAL-TIME TAB
     if (activeTab === 'sheet') {
-      const sheetTxs = this.state.sheetTransactions || [];
+      // The Sheet workspace must consume the same decorated source used by
+      // Ledger and Insights; rendering the raw poll result caused approvals
+      // and merchant-memory tags to appear to revert after tab changes.
+      const sheetTxs = attachAnnotationsToTransactions(
+        decorateTransactionsWithApprovals(this.state.sheetTransactions || [])
+      );
       const totalInflow = sheetTxs.filter(t => t.type === 'credit').reduce((s, t) => s + (t.amount || 0), 0);
       const totalOutflow = sheetTxs.filter(t => t.type === 'debit').reduce((s, t) => s + (t.amount || 0), 0);
       const netSheetFlow = totalInflow - totalOutflow;
+      const pendingApprovalSyncCount = sheetTxs.filter(tx => tx.isApproved && tx.approvalSyncState === 'pending').length;
       let lastSyncStr = 'Pending';
       if (this.state.lastSheetSync) {
         try {
@@ -1065,7 +1073,7 @@ export class KredoController {
                   <span class="material-symbols-outlined text-[24px]" style="color: #0f9d58;">table_chart</span> Google Sheet Live Stream
                 </h2>
                 <p style="font-size: 12.5px; color: var(--kredo-outline); margin: 0;">
-                  Real-time direct read from your Google Sheet ledger. Changes in Google Sheets reflect automatically.
+                  Fresh reads plus durable approval write-back. New rows, flags, approvals, and merchant tags stay consistent across every view.
                 </p>
               </div>
 
@@ -1088,7 +1096,11 @@ export class KredoController {
                 <strong>Records in sheet:</strong> <span style="font-family: var(--kredo-mono); color: var(--kredo-secondary); font-weight: 700;">${sheetTxs.length}</span>
               </div>
               <div>
-                <strong>Mode:</strong> <span style="color: #0000ff; font-weight: 700;">Zero-Leak Isolated Stream</span>
+                <strong>Approval mirror:</strong>
+                <span style="color: ${pendingApprovalSyncCount ? '#b45309' : '#0f9d58'}; font-weight: 700; display:inline-flex; align-items:center; gap:4px;">
+                  <span class="material-symbols-outlined text-[13px]">${pendingApprovalSyncCount ? 'cloud_upload' : 'cloud_done'}</span>
+                  ${pendingApprovalSyncCount ? `${pendingApprovalSyncCount} pending` : 'Up to date'}
+                </span>
               </div>
             </div>
           </div>
@@ -1160,6 +1172,7 @@ export class KredoController {
                       <th style="min-width: 90px;">Status</th>
                       <th style="min-width: 120px;">Review Flag</th>
                       <th style="min-width: 140px;">Review Reason</th>
+                      <th style="min-width: 120px;">Merchant Tag</th>
                       <th style="min-width: 140px;">Linked Bill ID</th>
                       <th style="min-width: 80px;">Currency</th>
                       <th style="min-width: 90px;">Confidence</th>
@@ -1259,7 +1272,16 @@ export class KredoController {
                             `}
                           </td>
                           <td>
-                            ${isFlagged ? `
+                            ${finStatus.isApproved ? `
+                              <span class="kredo-status-pill approved" title="Persisted approval">
+                                <span class="material-symbols-outlined text-[10px]">verified</span> Approved
+                              </span>
+                              ${tx.approvalSyncState === 'pending' ? `
+                                <span class="kredo-sync-pending-pill" title="Approved in KREDO; Google Sheet mirror pending">
+                                  <span class="material-symbols-outlined text-[10px]">cloud_upload</span> Sheet pending
+                                </span>
+                              ` : ''}
+                            ` : isFlagged ? `
                               <span class="kredo-review-badge">
                                 <span class="material-symbols-outlined text-[12px]">flag</span> ${rFlag}
                               </span>
@@ -4365,16 +4387,18 @@ export class KredoController {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const source = btn.dataset.source;
-        if (source && (source === 'kredo' || source === 'sheet')) {
+        if (source && (source === 'kredo' || source === 'sheet' || source === 'unified')) {
           this.state.dataSource = source;
-          const pool = source === 'sheet' ? this.state.sheetTransactions : this.state.transactions;
+          const pool = source === 'sheet'
+            ? this.state.sheetTransactions
+            : (source === 'unified' ? [...this.state.transactions, ...this.state.sheetTransactions] : this.state.transactions);
           const months = getAvailableMonths(pool);
           if (months.length > 0 && !months.some(m => m.key === this.state.selectedMonth)) {
             this.state.selectedMonth = 'all';
           }
           this.state.selectedTxIds.clear();
           this.render();
-          this.showToast(source === 'sheet' ? 'Switched to Google Sheet isolated stream' : 'Switched to Kredo Email isolated vault');
+          this.showToast(source === 'sheet' ? 'Switched to Google Sheet isolated stream' : (source === 'unified' ? 'Switched to unified reconciled stream' : 'Switched to Kredo Email isolated vault'));
         }
       });
     });
@@ -4828,7 +4852,18 @@ export class KredoController {
         const txId = btn.dataset.quickApprove || btn.dataset.modalApproveTx;
         if (!txId) return;
 
-        setSheetApproval(txId, true, 'Approved & Synced to Insights');
+        const tx = this.state.sheetTransactions.find(t => t.id === txId)
+          || this.state.transactions.find(t => t.id === txId)
+          || filteredTxs.find(t => t.id === txId)
+          || (this.state.selectedTx?.id === txId ? this.state.selectedTx : null);
+        if (!tx) return;
+
+        // Store every stable identity (app ID, transaction ID and reference ID)
+        // before attempting the remote write so reload/navigation is lossless.
+        const isSheetTransaction = tx.isGoogleSheet || String(tx.source || '').toLowerCase().includes('sheet');
+        setSheetApproval(tx, true, 'Approved in Memoir KREDO', {
+          sheetSyncStatus: isSheetTransaction ? 'pending' : 'local',
+        });
 
         // Update local memory
         const updateInList = (list) => list.map(t => {
@@ -4862,8 +4897,29 @@ export class KredoController {
           });
         }
 
-        this.showToast('Transaction approved and synced to Insights!');
+        this.showToast(tx.isGoogleSheet ? 'Approved in KREDO — syncing to Google Sheet…' : 'Transaction approved and synced to Insights!');
         this.render();
+
+        if (isSheetTransaction) {
+          this.state.approvalSyncingIds.add(txId);
+          const syncResult = await syncGoogleSheetApproval(tx, true, 'Approved in Memoir KREDO');
+          this.state.approvalSyncingIds.delete(txId);
+          if (syncResult.success) {
+            setSheetApprovalSyncState(tx, 'synced');
+            this.state.approvalSyncErrors.delete(txId);
+            const refreshed = await fetchGoogleSheetTransactions(true);
+            if (refreshed.success) {
+              this.state.sheetTransactions = refreshed.transactions;
+              this.state.lastSheetSync = refreshed.lastSync;
+            }
+            this.showToast('Approved in KREDO and written to Google Sheet');
+          } else {
+            setSheetApprovalSyncState(tx, 'pending', syncResult.error || 'Write-back pending');
+            this.state.approvalSyncErrors.set(txId, syncResult.error || 'Write-back pending');
+            this.showToast('Approved in KREDO. Google Sheet write-back is pending.');
+          }
+          this.render();
+        }
       });
     });
 
@@ -4872,7 +4928,17 @@ export class KredoController {
       const selectedIds = Array.from(this.state.selectedTxIds);
       if (selectedIds.length === 0) return;
 
-      batchSetSheetApprovals(selectedIds, true);
+      const selectedTransactions = selectedIds.map(id =>
+        this.state.sheetTransactions.find(t => t.id === id)
+        || this.state.transactions.find(t => t.id === id)
+        || filteredTxs.find(t => t.id === id)
+      ).filter(Boolean);
+      batchSetSheetApprovals(selectedTransactions, true);
+      selectedTransactions.forEach(tx => {
+        if (tx.isGoogleSheet || String(tx.source || '').toLowerCase().includes('sheet')) {
+          setSheetApprovalSyncState(tx, 'pending');
+        }
+      });
 
       const updateInList = (list) => list.map(t => {
         if (selectedIds.includes(t.id)) {
@@ -4889,9 +4955,32 @@ export class KredoController {
       this.state.transactions = updateInList(this.state.transactions);
       this.state.sheetTransactions = updateInList(this.state.sheetTransactions);
 
+      const selectedSheetTransactions = selectedTransactions.filter(tx => tx.isGoogleSheet || String(tx.source || '').toLowerCase().includes('sheet'));
       this.clearSelection();
-      this.showToast(`Approved ${selectedIds.length} transactions and synced to Insights!`);
+      this.showToast(`Approved ${selectedIds.length} transactions in KREDO${selectedSheetTransactions.length ? ' — syncing Sheet rows…' : ''}`);
       this.render();
+
+      if (selectedSheetTransactions.length) {
+        const syncResults = await Promise.all(selectedSheetTransactions.map(tx =>
+          syncGoogleSheetApproval(tx, true, 'Batch approved in Memoir KREDO')
+        ));
+        const syncedCount = syncResults.filter(result => result.success).length;
+        syncResults.forEach((result, index) => {
+          const tx = selectedSheetTransactions[index];
+          setSheetApprovalSyncState(tx, result.success ? 'synced' : 'pending', result.error || '');
+        });
+        if (syncedCount > 0) {
+          const refreshed = await fetchGoogleSheetTransactions(true);
+          if (refreshed.success) {
+            this.state.sheetTransactions = refreshed.transactions;
+            this.state.lastSheetSync = refreshed.lastSync;
+          }
+        }
+        this.showToast(syncedCount === selectedSheetTransactions.length
+          ? `Wrote ${syncedCount} approval${syncedCount === 1 ? '' : 's'} to Google Sheet`
+          : `Approved locally; ${selectedSheetTransactions.length - syncedCount} Sheet write-back${selectedSheetTransactions.length - syncedCount === 1 ? '' : 's'} pending`);
+        this.render();
+      }
     });
 
     // Reconciliation Compare Side-by-Side

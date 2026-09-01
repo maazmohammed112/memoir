@@ -24,6 +24,8 @@ import {
   getSheetApprovals,
   setSheetApproval,
   batchSetSheetApprovals,
+  decorateTransactionsWithApprovals,
+  setSheetApprovalSyncState,
   RECONCILIATION_DATE_THRESHOLD,
   UNDO_WINDOW_SECONDS,
 } from '../src/kredo/kredoReconciliation.js';
@@ -41,6 +43,13 @@ import {
   resolveFinancialStatus,
   filterTransactions,
 } from '../src/kredo/kredoAnalytics.js';
+
+import {
+  buildGoogleSheetQueryUrl,
+  fetchGoogleSheetTransactions,
+  syncGoogleSheetApproval,
+} from '../src/kredo/kredoSheetService.js';
+import kredoSheetHandler from '../api/kredo-sheet.js';
 
 console.log('🧪 Running KREDO Smart Reconciliation & Annotation Suite...\n');
 
@@ -163,11 +172,39 @@ assert.equal(initialStatus.isFlagged, true);
 assert.notEqual(initialStatus.tier, 'approved');
 
 // User marks as Approved & verified
-setSheetApproval('sheet_tx_unapproved', true, 'Approved & Synced to Insights');
+setSheetApproval({
+  ...unapprovedSheetTx,
+  transactionId: 'SHEET-TX-RELOAD-001',
+  referenceId: 'SHEET-REF-RELOAD-001',
+}, true, 'Approved & Synced to Insights');
 
 const approvals = getSheetApprovals();
 assert.ok(approvals['sheet_tx_unapproved']);
 assert.equal(approvals['sheet_tx_unapproved'].approved, true);
+assert.equal(approvals['SHEET-TX-RELOAD-001'].approved, true);
+assert.equal(approvals['SHEET-REF-RELOAD-001'].approved, true);
+
+const decoratedAfterReload = decorateTransactionsWithApprovals([{
+  ...unapprovedSheetTx,
+  id: 'sheet_tx_rehydrated_id',
+  transactionId: 'SHEET-TX-RELOAD-001',
+  referenceId: 'SHEET-REF-RELOAD-001',
+}]);
+assert.equal(decoratedAfterReload[0].isApproved, true, 'Approval must survive a fresh Sheet row object after reload');
+assert.equal(decoratedAfterReload[0].reviewFlag, 'Approved', 'Reloaded Sheet row must not fall back to amber');
+setSheetApprovalSyncState({
+  id: 'sheet_tx_rehydrated_id',
+  transactionId: 'SHEET-TX-RELOAD-001',
+  referenceId: 'SHEET-REF-RELOAD-001',
+}, 'pending', 'Awaiting remote deployment');
+const decoratedPendingSync = decorateTransactionsWithApprovals([{
+  ...unapprovedSheetTx,
+  id: 'sheet_tx_rehydrated_id',
+  transactionId: 'SHEET-TX-RELOAD-001',
+  referenceId: 'SHEET-REF-RELOAD-001',
+}]);
+assert.equal(decoratedPendingSync[0].approvalSyncState, 'pending');
+assert.equal(decoratedPendingSync[0].approvalSyncError, 'Awaiting remote deployment');
 
 const approvedSheetTx = {
   ...unapprovedSheetTx,
@@ -197,6 +234,90 @@ const flaggedFiltered = filterTransactions(testPool, { reviewFlag: 'flagged' });
 assert.equal(flaggedFiltered.length, 1);
 assert.equal(flaggedFiltered[0].id, 'tx_flagged');
 console.log('✓ Insights review & approval filter passed: strictly isolates approved transactions.');
+
+// Fresh GViz reads must be cache-busted, complete, newest-first, and write-back aware
+const urlA = buildGoogleSheetQueryUrl(1001);
+const urlB = buildGoogleSheetQueryUrl(1002);
+assert.notEqual(urlA, urlB);
+assert.ok(urlA.includes('sheet=Transactions'));
+assert.ok(urlA.includes('headers=1'));
+
+const originalFetch = globalThis.fetch;
+let capturedSheetUrl = '';
+const cols = ['Date', 'Time', 'Type', 'Amount', 'Category', 'Payment Method', 'Merchant', 'Account', 'Source', 'Raw Message', 'Transaction ID']
+  .map((label, index) => ({ id: String.fromCharCode(65 + index), label, type: 'string' }));
+const gvizPayload = {
+  status: 'ok',
+  table: {
+    cols,
+    rows: [
+      { c: [{ v: 'Date(2026,7,31)', f: '31-08-2026' }, { v: '23:21:03' }, { v: 'Debit' }, { v: 126 }, { v: 'Food' }, { v: 'Credit Card' }, { v: 'Axis Card' }, null, { v: 'Manual Entry' }, { v: 'old' }, { v: 'old-row' }] },
+      { c: [{ v: 'Date(2026,8,1)', f: '01-09-2026' }, { v: '12:05:37' }, { v: 'Debit' }, { v: 30 }, { v: 'Other' }, { v: 'Credit Card UPI' }, { v: 'Kandhan' }, null, { v: 'iPhone SMS' }, { v: 'today' }, { v: 'today-row' }] },
+    ],
+  },
+};
+globalThis.fetch = async url => {
+  capturedSheetUrl = String(url);
+  return new Response(`google.visualization.Query.setResponse(${JSON.stringify(gvizPayload)});`, { status: 200 });
+};
+const liveResult = await fetchGoogleSheetTransactions(true);
+assert.equal(liveResult.success, true);
+assert.equal(liveResult.rowCount, 2);
+assert.equal(liveResult.transactions[0].transactionId, 'today-row');
+assert.equal(liveResult.latestTransactionDate, '2026-09-01');
+assert.ok(capturedSheetUrl.includes('reqId'));
+assert.ok(capturedSheetUrl.includes('_='));
+
+let writebackBody = null;
+globalThis.fetch = async (_url, options) => {
+  writebackBody = JSON.parse(options.body);
+  return new Response(JSON.stringify({ success: true, updated: true, updatedRows: 1 }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+const writebackResult = await syncGoogleSheetApproval(liveResult.transactions[0], true, 'Approved in test');
+assert.equal(writebackResult.success, true);
+assert.equal(writebackBody.transactionId, 'today-row');
+assert.equal(writebackBody.reviewFlag, 'Approved');
+globalThis.fetch = originalFetch;
+console.log('✓ Fresh Sheet sync passed: cache-busted read includes today rows and ID-based approval write-back.');
+
+const originalWritebackUrl = process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL;
+delete process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL;
+const createMockResponse = () => ({
+  statusCode: 200,
+  body: null,
+  headers: {},
+  setHeader(name, value) { this.headers[name] = value; },
+  status(code) { this.statusCode = code; return this; },
+  json(payload) { this.body = payload; return this; },
+});
+const pendingResponse = createMockResponse();
+await kredoSheetHandler({
+  method: 'POST',
+  body: { action: 'updateReviewStatus', transactionId: 'today-row' },
+}, pendingResponse);
+assert.equal(pendingResponse.statusCode, 503);
+assert.equal(pendingResponse.body.pending, true);
+
+process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL = 'https://script.google.test/exec';
+globalThis.fetch = async (_url, options) => {
+  const body = JSON.parse(options.body);
+  assert.equal(body.transactionId, 'today-row');
+  return new Response(JSON.stringify({ success: true, action: 'updateReviewStatus', updated: true, updatedRows: 1 }), { status: 200 });
+};
+const syncedResponse = createMockResponse();
+await kredoSheetHandler({
+  method: 'POST',
+  body: { action: 'updateReviewStatus', transactionId: 'today-row', approved: true },
+}, syncedResponse);
+assert.equal(syncedResponse.statusCode, 200);
+assert.equal(syncedResponse.body.updatedRows, 1);
+globalThis.fetch = originalFetch;
+if (originalWritebackUrl === undefined) delete process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL;
+else process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL = originalWritebackUrl;
+console.log('✓ Approval API passed: unconfigured deployments fail safely and verified Apps Script updates succeed.');
 
 // ----------------------------------------------------------------------------
 // 6. SMART MERCHANT ANNOTATION & AUTO-MEMORY ENGINE

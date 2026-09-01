@@ -246,13 +246,16 @@ export function decorateTransactionsWithApprovals(transactions = []) {
         isApproved: true,
         reviewFlag: 'Approved',
         reviewReason: approvalData.notes || (tx.reviewFlag === 'Approved' && tx.reviewReason) || 'Verified & Approved',
+        approvedAt: approvalData.approvedAt || tx.approvedAt || null,
+        approvalSyncState: approvalData.sheetSyncStatus || tx.approvalSyncState || (tx.isGoogleSheet ? 'pending' : 'local'),
+        approvalSyncError: approvalData.sheetSyncError || '',
       };
     }
     return tx;
   });
 }
 
-export function setSheetApproval(txOrId, approved = true, notes = '') {
+export function setSheetApproval(txOrId, approved = true, notes = '', metadata = {}) {
   if (!txOrId) return;
   const current = getSheetApprovals();
   const now = Date.now();
@@ -260,6 +263,8 @@ export function setSheetApproval(txOrId, approved = true, notes = '') {
     approved: true,
     approvedAt: now,
     notes: notes || 'Verified and approved for Insights',
+    sheetSyncStatus: metadata.sheetSyncStatus || 'local',
+    sheetSyncError: metadata.sheetSyncError || '',
   };
 
   const id = typeof txOrId === 'object' ? txOrId.id : txOrId;
@@ -313,6 +318,31 @@ export function batchSetSheetApprovals(txsOrIds = [], approved = true) {
     localStorage.setItem(SHEET_APPROVALS_KEY, JSON.stringify(current));
   } catch (e) {
     console.warn('Failed to save batch sheet approvals:', e);
+  }
+  return current;
+}
+
+export function setSheetApprovalSyncState(txOrId, sheetSyncStatus, sheetSyncError = '') {
+  if (!txOrId || !sheetSyncStatus) return getSheetApprovals();
+  const current = getSheetApprovals();
+  const keys = typeof txOrId === 'object'
+    ? [txOrId.id, txOrId.referenceId, txOrId.transactionId].filter(Boolean)
+    : [txOrId];
+
+  keys.forEach(key => {
+    if (!current[key]) return;
+    current[key] = {
+      ...current[key],
+      sheetSyncStatus,
+      sheetSyncError: String(sheetSyncError || ''),
+      sheetSyncUpdatedAt: Date.now(),
+    };
+  });
+
+  try {
+    localStorage.setItem(SHEET_APPROVALS_KEY, JSON.stringify(current));
+  } catch (e) {
+    console.warn('Failed to save Sheet approval sync state:', e);
   }
   return current;
 }

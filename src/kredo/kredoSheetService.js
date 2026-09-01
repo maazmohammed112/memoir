@@ -7,10 +7,23 @@
 export const GOOGLE_SHEET_ID = '1wWqq4SBsNp4B1CDPFR-yo3VDyriDawrdM55TfoF3AG0';
 export const GOOGLE_SHEET_WEBAPP_DEPLOYMENT_ID = 'AKfycbyySoeJz7k9gwJN9_gM7zOS5Q73bSQmHEscWQR3dQD9y97i5infseMFDl23rZXYBdZoEg';
 export const GOOGLE_SHEET_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/edit?usp=sharing`;
-export const GVIZ_QUERY_ENDPOINT = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:json`;
+export const GVIZ_QUERY_ENDPOINT = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq`;
+export const KREDO_SHEET_SYNC_ENDPOINT = '/api/kredo-sheet';
 
 const CACHE_KEY = 'kredo_google_sheet_cache_v1';
 const LAST_SYNC_KEY = 'kredo_google_sheet_last_sync_v1';
+let sheetFetchInFlight = null;
+
+export function buildGoogleSheetQueryUrl(cacheBust = Date.now()) {
+  const params = new URLSearchParams({
+    tqx: `out:json;reqId:${cacheBust}`,
+    sheet: 'Transactions',
+    headers: '1',
+    tq: 'select *',
+    _: String(cacheBust),
+  });
+  return `${GVIZ_QUERY_ENDPOINT}?${params.toString()}`;
+}
 
 /**
  * Parses raw cell value safely
@@ -191,7 +204,8 @@ export function normalizeSheetRow(rowCells, index, colMap = null) {
   const date = normalizeSheetDate(rawDate);
   // Deterministic ID generation to ensure approvals and annotations persist across live fetches
   const cleanMerchantSlug = merchant.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'txn';
-  const id = rawTxId ? `sheet_tx_${rawTxId.trim()}` : (rawRefId ? `sheet_ref_${rawRefId.trim()}` : `sheet_row_${index}_${date}_${cleanAmountNum}_${cleanMerchantSlug}`);
+  const stableToken = value => String(value || '').trim().replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const id = rawTxId ? `sheet_tx_${stableToken(rawTxId)}` : (rawRefId ? `sheet_ref_${stableToken(rawRefId)}` : `sheet_row_${index}_${date}_${cleanAmountNum}_${cleanMerchantSlug}`);
 
   // Clean card last 4 (strictly digits, maximum 4 characters, never guessed)
   const cleanLast4 = rawLast4 ? String(rawLast4).replace(/\D/g, '').slice(-4) : '';
@@ -228,18 +242,38 @@ export function normalizeSheetRow(rowCells, index, colMap = null) {
     paymentApp: rawPaymentApp.trim(),
     cardNetwork: rawCardNetwork.trim(),
     isGoogleSheet: true,
+    sheetName: 'Transactions',
+    sheetRowNumber: index + 2,
     createdAt,
   };
+}
+
+function sortSheetTransactions(transactions = []) {
+  return [...transactions].sort((a, b) => {
+    const dateOrder = String(b?.date || '').localeCompare(String(a?.date || ''));
+    if (dateOrder !== 0) return dateOrder;
+    const createdOrder = Number(b?.createdAt || 0) - Number(a?.createdAt || 0);
+    if (createdOrder !== 0) return createdOrder;
+    return Number(b?.sheetRowNumber || 0) - Number(a?.sheetRowNumber || 0);
+  });
 }
 
 /**
  * Fetch real-time transactions from Google Sheets gviz query endpoint
  */
-export async function fetchGoogleSheetTransactions() {
-  try {
-    const res = await fetch(GVIZ_QUERY_ENDPOINT, {
+export async function fetchGoogleSheetTransactions(forceRefresh = false) {
+  if (!forceRefresh && sheetFetchInFlight) return sheetFetchInFlight;
+
+  const request = (async () => {
+    try {
+    const cacheBust = Date.now();
+    const res = await fetch(buildGoogleSheetQueryUrl(cacheBust), {
       method: 'GET',
-      headers: { 'Accept': 'application/json' },
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Cache-Control': 'no-cache, no-store, max-age=0',
+        'Pragma': 'no-cache',
+      },
       cache: 'no-store'
     });
 
@@ -265,7 +299,7 @@ export async function fetchGoogleSheetTransactions() {
     const rows = parsed.table.rows || [];
     const tableCols = parsed.table.cols || [];
     if (rows.length === 0) {
-      return { transactions: [], lastSync: new Date().toISOString() };
+      return { transactions: [], lastSync: new Date().toISOString(), rowCount: 0, success: true };
     }
 
     // Check if first row is header
@@ -290,19 +324,22 @@ export async function fetchGoogleSheetTransactions() {
       transactions.push(tx);
     }
 
+    const sortedTransactions = sortSheetTransactions(transactions);
+
     // Save cache and sync timestamp
     const nowIso = new Date().toISOString();
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(transactions));
+      localStorage.setItem(CACHE_KEY, JSON.stringify(sortedTransactions));
       localStorage.setItem(LAST_SYNC_KEY, nowIso);
     } catch (e) {
       console.warn('Failed to cache sheet transactions', e);
     }
 
     return {
-      transactions,
+      transactions: sortedTransactions,
       lastSync: nowIso,
-      rowCount: transactions.length,
+      rowCount: sortedTransactions.length,
+      latestTransactionDate: sortedTransactions[0]?.date || null,
       success: true
     };
   } catch (error) {
@@ -316,6 +353,51 @@ export async function fetchGoogleSheetTransactions() {
       isFallback: true,
       success: false
     };
+    }
+  })();
+
+  sheetFetchInFlight = request;
+  try {
+    return await request;
+  } finally {
+    if (sheetFetchInFlight === request) sheetFetchInFlight = null;
+  }
+}
+
+/**
+ * Writes approval state back to the Google Sheet by stable transaction identity.
+ * The server verifies the Apps Script response before this is considered synced.
+ */
+export async function syncGoogleSheetApproval(transaction, approved = true, notes = '') {
+  if (!transaction || (!transaction.transactionId && !transaction.referenceId && !transaction.id)) {
+    return { success: false, error: 'Transaction identity is missing' };
+  }
+
+  try {
+    const response = await fetch(KREDO_SHEET_SYNC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({
+        action: 'updateReviewStatus',
+        spreadsheetId: GOOGLE_SHEET_ID,
+        sheetName: 'Transactions',
+        transactionId: transaction.transactionId || '',
+        referenceId: transaction.referenceId || '',
+        appTransactionId: transaction.id || '',
+        approved: Boolean(approved),
+        reviewFlag: approved ? 'Approved' : 'Yes',
+        reviewReason: notes || (approved ? 'Approved in Memoir KREDO' : 'Approval removed in Memoir KREDO'),
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success !== true) {
+      throw new Error(payload.error || `Sheet write-back failed (${response.status})`);
+    }
+    return payload;
+  } catch (error) {
+    return { success: false, error: error?.message || 'Sheet write-back failed' };
   }
 }
 
@@ -375,4 +457,3 @@ export function stopSheetRealtimePolling() {
     sheetPollingInterval = null;
   }
 }
-

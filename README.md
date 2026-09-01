@@ -179,6 +179,16 @@ Realtime Database is the primary cloud store for vault records, audio/document m
    npm run build
    ```
 
+### KREDO Google Sheet approval write-back
+
+KREDO always saves an approval locally first, keyed by app ID, Transaction ID, and Reference ID. This keeps the emerald approval state durable across navigation, polling, and reloads. To mirror approvals into `Transactions!S:T` in the live Google Sheet:
+
+1. Add [`scripts/kredo-google-apps-script-writeback.gs`](scripts/kredo-google-apps-script-writeback.gs) to the existing Smart Finance Apps Script project.
+2. Add the documented `tryHandleKredoWriteback_(e)` guard at the top of the existing `doPost(e)` and redeploy the web app.
+3. Set `KREDO_SHEET_APPROVAL_WEBAPP_URL` to that new `/exec` deployment URL locally and in Vercel.
+
+The server only accepts the allowlisted KREDO spreadsheet and stable transaction identities. It requires a verified `updatedRows` response before the UI reports that Google Sheet write-back succeeded; otherwise KREDO retains the local approval and reports the remote sync as pending.
+
 ---
 
 ## App-Closed Telegram Automation

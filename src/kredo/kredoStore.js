@@ -922,6 +922,7 @@ export {
   getSheetApprovals,
   setSheetApproval,
   batchSetSheetApprovals,
+  setSheetApprovalSyncState,
   RECONCILIATION_DATE_THRESHOLD,
   UNDO_WINDOW_SECONDS,
 } from './kredoReconciliation.js';
@@ -933,4 +934,3 @@ export {
   resolveTransactionAnnotation,
   attachAnnotationsToTransactions,
 } from './kredoAnnotations.js';
-
