@@ -188,8 +188,10 @@ export function normalizeSheetRow(rowCells, index, colMap = null) {
   const type = isCredit ? 'credit' : 'debit';
   const time = formatTimeTo12Hour(rawTime);
   const merchant = rawMerchant.trim() || 'Transaction';
-  const id = rawTxId ? `sheet_tx_${rawTxId}` : `sheet_row_${index}_${Date.now()}`;
   const date = normalizeSheetDate(rawDate);
+  // Deterministic ID generation to ensure approvals and annotations persist across live fetches
+  const cleanMerchantSlug = merchant.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'txn';
+  const id = rawTxId ? `sheet_tx_${rawTxId.trim()}` : (rawRefId ? `sheet_ref_${rawRefId.trim()}` : `sheet_row_${index}_${date}_${cleanAmountNum}_${cleanMerchantSlug}`);
 
   // Clean card last 4 (strictly digits, maximum 4 characters, never guessed)
   const cleanLast4 = rawLast4 ? String(rawLast4).replace(/\D/g, '').slice(-4) : '';

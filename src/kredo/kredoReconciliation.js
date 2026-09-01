@@ -215,18 +215,67 @@ export function getSheetApprovals() {
   }
 }
 
-export function setSheetApproval(txId, approved = true, notes = '') {
-  if (!txId) return;
+/**
+ * Checks if a transaction is approved across all possible keys/flags
+ */
+export function isTxApproved(tx, approvals = null) {
+  if (!tx) return false;
+  if (tx.isApproved === true) return true;
+  const flag = String(tx.reviewFlag || '').trim().toLowerCase();
+  const stat = String(tx.status || '').trim().toLowerCase();
+  if (flag === 'approved' || flag === 'verified' || stat === 'approved' || stat === 'verified') return true;
+
+  const current = approvals || getSheetApprovals();
+  if (tx.id && current[tx.id] && current[tx.id].approved) return true;
+  if (tx.referenceId && current[tx.referenceId] && current[tx.referenceId].approved) return true;
+  if (tx.transactionId && current[tx.transactionId] && current[tx.transactionId].approved) return true;
+  return false;
+}
+
+/**
+ * Decorates a list of transactions with persistent approval states
+ */
+export function decorateTransactionsWithApprovals(transactions = []) {
+  const currentApprovals = getSheetApprovals();
+  return transactions.map(tx => {
+    if (!tx) return tx;
+    if (isTxApproved(tx, currentApprovals)) {
+      const approvalData = currentApprovals[tx.id] || (tx.referenceId && currentApprovals[tx.referenceId]) || (tx.transactionId && currentApprovals[tx.transactionId]) || {};
+      return {
+        ...tx,
+        isApproved: true,
+        reviewFlag: 'Approved',
+        reviewReason: approvalData.notes || (tx.reviewFlag === 'Approved' && tx.reviewReason) || 'Verified & Approved',
+      };
+    }
+    return tx;
+  });
+}
+
+export function setSheetApproval(txOrId, approved = true, notes = '') {
+  if (!txOrId) return;
   const current = getSheetApprovals();
+  const now = Date.now();
+  const approvalPayload = {
+    approved: true,
+    approvedAt: now,
+    notes: notes || 'Verified and approved for Insights',
+  };
+
+  const id = typeof txOrId === 'object' ? txOrId.id : txOrId;
+  const refId = typeof txOrId === 'object' ? txOrId.referenceId : null;
+  const txnId = typeof txOrId === 'object' ? txOrId.transactionId : null;
+
   if (approved) {
-    current[txId] = {
-      approved: true,
-      approvedAt: Date.now(),
-      notes: notes || 'Verified and approved for Insights',
-    };
+    if (id) current[id] = approvalPayload;
+    if (refId) current[refId] = approvalPayload;
+    if (txnId) current[txnId] = approvalPayload;
   } else {
-    delete current[txId];
+    if (id) delete current[id];
+    if (refId) delete current[refId];
+    if (txnId) delete current[txnId];
   }
+
   try {
     localStorage.setItem(SHEET_APPROVALS_KEY, JSON.stringify(current));
   } catch (e) {
@@ -235,20 +284,31 @@ export function setSheetApproval(txId, approved = true, notes = '') {
   return current;
 }
 
-export function batchSetSheetApprovals(txIds = [], approved = true) {
+export function batchSetSheetApprovals(txsOrIds = [], approved = true) {
   const current = getSheetApprovals();
   const now = Date.now();
-  txIds.forEach(id => {
+  const approvalPayload = {
+    approved: true,
+    approvedAt: now,
+    notes: 'Batch verified and approved for Insights',
+  };
+
+  txsOrIds.forEach(item => {
+    const id = typeof item === 'object' ? item.id : item;
+    const refId = typeof item === 'object' ? item.referenceId : null;
+    const txnId = typeof item === 'object' ? item.transactionId : null;
+
     if (approved) {
-      current[id] = {
-        approved: true,
-        approvedAt: now,
-        notes: 'Batch verified and approved for Insights',
-      };
+      if (id) current[id] = approvalPayload;
+      if (refId) current[refId] = approvalPayload;
+      if (txnId) current[txnId] = approvalPayload;
     } else {
-      delete current[id];
+      if (id) delete current[id];
+      if (refId) delete current[refId];
+      if (txnId) delete current[txnId];
     }
   });
+
   try {
     localStorage.setItem(SHEET_APPROVALS_KEY, JSON.stringify(current));
   } catch (e) {
@@ -428,19 +488,9 @@ export function buildUnifiedReconciledTransactionList(emailTransactions = [], sh
   const unmergedEmail = emailTransactions.filter(tx => !mergedEmailIds.has(tx.id));
 
   // Unmerged sheet records decorated with approval status if approved
-  const unmergedSheet = sheetTransactions
-    .filter(tx => !mergedSheetIds.has(tx.id))
-    .map(tx => {
-      if (sheetApprovals[tx.id] && sheetApprovals[tx.id].approved) {
-        return {
-          ...tx,
-          isApproved: true,
-          reviewFlag: 'Approved',
-          reviewReason: sheetApprovals[tx.id].notes || 'Verified & Approved',
-        };
-      }
-      return tx;
-    });
+  const unmergedSheet = decorateTransactionsWithApprovals(
+    sheetTransactions.filter(tx => !mergedSheetIds.has(tx.id))
+  );
 
   return [...unifiedRecords, ...unmergedEmail, ...unmergedSheet].sort((a, b) => {
     const timeA = a.createdAt || Date.parse(`${a.date}T${a.time || '00:00:00'}`) || 0;

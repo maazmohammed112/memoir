@@ -670,7 +670,9 @@ export function computeKredoAnalytics(allTransactions = [], filteredTransactions
   const periodVelocityMap = {};
   const dailyMap = {};
 
+  const approvedItems = [];
   const flaggedItems = [];
+  const clearItems = [];
   const linkedBillItems = [];
 
   for (const tx of filteredTransactions) {
@@ -681,11 +683,17 @@ export function computeKredoAnalytics(allTransactions = [], filteredTransactions
     const isToday = d.getFullYear() === currentYear && d.getMonth() === currentMonth && d.getDate() === now.getDate();
     const dateKey = tx.date || d.toISOString().slice(0, 10);
 
-    // Track review flags
+    // Track review flags & approvals
     const rFlag = String(tx.reviewFlag || '').toLowerCase();
-    const isFlagged = Boolean(rFlag && rFlag !== 'no' && rFlag !== 'false' && rFlag !== 'clear' && rFlag !== 'verified');
-    if (isFlagged) {
+    const isApproved = Boolean(tx.isApproved || rFlag === 'approved' || rFlag === 'verified' || tx.status?.toLowerCase() === 'approved');
+    const isFlagged = !isApproved && Boolean(rFlag && rFlag !== 'no' && rFlag !== 'false' && rFlag !== 'clear' && rFlag !== 'verified' && rFlag !== 'approved' && rFlag !== 'none');
+    
+    if (isApproved) {
+      approvedItems.push(tx);
+    } else if (isFlagged) {
       flaggedItems.push(tx);
+    } else {
+      clearItems.push(tx);
     }
 
     // Track linked bills
@@ -899,11 +907,21 @@ export function computeKredoAnalytics(allTransactions = [], filteredTransactions
     percentage: Math.round((data.amount / (totalDebits || 1)) * 100),
   })).sort((a, b) => b.amount - a.amount);
 
-  // Review Flag stats
+  // Review Flag & Approval stats
+  const flaggedAmount = flaggedItems.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const approvedAmount = approvedItems.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const clearAmount = clearItems.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
   const reviewFlagStats = {
     totalFlagged: flaggedItems.length,
-    flaggedAmount: flaggedItems.reduce((sum, t) => sum + (t.amount || 0), 0),
+    flaggedAmount,
     flaggedItems,
+    totalApproved: approvedItems.length,
+    approvedAmount,
+    approvedItems,
+    totalClear: clearItems.length,
+    clearAmount,
+    clearItems,
   };
 
   // Linked Bill stats
@@ -952,6 +970,12 @@ export function computeKredoAnalytics(allTransactions = [], filteredTransactions
     projectedMonthEnd,
     debitsCount,
     creditsCount,
+    approvedCount: approvedItems.length,
+    approvedAmount,
+    flaggedCount: flaggedItems.length,
+    flaggedAmount,
+    clearCount: clearItems.length,
+    clearAmount,
     highestPaymentPeriod,
     highestPaymentToday,
     peakDay,

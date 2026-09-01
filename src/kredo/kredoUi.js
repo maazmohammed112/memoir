@@ -54,11 +54,14 @@ import {
   getUndoRemainingSeconds,
   formatRemainingTime,
   dismissMatch,
+  getDismissedMatches,
   getReconciliationStore,
   buildUnifiedReconciledTransactionList,
   getSheetApprovals,
   setSheetApproval,
   batchSetSheetApprovals,
+  decorateTransactionsWithApprovals,
+  isTxApproved,
 } from './kredoReconciliation.js';
 
 import {
@@ -526,20 +529,10 @@ export class KredoController {
       dataSource, // 'kredo' | 'sheet' | 'unified'
     } = this.state;
 
-    // Decorate Email and Google Sheet transactions with merchant auto-annotations and approvals
+    // Decorate Email and Google Sheet transactions with merchant auto-annotations and persistent approvals
     const sheetApprovals = getSheetApprovals();
-    const decoratedEmailTxs = attachAnnotationsToTransactions(transactions || []);
-    const decoratedSheetTxs = attachAnnotationsToTransactions((sheetTransactions || []).map(t => {
-      if (sheetApprovals[t.id] && sheetApprovals[t.id].approved) {
-        return {
-          ...t,
-          isApproved: true,
-          reviewFlag: 'Approved',
-          reviewReason: sheetApprovals[t.id].notes || 'Verified & Approved',
-        };
-      }
-      return t;
-    }));
+    const decoratedEmailTxs = attachAnnotationsToTransactions(decorateTransactionsWithApprovals(transactions || []));
+    const decoratedSheetTxs = attachAnnotationsToTransactions(decorateTransactionsWithApprovals(sheetTransactions || []));
 
     // Find pending reconciliation matches from Aug 31, 2026 onwards
     const pendingMatches = findPendingReconciliationMatches(decoratedEmailTxs, decoratedSheetTxs);
@@ -680,6 +673,10 @@ export class KredoController {
                 <button class="kredo-desktop-tab-btn ${activeTab === 'sheet' ? 'active' : ''}" data-nav="sheet">
                   <span class="material-symbols-outlined text-[16px]">table_chart</span> Sheet
                 </button>
+                <button class="kredo-desktop-tab-btn ${activeTab === 'reconcile' ? 'active' : ''}" data-nav="reconcile" title="Smart Cross-Stream Reconciliation Agent">
+                  <span class="material-symbols-outlined text-[16px]">sync_alt</span> Reconcile
+                  ${pendingMatches && pendingMatches.length > 0 ? `<span class="kredo-nav-badge-pill">${pendingMatches.length}</span>` : ''}
+                </button>
                 <button class="kredo-desktop-tab-btn ${activeTab === 'insights' ? 'active' : ''}" data-nav="insights">
                   <span class="material-symbols-outlined text-[16px]">insights</span> Insights
                 </button>
@@ -698,7 +695,7 @@ export class KredoController {
             ${this.renderCanvasContent(analytics, hierarchicalWeeks, filteredTxs, availableMonths, isAllSelected, chartData, insightsAnalytics, availableCategories, availableMethods, insightsFilteredTxs, insightsPool, insightsAvailableCategories, insightsAvailableMethods, insightsAvailableBanks, insightsAvailableApps, insightsAvailableNetworks, insightsAvailableNatures, pendingMatches, mergedRecords, sheetApprovals)}
           </main>
 
-          <!-- Floating Bottom Navigation Pill Shell (Mobile Only - 4 Clean Tabs + Center Action Button) -->
+          <!-- Floating Bottom Navigation Pill Shell (Mobile Only - 5 Clean Tabs + Center Action Button) -->
           <nav class="kredo-bottom-nav">
             <div class="kredo-bottom-nav-pill">
               <button class="kredo-nav-item ${activeTab === 'ledger' ? 'active' : ''}" data-nav="ledger" title="Ledger Feed">
@@ -715,6 +712,9 @@ export class KredoController {
 
               <button class="kredo-nav-item ${activeTab === 'sheet' ? 'active' : ''}" data-nav="sheet" title="Live Google Sheet">
                 <span class="material-symbols-outlined ${activeTab === 'sheet' ? 'fill' : ''}">table_chart</span>
+              </button>
+              <button class="kredo-nav-item ${activeTab === 'reconcile' ? 'active' : ''}" data-nav="reconcile" title="Reconcile Agent">
+                <span class="material-symbols-outlined ${activeTab === 'reconcile' ? 'fill' : ''}">sync_alt</span>
               </button>
               <button class="kredo-nav-item ${activeTab === 'insights' ? 'active' : ''}" data-nav="insights" title="Visual Analytics & Insights">
                 <span class="material-symbols-outlined ${activeTab === 'insights' ? 'fill' : ''}">insights</span>
@@ -1478,105 +1478,6 @@ export class KredoController {
               </div>
             </section>
 
-            <!-- SMART INTELLIGENCE RECONCILIATION AGENT & MERGE SECTION -->
-            ${pendingMatches && pendingMatches.length > 0 ? `
-              <div class="kredo-reconciliation-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
-                  <div>
-                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 3px;">
-                      <span class="material-symbols-outlined text-[18px]" style="color: #6366f1;">hub</span>
-                      <strong style="font-size: 14px; color: var(--kredo-secondary);">Smart Reconciliation Agent</strong>
-                      <span class="kredo-confidence-badge">${pendingMatches.length} Pending Match${pendingMatches.length === 1 ? '' : 'es'} (Aug 31+)</span>
-                    </div>
-                    <p style="font-size: 11.5px; color: var(--kredo-outline); margin: 0;">
-                      Identified cross-stream duplicate transactions between Email Vault and Google Sheet. Review and 1-click merge with a 5-minute reversible undo window.
-                    </p>
-                  </div>
-                </div>
-
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                  ${pendingMatches.slice(0, 3).map((match, idx) => `
-                    <div class="kredo-match-candidate-item">
-                      <div style="min-width: 0; flex: 1;">
-                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;">
-                          <strong style="font-size: 13px; color: var(--kredo-secondary);">${match.emailTx.merchant}</strong>
-                          <span style="font-size: 11px; font-family: var(--kredo-mono); font-weight: 700; color: var(--kredo-primary);">${formatINR(match.emailTx.amount)}</span>
-                          <span class="kredo-confidence-badge" style="font-size: 10px;">${match.confidence}% Confidence</span>
-                        </div>
-                        <div style="font-size: 11px; color: var(--kredo-outline); display: flex; gap: 6px; flex-wrap: wrap;">
-                          <span>Email (${match.emailTx.date})</span>
-                          <span>&bull;</span>
-                          <span>Sheet (${match.sheetTx.date})</span>
-                          ${match.reasons && match.reasons.length > 0 ? `<span>&bull; ${match.reasons[0]}</span>` : ''}
-                        </div>
-                      </div>
-
-                      <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                        <button type="button" class="kredo-btn-action" data-reconcile-compare="${idx}" style="font-size: 11px; padding: 5px 10px; background: #6366f1; color: #fff;">
-                          <span class="material-symbols-outlined text-[13px]">compare</span> Compare
-                        </button>
-                        <button type="button" class="kredo-btn-action secondary" data-quick-merge="${idx}" style="font-size: 11px; padding: 5px 10px;">
-                          <span class="material-symbols-outlined text-[13px]">merge</span> Merge
-                        </button>
-                        <button type="button" class="kredo-mini-btn" data-dismiss-match="${match.pairKey}" title="Dismiss match suggestion" style="width: 26px; height: 26px;">
-                          <span class="material-symbols-outlined text-[14px]">close</span>
-                        </button>
-                      </div>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            ` : ''}
-
-            <!-- RECENTLY MERGED & 5-MINUTE ACTIVE UNDO CARDS -->
-            ${mergedRecords && mergedRecords.length > 0 ? `
-              <div style="background: #ffffff; border: 1px solid var(--kredo-outline-variant); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: flex; align-items: center; gap: 4px;">
-                    <span class="material-symbols-outlined text-[14px]">history</span> Recently Merged Cross-Stream Records
-                  </span>
-                  <span style="font-size: 11px; color: var(--kredo-outline);">${mergedRecords.length} Merged Pair${mergedRecords.length === 1 ? '' : 's'}</span>
-                </div>
-
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                  ${mergedRecords.map(m => {
-                    const remainingSec = getUndoRemainingSeconds(m);
-                    const canUndo = remainingSec > 0;
-                    return `
-                      <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: var(--kredo-surface-container-low); border-radius: 8px; font-size: 12px; gap: 10px;">
-                        <div>
-                          <div style="display: flex; align-items: center; gap: 6px;">
-                            <span class="kredo-merged-badge-pill">Unified</span>
-                            <strong style="color: var(--kredo-secondary);">${m.unifiedTx.merchant}</strong>
-                            <span style="font-family: var(--kredo-mono); font-weight: 700;">${formatINR(m.unifiedTx.amount)}</span>
-                          </div>
-                          <div style="font-size: 10.5px; color: var(--kredo-outline); margin-top: 2px;">
-                            Merged Email (${m.emailTx?.date || '-'}) + Sheet (${m.sheetTx?.date || '-'})
-                          </div>
-                        </div>
-
-                        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                          ${canUndo ? `
-                            <span class="kredo-timer-pill-live" title="5-minute instant reversible unmerge active">
-                              <span class="kredo-timer-dot-pulse"></span> Undo: ${formatRemainingTime(remainingSec)}
-                            </span>
-                            <button type="button" class="kredo-unmerge-btn" data-unmerge="${m.mergeId}" title="Reversible unmerge back to original Email and Sheet rows">
-                              <span class="material-symbols-outlined text-[13px]">undo</span> Undo
-                            </button>
-                          ` : `
-                            <span class="kredo-undo-pill" style="opacity: 0.7;">Permanent</span>
-                            <button type="button" class="kredo-unmerge-btn" data-unmerge="${m.mergeId}" style="opacity: 0.85;" title="Unmerge pair">
-                              <span class="material-symbols-outlined text-[13px]">undo</span> Unmerge
-                            </button>
-                          `}
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-            ` : ''}
-
             <!-- Hierarchical Week & Day Ledger Cards -->
             <section class="kredo-hierarchical-ledger">
               ${hierarchicalWeeks && hierarchicalWeeks.length > 0 ? 
@@ -1688,6 +1589,256 @@ export class KredoController {
             </section>
 
           </div>
+
+        </div>
+      `;
+    }
+
+    // DEDICATED SMART RECONCILIATION AGENT WORKSPACE
+    if (activeTab === 'reconcile') {
+      const dismissedCount = getDismissedMatches().size;
+      return `
+        <div class="kredo-reconcile-workspace">
+          
+          <!-- Executive Reconciliation Header & Summary Metrics -->
+          <div class="kredo-reconcile-hero">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                  <span class="material-symbols-outlined text-[24px]" style="color: #6366f1;">sync_alt</span>
+                  <h2 style="font-size: 18px; font-weight: 800; margin: 0; color: var(--kredo-secondary);">Smart Reconciliation Agent</h2>
+                  <span class="kredo-confidence-badge" style="background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px;">
+                    Horizon: Aug 31, 2026+
+                  </span>
+                </div>
+                <p style="font-size: 12.5px; color: var(--kredo-outline); margin: 0; max-width: 650px; line-height: 1.4;">
+                  Continuous cross-stream duplicate detection between Email Vault and Live Google Sheet. Review matching evidence, execute 1-click unification, or reverse any merge with instant 5-minute rollback.
+                </p>
+              </div>
+
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" id="kredo-reconcile-refresh-btn" class="kredo-btn-action secondary" style="padding: 7px 14px; font-size: 12px;">
+                  <span class="material-symbols-outlined text-[15px]">refresh</span> Rescan Streams
+                </button>
+              </div>
+            </div>
+
+            <!-- 4 Telemetry Metric Cards -->
+            <div class="kredo-reconcile-stats-grid">
+              <div class="kredo-reconcile-stat-card">
+                <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--kredo-outline); letter-spacing: 0.5px;">Pending Candidate Matches</span>
+                <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: 4px;">
+                  <strong style="font-size: 22px; font-weight: 800; font-family: var(--kredo-mono); color: ${pendingMatches.length > 0 ? '#6366f1' : 'var(--kredo-green)'};">
+                    ${pendingMatches.length}
+                  </strong>
+                  <span style="font-size: 11px; font-weight: 600; color: var(--kredo-outline);">
+                    ${pendingMatches.length > 0 ? 'Requires Action' : 'All Clear'}
+                  </span>
+                </div>
+              </div>
+
+              <div class="kredo-reconcile-stat-card">
+                <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--kredo-outline); letter-spacing: 0.5px;">Unified Reconciled Records</span>
+                <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: 4px;">
+                  <strong style="font-size: 22px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-secondary);">
+                    ${mergedRecords.length}
+                  </strong>
+                  <span style="font-size: 11px; font-weight: 600; color: #2563eb;">
+                    ${mergedRecords.filter(m => getUndoRemainingSeconds(m) > 0).length} active undo
+                  </span>
+                </div>
+              </div>
+
+              <div class="kredo-reconcile-stat-card">
+                <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--kredo-outline); letter-spacing: 0.5px;">Dismissed Suggestions</span>
+                <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: 4px;">
+                  <strong style="font-size: 22px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-outline);">
+                    ${dismissedCount}
+                  </strong>
+                  <span style="font-size: 11px; color: var(--kredo-outline);">Independent pairs</span>
+                </div>
+              </div>
+
+              <div class="kredo-reconcile-stat-card">
+                <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--kredo-outline); letter-spacing: 0.5px;">Engine Confidence Rules</span>
+                <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: 4px;">
+                  <strong style="font-size: 14px; font-weight: 700; color: var(--kredo-primary);">
+                    6-Factor Scoring
+                  </strong>
+                  <span style="font-size: 11px; color: var(--kredo-green); font-weight: 600;">Deterministic</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 1: Candidate Duplicate Match Queue -->
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 4px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h3 style="font-size: 16px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Candidate Duplicate Match Queue</h3>
+                <span class="kredo-confidence-badge" style="background: ${pendingMatches.length > 0 ? '#eff6ff' : '#ecfdf5'}; color: ${pendingMatches.length > 0 ? '#1e40af' : '#047857'}; border-color: ${pendingMatches.length > 0 ? '#bfdbfe' : '#a7f3d0'};">
+                  ${pendingMatches.length} pending
+                </span>
+              </div>
+            </div>
+
+            ${pendingMatches && pendingMatches.length > 0 ? `
+              <div style="display: flex; flex-direction: column; gap: 14px;">
+                ${pendingMatches.map((match, idx) => `
+                  <div class="kredo-candidate-card-modular">
+                    <!-- Top Match Evidence Header -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--kredo-outline-variant);">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="material-symbols-outlined text-[18px]" style="color: #6366f1;">compare_arrows</span>
+                        <strong style="font-size: 14px; color: var(--kredo-secondary);">Match Suggestion #${idx + 1}</strong>
+                        <span class="kredo-confidence-badge" style="background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; font-size: 11px; font-weight: 800;">
+                          ${match.confidence}% Confidence
+                        </span>
+                      </div>
+                      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        ${(match.reasons || []).map(r => `
+                          <span style="font-size: 10.5px; font-weight: 600; background: var(--kredo-surface-container); border: 1px solid var(--kredo-outline-variant); padding: 2px 7px; border-radius: 5px; color: var(--kredo-secondary);">
+                            ✓ ${r}
+                          </span>
+                        `).join('')}
+                      </div>
+                    </div>
+
+                    <!-- Dual Stream Side-by-Side Comparison -->
+                    <div class="kredo-candidate-streams-row">
+                      <!-- Email Vault Candidate -->
+                      <div class="kredo-stream-panel email">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                          <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #2563eb; display: flex; align-items: center; gap: 4px;">
+                            <span class="material-symbols-outlined text-[13px]">mail</span> Email Vault Stream
+                          </span>
+                          <span style="font-size: 11px; font-weight: 600; color: var(--kredo-outline);">${match.emailTx.date} &bull; ${format12HourTime(match.emailTx.time) || match.emailTx.time || ''}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                          <strong style="font-size: 15px; color: var(--kredo-secondary);">${match.emailTx.merchant}</strong>
+                          <strong style="font-size: 16px; font-family: var(--kredo-mono); color: var(--kredo-primary);">${formatINR(match.emailTx.amount)}</strong>
+                        </div>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--kredo-outline);">
+                          <span>${match.emailTx.category || 'General'}</span>
+                          <span>&bull;</span>
+                          <span>${match.emailTx.paymentMethod || 'UPI'}</span>
+                          ${match.emailTx.bank ? `<span>&bull; ${match.emailTx.bank}</span>` : ''}
+                          ${match.emailTx.cardLast4 ? `<span>&bull; ••${match.emailTx.cardLast4}</span>` : ''}
+                          ${match.emailTx.referenceId ? `<span>&bull; Ref: ${match.emailTx.referenceId}</span>` : ''}
+                        </div>
+                      </div>
+
+                      <!-- Center Action Divider -->
+                      <div class="kredo-match-center-badge">
+                        <div style="width: 32px; height: 32px; border-radius: 50%; background: #e0e7ff; color: #4338ca; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">
+                          VS
+                        </div>
+                      </div>
+
+                      <!-- Google Sheet Candidate -->
+                      <div class="kredo-stream-panel sheet">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                          <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #0f9d58; display: flex; align-items: center; gap: 4px;">
+                            <span class="material-symbols-outlined text-[13px]">table_chart</span> Google Sheet Stream
+                          </span>
+                          <span style="font-size: 11px; font-weight: 600; color: var(--kredo-outline);">${match.sheetTx.date} &bull; ${format12HourTime(match.sheetTx.time) || match.sheetTx.time || ''}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                          <strong style="font-size: 15px; color: var(--kredo-secondary);">${match.sheetTx.merchant}</strong>
+                          <strong style="font-size: 16px; font-family: var(--kredo-mono); color: var(--kredo-primary);">${formatINR(match.sheetTx.amount)}</strong>
+                        </div>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--kredo-outline);">
+                          <span>${match.sheetTx.category || 'General'}</span>
+                          <span>&bull;</span>
+                          <span>${match.sheetTx.paymentMethod || 'UPI'}</span>
+                          ${match.sheetTx.bank ? `<span>&bull; ${match.sheetTx.bank}</span>` : ''}
+                          ${match.sheetTx.cardLast4 ? `<span>&bull; ••${match.sheetTx.cardLast4}</span>` : ''}
+                          ${match.sheetTx.referenceId ? `<span>&bull; Ref: ${match.sheetTx.referenceId}</span>` : ''}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Actions Toolbar -->
+                    <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding-top: 8px; border-top: 1px solid var(--kredo-outline-variant); flex-wrap: wrap;">
+                      <button type="button" class="kredo-btn-action secondary" data-dismiss-match="${match.pairKey}" style="padding: 7px 12px; font-size: 12px;">
+                        <span class="material-symbols-outlined text-[15px]">close</span> Dismiss
+                      </button>
+                      <button type="button" class="kredo-btn-action" data-reconcile-compare="${idx}" style="padding: 7px 14px; font-size: 12px; background: #4f46e5; color: #fff;">
+                        <span class="material-symbols-outlined text-[15px]">compare</span> Compare & Review
+                      </button>
+                      <button type="button" class="kredo-btn-action" data-quick-merge="${idx}" style="padding: 7px 16px; font-size: 12px; background: #6366f1; color: #fff;">
+                        <span class="material-symbols-outlined text-[15px]">merge</span> 1-Click Merge (Unified)
+                      </button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <div style="background: #ffffff; border: 1px dashed var(--kredo-outline-variant); border-radius: 14px; padding: 48px 24px; text-align: center; color: var(--kredo-outline);">
+                <span class="material-symbols-outlined text-[44px]" style="margin-bottom: 8px; display: block; color: #10b981;">sync_saved</span>
+                <h4 style="margin: 0 0 6px 0; color: var(--kredo-secondary); font-size: 16px; font-weight: 700;">All Streams Perfectly Reconciled</h4>
+                <p style="margin: 0 0 16px 0; font-size: 13px; max-width: 480px; margin-left: auto; margin-right: auto; line-height: 1.4;">
+                  No pending duplicate transaction pairs detected between Email Vault and Google Sheet from August 31, 2026 onwards.
+                </p>
+                <button type="button" class="kredo-btn-action" data-nav="ledger" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; font-size: 12.5px;">
+                  <span class="material-symbols-outlined text-[16px]">receipt_long</span> View Unified Ledger
+                </button>
+              </div>
+            `}
+          </div>
+
+          <!-- Section 2: Active Merged Unified Records & 5-Minute Undo Mechanism -->
+          ${mergedRecords && mergedRecords.length > 0 ? `
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 4px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span class="material-symbols-outlined text-[18px]" style="color: #2563eb;">history</span>
+                  <h3 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Active Unified Reconciled Records</h3>
+                  <span class="kredo-confidence-badge" style="background: #eff6ff; color: #1e40af; border-color: #bfdbfe;">
+                    ${mergedRecords.length} records
+                  </span>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                ${mergedRecords.map(m => {
+                  const remainingSec = getUndoRemainingSeconds(m);
+                  const canUndo = remainingSec > 0;
+                  return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #ffffff; border: 1px solid var(--kredo-outline-variant); border-radius: 12px; gap: 12px; flex-wrap: wrap;">
+                      <div>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                          <span class="kredo-merged-badge-pill" style="font-size: 10.5px; padding: 2px 7px;">Unified Record</span>
+                          <strong style="color: var(--kredo-secondary); font-size: 14px;">${m.unifiedTx.merchant}</strong>
+                          <strong style="font-family: var(--kredo-mono); color: var(--kredo-primary); font-size: 15px;">${formatINR(m.unifiedTx.amount)}</strong>
+                          <span style="font-size: 11px; color: var(--kredo-outline);">${m.unifiedTx.category} &bull; ${m.unifiedTx.date}</span>
+                        </div>
+                        <div style="font-size: 11px; color: var(--kredo-outline); margin-top: 4px;">
+                          Unified from Email (${m.emailTx?.date || '-'}) + Sheet (${m.sheetTx?.date || '-'}) &bull; Ref: ${m.unifiedTx.referenceId || m.unifiedTx.transactionId || 'Unified'}
+                        </div>
+                      </div>
+
+                      <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+                        ${canUndo ? `
+                          <span class="kredo-timer-pill-live" title="5-minute instant reversible unmerge active">
+                            <span class="kredo-timer-dot-pulse"></span> Undo: ${formatRemainingTime(remainingSec)}
+                          </span>
+                          <button type="button" class="kredo-unmerge-btn" data-unmerge="${m.mergeId}" title="Reversible unmerge back to original Email and Sheet rows">
+                            <span class="material-symbols-outlined text-[14px]">undo</span> Undo Merge
+                          </button>
+                        ` : `
+                          <span class="kredo-undo-pill" style="opacity: 0.7; font-size: 11px;">Permanent Reconciled</span>
+                          <button type="button" class="kredo-unmerge-btn" data-unmerge="${m.mergeId}" style="opacity: 0.85;" title="Unmerge pair">
+                            <span class="material-symbols-outlined text-[14px]">undo</span> Unmerge
+                          </button>
+                        `}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          ` : ''}
 
         </div>
       `;
@@ -1937,15 +2088,22 @@ export class KredoController {
               </span>
             </div>
 
-            <!-- Flagged Audit Alerts KPI -->
+            <!-- Flagged & Approved Audit Alerts KPI -->
             <div class="kredo-card" style="padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; border-left: 3.5px solid ${insAnalytics.reviewFlagStats?.totalFlagged > 0 ? '#f59e0b' : 'var(--kredo-green)'};">
               <div>
                 <span style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--kredo-outline); display: flex; align-items: center; gap: 3px;">
-                  <span class="material-symbols-outlined text-[13px]">flag</span> Audit Review
+                  <span class="material-symbols-outlined text-[13px]">verified_user</span> Audit Review
                 </span>
-                <strong style="font-size: 17px; font-weight: 800; font-family: var(--kredo-mono); color: ${insAnalytics.reviewFlagStats?.totalFlagged > 0 ? '#b45309' : 'var(--kredo-green)'}; display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                  ${insAnalytics.reviewFlagStats?.totalFlagged || 0} flagged
-                </strong>
+                <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 3px; flex-wrap: wrap;">
+                  <strong style="font-size: 16px; font-weight: 800; font-family: var(--kredo-mono); color: var(--kredo-green);">
+                    ${insAnalytics.reviewFlagStats?.totalApproved || 0} approved
+                  </strong>
+                  ${insAnalytics.reviewFlagStats?.totalFlagged > 0 ? `
+                    <span style="font-size: 12px; font-weight: 700; font-family: var(--kredo-mono); color: #b45309;">
+                      (${insAnalytics.reviewFlagStats?.totalFlagged} flagged)
+                    </span>
+                  ` : ''}
+                </div>
               </div>
               <span style="font-size: 10.5px; font-weight: 600; color: var(--kredo-outline); margin-top: 4px;">
                 ${insAnalytics.linkedBillStats?.totalLinkedCount || 0} bill linked txs
@@ -4785,6 +4943,12 @@ export class KredoController {
           this.render();
         }
       });
+    });
+
+    // Reconcile Rescan / Refresh Button
+    this.container.querySelector('#kredo-reconcile-refresh-btn')?.addEventListener('click', () => {
+      this.showToast('Rescanning streams for duplicate candidate matches...');
+      this.render();
     });
 
     // Reconcile Unmerge / Undo
