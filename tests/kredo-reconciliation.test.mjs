@@ -284,7 +284,9 @@ globalThis.fetch = originalFetch;
 console.log('✓ Fresh Sheet sync passed: cache-busted read includes today rows and ID-based approval write-back.');
 
 const originalWritebackUrl = process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL;
+const originalWritebackToken = process.env.KREDO_SHEET_WRITEBACK_TOKEN;
 delete process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL;
+delete process.env.KREDO_SHEET_WRITEBACK_TOKEN;
 const createMockResponse = () => ({
   statusCode: 200,
   body: null,
@@ -302,6 +304,7 @@ assert.equal(pendingResponse.statusCode, 503);
 assert.equal(pendingResponse.body.pending, true);
 
 process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL = 'https://script.google.test/exec';
+process.env.KREDO_SHEET_WRITEBACK_TOKEN = 'test-only-token';
 globalThis.fetch = async (_url, options) => {
   const body = JSON.parse(options.body);
   assert.equal(body.transactionId, 'today-row');
@@ -332,6 +335,8 @@ assert.equal(paidWriteback.paidVia, 'UPI');
 globalThis.fetch = originalFetch;
 if (originalWritebackUrl === undefined) delete process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL;
 else process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL = originalWritebackUrl;
+if (originalWritebackToken === undefined) delete process.env.KREDO_SHEET_WRITEBACK_TOKEN;
+else process.env.KREDO_SHEET_WRITEBACK_TOKEN = originalWritebackToken;
 console.log('✓ Approval API passed: unconfigured deployments fail safely and verified Apps Script updates succeed.');
 console.log('✓ Bill payment API passed: stable Bill ID, paid amount, and payment method reach Apps Script safely.');
 

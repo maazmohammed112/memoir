@@ -1,4 +1,5 @@
 const SHEET_ID = '1wWqq4SBsNp4B1CDPFR-yo3VDyriDawrdM55TfoF3AG0';
+const DEFAULT_WRITEBACK_URL = 'https://script.google.com/macros/s/AKfycbyySoeJz7k9gwJN9_gM7zOS5Q73bSQmHEscWQR3dQD9y97i5infseMFDl23rZXYBdZoEg/exec';
 
 function sendJson(res, status, payload) {
   res.setHeader('Cache-Control', 'no-store, no-cache, max-age=0, must-revalidate');
@@ -49,12 +50,14 @@ export default async function kredoSheetHandler(req, res) {
     return sendJson(res, 400, { success: false, error: 'A stable record identity is required' });
   }
 
-  const writebackUrl = process.env.KREDO_SHEET_WRITEBACK_WEBAPP_URL || process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL;
-  if (!writebackUrl) {
+  const writebackUrl = process.env.KREDO_SHEET_WRITEBACK_WEBAPP_URL || process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL || DEFAULT_WRITEBACK_URL;
+  const writebackToken = process.env.KREDO_SHEET_WRITEBACK_TOKEN;
+  if (!writebackToken) {
     return sendJson(res, 503, {
       success: false,
       pending: true,
-      error: 'KREDO Sheet write-back is not configured',
+      configurationError: true,
+      error: 'KREDO Sheet write-back token is not configured in the production server',
     });
   }
   const requestPayload = {
@@ -75,8 +78,7 @@ export default async function kredoSheetHandler(req, res) {
     source: 'Memoir KREDO',
     requestedAt: new Date().toISOString(),
   };
-  const writebackToken = process.env.KREDO_SHEET_WRITEBACK_TOKEN;
-  if (writebackToken) requestPayload.token = writebackToken;
+  requestPayload.token = writebackToken;
 
   try {
     const upstream = await fetch(writebackUrl, {

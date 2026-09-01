@@ -486,8 +486,8 @@ export function markGoogleSheetBillPaid(bill, paidAmount, paidVia = '') {
   });
 }
 
-export function updateGoogleSheetRecord(sheetName, recordId, updates) {
-  return syncGoogleSheetRecord({ action: 'updateRecord', sheetName, recordId, updates });
+export function updateGoogleSheetRecord(sheetName, recordId, updates, referenceId = '') {
+  return syncGoogleSheetRecord({ action: 'updateRecord', sheetName, recordId, referenceId, updates });
 }
 
 export function createGoogleSheetRule(fields) {

@@ -251,7 +251,7 @@ Headless automation reads the server-encrypted mirror, not browser IndexedDB. `F
 
 KREDO reads all six workbook tabs directly and writes approved, allowlisted changes through the server-only `/api/kredo-sheet` proxy. To activate production write-back:
 
-1. Replace the bound Apps Script project source with `Smart_Finance_Intelligence_v6_1_FlexibleBills.gs` and save it.
+1. Add `scripts/kredo-google-apps-script-writeback.gs` to the existing Smart Finance v6.2 project, then add its two-line hook at the top of the existing `doPost(e)` as documented in that file. Do not replace the newer parser.
 2. In Apps Script **Project Settings → Script Properties**, add `SECRET_TOKEN` with a new private random value.
 3. Deploy a new Web App version using **Execute as: Me** and the access level required by the existing iOS ingestion flow.
 4. Configure the deployed `/exec` URL as `KREDO_SHEET_WRITEBACK_WEBAPP_URL` in Vercel Production.

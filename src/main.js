@@ -4180,7 +4180,10 @@ async function runBackgroundAutomation() {
     if (navigator.onLine && !await vaultStore.ensureActiveSession()) return;
     await autoCompleteExpiredReminders(); await purgeExpiredNotifications();
     if (navigator.onLine) {
-      if (Date.now() - lastRuntimeMirror > 5 * 60000) { lastRuntimeMirror = Date.now(); vaultStore.mirrorSnapshot(); }
+      if (Date.now() - lastRuntimeMirror > 5 * 60000) {
+        lastRuntimeMirror = Date.now();
+        await vaultStore.flush();
+      }
       try { const token = await vaultStore.idToken(); if (token) await fetch('/api/reminders', { method: 'POST', headers: vaultStore.apiHeaders(token, false) }); } catch { /* the next interval retries */ }
       await applyTelegramActions();
     }

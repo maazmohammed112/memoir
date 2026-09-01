@@ -4613,7 +4613,7 @@ export class KredoController {
       const tx = this.state.sheetTransactions.find(item => item.id === event.currentTarget.dataset.transactionId) || this.state.selectedTx;
       const updates = {};
       event.currentTarget.querySelectorAll('[data-transaction-field]').forEach(input => { updates[input.dataset.transactionField] = input.value; });
-      const result = await updateGoogleSheetRecord('Transactions', tx?.transactionId || tx?.referenceId, updates);
+      const result = await updateGoogleSheetRecord('Transactions', tx?.transactionId || '', updates, tx?.referenceId || '');
       if (!result.success) return this.showToast('Transaction not written: ' + (result.error || 'Sheet write-back unavailable'));
       this.closeModal();
       await this.refreshSheetWorkbook('Transaction updated in Google Sheet');
