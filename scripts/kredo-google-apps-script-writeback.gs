@@ -21,9 +21,11 @@ function tryHandleKredoWriteback_(e) {
   try {
     // Reuse the existing v6.2 token so iPhone/Android ingestion is unchanged.
     // A Script Property can override it later without changing this code.
-    var expectedToken = PropertiesService.getScriptProperties().getProperty('SECRET_TOKEN') || (typeof SECRET_TOKEN !== 'undefined' ? SECRET_TOKEN : '');
-    if (!expectedToken) return kredoJson_({ success: false, error: 'SECRET_TOKEN is not configured' });
-    if (String(payload.token || '') !== expectedToken) return kredoJson_({ success: false, error: 'Unauthorized' });
+    var propertyToken = PropertiesService.getScriptProperties().getProperty('SECRET_TOKEN') || '';
+    var sourceToken = typeof SECRET_TOKEN !== 'undefined' ? String(SECRET_TOKEN || '') : '';
+    var suppliedToken = String(payload.token || '');
+    if (!propertyToken && !sourceToken) return kredoJson_({ success: false, error: 'SECRET_TOKEN is not configured' });
+    if (suppliedToken !== propertyToken && suppliedToken !== sourceToken) return kredoJson_({ success: false, error: 'Unauthorized' });
     var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     if (payload.spreadsheetId && String(payload.spreadsheetId) !== spreadsheet.getId()) return kredoJson_({ success: false, error: 'Spreadsheet is outside the KREDO allowlist' });
 
