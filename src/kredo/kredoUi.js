@@ -63,6 +63,7 @@ import {
   setSheetApprovalSyncState,
   decorateTransactionsWithApprovals,
   isTxApproved,
+  getUnverifiedFlaggedTransactions,
 } from './kredoReconciliation.js';
 
 import {
@@ -125,6 +126,25 @@ function getCategoryIcon(cat = '', type = 'debit') {
   }
 
   return `<span class="material-symbols-outlined text-[18px]">${icon}</span>`;
+}
+
+const KREDO_CATEGORY_SUGGESTIONS = [
+  'Food & Dining', 'Shopping', 'Groceries', 'Bills & Utilities', 'Travel',
+  'Healthcare', 'Income', 'Entertainment', 'Investment', 'Education',
+  'Housing', 'Insurance', 'Personal Care', 'Subscriptions', 'Taxes', 'Other',
+];
+
+const KREDO_PAYMENT_METHOD_SUGGESTIONS = [
+  'UPI', 'Credit Card', 'Debit Card', 'Net Banking', 'Bank Transfer', 'Cash',
+  'Wallet', 'Pay Later', 'Auto Debit', 'Cheque',
+];
+
+function escapeKredoAttribute(value = '') {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
 }
 
 export class KredoController {
@@ -241,6 +261,22 @@ export class KredoController {
     if (data.rules) this.state.sheetRules = data.rules;
     if (data.dashboard) this.state.sheetDashboard = data.dashboard;
     if (data.calcData) this.state.sheetCalcData = data.calcData;
+  }
+
+  getEditableSuggestions(defaults = [], current = '', field = '') {
+    const workbookValues = [...(this.state.transactions || []), ...(this.state.sheetTransactions || [])]
+      .map(tx => tx?.[field])
+      .filter(Boolean);
+    return Array.from(new Set([...defaults, ...workbookValues, current].map(value => String(value || '').trim()).filter(Boolean)));
+  }
+
+  renderTextCombobox(id, current = '', suggestions = [], attributes = '') {
+    const listId = `${id}-suggestions`;
+    return `<div class="kredo-text-combobox">
+      <input type="text" class="kredo-form-input" id="${id}" list="${listId}" value="${escapeKredoAttribute(current)}" ${attributes} autocomplete="off">
+      <datalist id="${listId}">${suggestions.map(value => `<option value="${escapeKredoAttribute(value)}"></option>`).join('')}</datalist>
+      <small>Choose a suggestion or type your own value.</small>
+    </div>`;
   }
 
   getWorkbookSignature(data = {}) {
@@ -1165,6 +1201,7 @@ export class KredoController {
       const totalOutflow = sheetTxs.filter(t => t.type === 'debit').reduce((s, t) => s + (t.amount || 0), 0);
       const netSheetFlow = totalInflow - totalOutflow;
       const pendingApprovalSyncCount = sheetTxs.filter(tx => tx.isApproved && tx.approvalSyncState === 'pending').length;
+      const unverifiedFlaggedTxs = getUnverifiedFlaggedTransactions(sheetTxs);
       let lastSyncStr = 'Pending';
       if (this.state.lastSheetSync) {
         try {
@@ -1263,9 +1300,10 @@ export class KredoController {
                 <h3 style="font-size: 16px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Live Google Sheet Ledger</h3>
                 <span style="font-size: 11.5px; color: var(--kredo-outline);">All ${sheetTxs.length} real-time transactions synchronized</span>
               </div>
-              <span class="kredo-live-badge">
-                <span class="kredo-live-micro-dot"></span> LIVE POLLING ACTIVE
-              </span>
+              <div class="kredo-sheet-table-actions">
+                ${unverifiedFlaggedTxs.length ? `<button type="button" class="kredo-verify-all-btn" id="approve-all-flagged-btn" title="Approve every unverified flagged transaction and write the result to Google Sheet"><span class="material-symbols-outlined" aria-hidden="true">verified</span><span>Verify all flagged</span><strong>${unverifiedFlaggedTxs.length}</strong></button>` : `<span class="kredo-all-verified-label">All flagged transactions verified</span>`}
+                <span class="kredo-live-badge"><span class="kredo-live-micro-dot"></span> LIVE POLLING ACTIVE</span>
+              </div>
             </div>
 
             ${sheetTxs.length > 0 ? `
@@ -2600,8 +2638,30 @@ export class KredoController {
 
     if (activeModal === 'sheet-transaction-edit') {
       const tx = selectedTx || {};
-      const inputs = [['Merchant', tx.merchant], ['Amount', tx.amount], ['Category', tx.category], ['Payment Method', tx.paymentMethod], ['Bank', tx.bank], ['Nature', tx.nature], ['Status', tx.status], ['Review Reason', tx.reviewReason]];
-      return `<div class="kredo-modal-backdrop" id="kredo-modal-bg"><div class="kredo-modal-sheet" style="max-width:540px"><div class="kredo-modal-title-row"><div><span class="kredo-sheet-kicker">Transaction</span><h3>Edit live Sheet record</h3></div><button class="kredo-mini-btn" id="close-modal-btn"><span class="material-symbols-outlined">close</span></button></div><div class="kredo-sheet-write-warning"><span class="material-symbols-outlined">warning</span><div><strong>This will affect Google Sheet</strong><p>The corresponding transaction row will update immediately; stable IDs remain unchanged.</p></div></div><form id="kredo-sheet-transaction-form" data-transaction-id="${tx.id}"><div class="kredo-form-grid">${inputs.map(([key,value]) => `<div><label class="kredo-form-label">${key}</label><input class="kredo-form-input" data-transaction-field="${key}" ${key === 'Amount' ? 'type="number" step="0.01"' : ''} value="${value || ''}"></div>`).join('')}</div><button class="kredo-btn-action" type="submit" style="width:100%;margin-top:16px">Save changes to Google Sheet</button></form></div></div>`;
+      const categorySuggestions = this.getEditableSuggestions(KREDO_CATEGORY_SUGGESTIONS, tx.category, 'category');
+      const methodSuggestions = this.getEditableSuggestions(KREDO_PAYMENT_METHOD_SUGGESTIONS, tx.paymentMethod, 'paymentMethod');
+      const fields = [
+        ['Date', tx.date, 'date'], ['Time', tx.time], ['Type', tx.type, 'type'], ['Amount', tx.amount, 'number'],
+        ['Category', tx.category, 'category'], ['Payment Method', tx.paymentMethod, 'method'], ['Merchant', tx.merchant],
+        ['Account', tx.cardOrAccount], ['Bank', tx.bank], ['Last 4', tx.cardLast4], ['Payment App', tx.paymentApp],
+        ['Card Network', tx.cardNetwork], ['Nature', tx.nature, 'nature'], ['Currency', tx.currency, 'currency'],
+        ['Status', tx.status, 'status'], ['Review Flag', tx.reviewFlag, 'flag'], ['Review Reason', tx.reviewReason],
+        ['Linked Bill ID', tx.linkedBillId],
+      ];
+      const suggestionMap = {
+        type: ['Debit', 'Credit'], category: categorySuggestions, method: methodSuggestions,
+        nature: ['Essential', 'Discretionary', 'Business', 'Personal', 'Subscription', 'Bill Payment'],
+        currency: ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'],
+        status: ['Completed', 'Pending', 'Failed', 'Reversed', 'Approved'],
+        flag: ['Clear', 'Review Needed', 'Check Bill', 'High Outflow', 'Approved'],
+      };
+      const controls = fields.map(([key, value, kind = 'text'], index) => {
+        const fieldAttr = `data-transaction-field="${key}"`;
+        if (suggestionMap[kind]) return `<div><label class="kredo-form-label">${key}</label>${this.renderTextCombobox(`sheet-edit-field-${index}`, value || '', suggestionMap[kind], fieldAttr)}</div>`;
+        const typeAttrs = kind === 'number' ? 'type="number" step="0.01"' : kind === 'date' ? 'type="date"' : 'type="text"';
+        return `<div><label class="kredo-form-label">${key}</label><input class="kredo-form-input" ${fieldAttr} ${typeAttrs} value="${escapeKredoAttribute(value || '')}"></div>`;
+      }).join('');
+      return `<div class="kredo-modal-backdrop" id="kredo-modal-bg"><div class="kredo-modal-sheet kredo-sheet-edit-modal"><div class="kredo-modal-title-row"><div><span class="kredo-sheet-kicker">Transaction</span><h3>Edit live Sheet record</h3></div><button class="kredo-mini-btn" id="close-modal-btn"><span class="material-symbols-outlined">close</span></button></div><div class="kredo-sheet-write-warning"><span class="material-symbols-outlined">warning</span><div><strong>This will affect Google Sheet</strong><p>Every safe field below can be changed. Transaction IDs and formula-controlled cells remain protected.</p></div></div><form id="kredo-sheet-transaction-form" data-transaction-id="${escapeKredoAttribute(tx.id || '')}"><div class="kredo-form-grid">${controls}</div><button class="kredo-btn-action" type="submit" style="width:100%;margin-top:16px">Save all changes to Google Sheet</button></form></div></div>`;
     }
 
     if (activeModal === 'bill-detail' || activeModal === 'bill-payment') {
@@ -3633,28 +3693,11 @@ export class KredoController {
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div>
                   <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Category</label>
-                  <select class="kredo-form-select" id="add-category">
-                    <option value="Food & Dining">Food & Dining</option>
-                    <option value="Shopping">Shopping</option>
-                    <option value="Groceries">Groceries</option>
-                    <option value="Bills & Utilities">Bills & Utilities</option>
-                    <option value="Travel">Travel</option>
-                    <option value="Healthcare">Healthcare</option>
-                    <option value="Income">Income</option>
-                    <option value="Entertainment">Entertainment</option>
-                    <option value="Investment">Investment</option>
-                    <option value="Other">Other</option>
-                  </select>
+                  ${this.renderTextCombobox('add-category', 'Food & Dining', this.getEditableSuggestions(KREDO_CATEGORY_SUGGESTIONS, '', 'category'), 'required')}
                 </div>
                 <div>
                   <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Payment Method</label>
-                  <select class="kredo-form-select" id="add-method">
-                    <option value="UPI">UPI</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Debit Card">Debit Card</option>
-                    <option value="Net Banking">Net Banking</option>
-                    <option value="Cash">Cash</option>
-                  </select>
+                  ${this.renderTextCombobox('add-method', 'UPI', this.getEditableSuggestions(KREDO_PAYMENT_METHOD_SUGGESTIONS, '', 'paymentMethod'), 'required')}
                 </div>
               </div>
 
@@ -3769,19 +3812,11 @@ export class KredoController {
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div>
                   <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Category</label>
-                  <select class="kredo-form-select" id="edit-category">
-                    ${['Food & Dining', 'Shopping', 'Groceries', 'Bills & Utilities', 'Travel', 'Healthcare', 'Income', 'Entertainment', 'Investment', 'Other'].map(c => `
-                      <option value="${c}" ${tx.category === c ? 'selected' : ''}>${c}</option>
-                    `).join('')}
-                  </select>
+                  ${this.renderTextCombobox('edit-category', tx.category || '', this.getEditableSuggestions(KREDO_CATEGORY_SUGGESTIONS, tx.category, 'category'), 'required')}
                 </div>
                 <div>
                   <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Payment Method</label>
-                  <select class="kredo-form-select" id="edit-method">
-                    ${['UPI', 'Credit Card', 'Debit Card', 'Net Banking', 'Cash'].map(m => `
-                      <option value="${m}" ${tx.paymentMethod === m ? 'selected' : ''}>${m}</option>
-                    `).join('')}
-                  </select>
+                  ${this.renderTextCombobox('edit-method', tx.paymentMethod || '', this.getEditableSuggestions(KREDO_PAYMENT_METHOD_SUGGESTIONS, tx.paymentMethod, 'paymentMethod'), 'required')}
                 </div>
               </div>
 
@@ -3809,6 +3844,17 @@ export class KredoController {
                 </div>
               </div>
 
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Account</label>
+                  <input type="text" class="kredo-form-input" id="edit-account" value="${escapeKredoAttribute(tx.cardOrAccount || '')}" placeholder="Account or card name" />
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Currency</label>
+                  ${this.renderTextCombobox('edit-currency', tx.currency || 'INR', ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'])}
+                </div>
+              </div>
+
               <!-- Ref ID, Tx ID -->
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div>
@@ -3825,12 +3871,17 @@ export class KredoController {
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div>
                   <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Nature of Spend</label>
-                  <input type="text" class="kredo-form-input" id="edit-nature" value="${tx.nature || ''}" placeholder="e.g. Discretionary, Essential" />
+                  ${this.renderTextCombobox('edit-nature', tx.nature || '', ['Essential', 'Discretionary', 'Business', 'Personal', 'Subscription', 'Bill Payment'])}
                 </div>
                 <div>
-                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Linked Bill ID</label>
-                  <input type="text" class="kredo-form-input" id="edit-linked-bill" value="${tx.linkedBillId || ''}" />
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Status</label>
+                  ${this.renderTextCombobox('edit-status', tx.status || 'Completed', ['Completed', 'Pending', 'Failed', 'Reversed', 'Approved'])}
                 </div>
+              </div>
+
+              <div>
+                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 4px;">Linked Bill ID</label>
+                <input type="text" class="kredo-form-input" id="edit-linked-bill" value="${escapeKredoAttribute(tx.linkedBillId || '')}" />
               </div>
 
               <!-- Review Flag & Reason -->
@@ -4661,7 +4712,7 @@ export class KredoController {
       const tx = this.state.sheetTransactions.find(item => item.id === event.currentTarget.dataset.transactionId) || this.state.selectedTx;
       const updates = {};
       event.currentTarget.querySelectorAll('[data-transaction-field]').forEach(input => { updates[input.dataset.transactionField] = input.value; });
-      const result = await updateGoogleSheetRecord('Transactions', tx?.transactionId || '', updates, tx?.referenceId || '');
+      const result = await updateGoogleSheetRecord('Transactions', tx?.transactionId || tx?.id || '', updates, tx?.referenceId || '');
       if (!result.success) return this.showToast('Transaction not written: ' + (result.error || 'Sheet write-back unavailable'));
       this.closeModal();
       await this.refreshSheetWorkbook('Transaction updated in Google Sheet');
@@ -4981,9 +5032,12 @@ export class KredoController {
       const cardLast4 = this.container.querySelector('#edit-card-last4')?.value?.trim()?.slice(-4) || '';
       const paymentApp = this.container.querySelector('#edit-app')?.value?.trim() || '';
       const cardNetwork = this.container.querySelector('#edit-network')?.value?.trim() || '';
+      const cardOrAccount = this.container.querySelector('#edit-account')?.value?.trim() || '';
+      const currency = this.container.querySelector('#edit-currency')?.value?.trim() || 'INR';
       const referenceId = this.container.querySelector('#edit-ref-id')?.value?.trim() || '';
       const transactionId = this.container.querySelector('#edit-tx-id-val')?.value?.trim() || '';
       const nature = this.container.querySelector('#edit-nature')?.value?.trim() || '';
+      const status = this.container.querySelector('#edit-status')?.value?.trim() || 'Completed';
       const linkedBillId = this.container.querySelector('#edit-linked-bill')?.value?.trim() || '';
       const reviewFlag = this.container.querySelector('#edit-review-flag')?.value?.trim() || '';
       const reviewReason = this.container.querySelector('#edit-review-reason')?.value?.trim() || '';
@@ -5003,9 +5057,12 @@ export class KredoController {
         cardLast4,
         paymentApp,
         cardNetwork,
+        cardOrAccount,
+        currency,
         referenceId,
         transactionId,
         nature,
+        status,
         linkedBillId,
         reviewFlag,
         reviewReason,
@@ -5231,6 +5288,57 @@ export class KredoController {
           : `Approved locally; ${selectedSheetTransactions.length - syncedCount} Sheet write-back${selectedSheetTransactions.length - syncedCount === 1 ? '' : 's'} pending`);
         this.render();
       }
+    });
+
+    // One-click approval for every Google Sheet row that is still flagged.
+    // Sync in small groups to avoid overloading the Apps Script deployment.
+    this.container.querySelector('#approve-all-flagged-btn')?.addEventListener('click', async () => {
+      const flaggedTransactions = getUnverifiedFlaggedTransactions(
+        decorateTransactionsWithApprovals(this.state.sheetTransactions || [])
+      );
+      if (!flaggedTransactions.length) {
+        this.showToast('All flagged transactions are already verified');
+        return;
+      }
+
+      batchSetSheetApprovals(flaggedTransactions, true);
+      flaggedTransactions.forEach(tx => setSheetApprovalSyncState(tx, 'pending'));
+      const flaggedIds = new Set(flaggedTransactions.map(tx => tx.id));
+      this.state.sheetTransactions = this.state.sheetTransactions.map(tx => flaggedIds.has(tx.id) ? {
+        ...tx,
+        isApproved: true,
+        reviewFlag: 'Approved',
+        reviewReason: 'Bulk verified in Memoir KREDO',
+      } : tx);
+      this.showToast(`Verified ${flaggedTransactions.length} flagged transaction${flaggedTransactions.length === 1 ? '' : 's'} — syncing Google Sheet…`);
+      this.render();
+
+      const syncResults = [];
+      for (let index = 0; index < flaggedTransactions.length; index += 4) {
+        const group = flaggedTransactions.slice(index, index + 4);
+        const groupResults = await Promise.all(group.map(tx =>
+          syncGoogleSheetApproval(tx, true, 'Bulk verified in Memoir KREDO')
+        ));
+        syncResults.push(...groupResults);
+      }
+
+      syncResults.forEach((result, index) => {
+        const tx = flaggedTransactions[index];
+        setSheetApprovalSyncState(tx, result.success ? 'synced' : 'pending', result.error || '');
+      });
+      const syncedCount = syncResults.filter(result => result.success).length;
+      if (syncedCount) {
+        const refreshed = await fetchGoogleFinanceWorkbook(true);
+        if (refreshed.success) {
+          this.applyWorkbookState(refreshed);
+          this.state.lastSheetSync = refreshed.lastSync;
+          this.lastWorkbookSignature = this.getWorkbookSignature(refreshed);
+        }
+      }
+      this.showToast(syncedCount === flaggedTransactions.length
+        ? `Verified and wrote all ${syncedCount} transactions to Google Sheet`
+        : `${syncedCount} synced; ${flaggedTransactions.length - syncedCount} remain queued for Sheet write-back`);
+      this.render();
     });
 
     // Reconciliation Compare Side-by-Side

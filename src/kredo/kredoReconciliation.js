@@ -233,6 +233,20 @@ export function isTxApproved(tx, approvals = null) {
 }
 
 /**
+ * Returns only transactions that still require review. This deliberately uses
+ * the persisted approval store as well as row fields so the bulk action never
+ * re-approves a transaction that was already verified in KREDO.
+ */
+export function getUnverifiedFlaggedTransactions(transactions = [], approvals = null) {
+  const currentApprovals = approvals || getSheetApprovals();
+  return (transactions || []).filter(tx => {
+    if (!tx || isTxApproved(tx, currentApprovals)) return false;
+    const flag = String(tx.reviewFlag || '').trim().toLowerCase();
+    return Boolean(flag && !['no', 'false', 'clear', 'verified', 'approved', 'none'].includes(flag));
+  });
+}
+
+/**
  * Decorates a list of transactions with persistent approval states
  */
 export function decorateTransactionsWithApprovals(transactions = []) {

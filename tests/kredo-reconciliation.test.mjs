@@ -25,6 +25,7 @@ import {
   setSheetApproval,
   batchSetSheetApprovals,
   decorateTransactionsWithApprovals,
+  getUnverifiedFlaggedTransactions,
   setSheetApprovalSyncState,
   RECONCILIATION_DATE_THRESHOLD,
   UNDO_WINDOW_SECONDS,
@@ -219,6 +220,19 @@ assert.equal(approvedStatus.tier, 'approved');
 assert.equal(approvedStatus.badgeLabel, 'APPROVED');
 assert.equal(approvedStatus.outlineClass, 'kredo-status-outline-approved');
 assert.equal(approvedStatus.isApproved, true);
+
+const bulkReviewPool = [
+  { id: 'bulk-flag-1', reviewFlag: 'High Outflow' },
+  { id: 'bulk-flag-2', reviewFlag: 'Review Needed' },
+  { id: 'bulk-clear', reviewFlag: 'Clear' },
+  { id: 'bulk-approved', reviewFlag: 'Approved' },
+];
+assert.deepEqual(
+  getUnverifiedFlaggedTransactions(bulkReviewPool, {}).map(tx => tx.id),
+  ['bulk-flag-1', 'bulk-flag-2'],
+  'Bulk verification must select every flagged row and exclude clear or already approved rows'
+);
+console.log('✓ One-click bulk verification targets only unverified flagged transactions.');
 console.log('✓ Approved status pipeline passed: green badge & outline resolved.');
 
 // Filtering by Approved in Insights
