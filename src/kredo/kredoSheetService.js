@@ -14,10 +14,17 @@ const CACHE_KEY = 'kredo_google_sheet_cache_v1';
 const LAST_SYNC_KEY = 'kredo_google_sheet_last_sync_v1';
 let sheetFetchInFlight = null;
 
-export function buildGoogleSheetQueryUrl(cacheBust = Date.now()) {
+export const FINANCE_SHEET_TABS = ['Transactions', 'Bills', 'Alerts', 'Rules', 'Dashboard', 'Calc_Data'];
+export const FINANCE_SHEET_SCHEMAS = {
+  Bills: ['Bill ID', 'Detected Date', 'Detected Time', 'Bill Type', 'Issuer / Biller', 'Bank', 'Account', 'Last 4', 'Statement Date', 'Statement Period', 'Due Date', 'Bill Amount', 'Minimum Due', 'Paid Amount', 'Balance Due', 'Status', 'Autopay', 'Last Event', 'Reference ID', 'Confidence', 'Source', 'Raw Message', 'Updated At', 'Paid At'],
+  Alerts: ['Alert ID', 'Date', 'Time', 'Alert Class', 'Severity', 'Bank', 'Account', 'Last 4', 'Amount', 'Merchant / Counterparty', 'Reason', 'Suggested Action', 'Status', 'Sender', 'Source', 'Raw Message', 'Confidence', 'Related Transaction ID'],
+  Rules: ['Rule ID', 'Rule Type', 'Match', 'Value', 'Active', 'Notes', 'Updated At'],
+};
+
+export function buildGoogleSheetQueryUrl(cacheBust = Date.now(), sheetName = 'Transactions') {
   const params = new URLSearchParams({
     tqx: `out:json;reqId:${cacheBust}`,
-    sheet: 'Transactions',
+    sheet: sheetName,
     headers: '1',
     tq: 'select *',
     _: String(cacheBust),
@@ -364,6 +371,129 @@ export async function fetchGoogleSheetTransactions(forceRefresh = false) {
   }
 }
 
+function parseGvizResponse(text) {
+  const jsonStart = text.indexOf('{');
+  const jsonEnd = text.lastIndexOf('}');
+  if (jsonStart === -1 || jsonEnd === -1) throw new Error('Invalid Google Sheet response format');
+  const parsed = JSON.parse(text.substring(jsonStart, jsonEnd + 1));
+  if (parsed.status !== 'ok' || !parsed.table) {
+    throw new Error(parsed.errors?.[0]?.message || 'Google Sheet returned non-OK status');
+  }
+  return parsed.table;
+}
+
+function tableToRecords(table, sheetName) {
+  const rows = table.rows || [];
+  const cols = table.cols || [];
+  if (!rows.length) return [];
+  const firstCells = rows[0]?.c || [];
+  const expectedFirst = String(FINANCE_SHEET_SCHEMAS[sheetName]?.[0] || '').toLowerCase();
+  const firstValue = getCellValue(firstCells[0]).toLowerCase();
+  const hasHeader = Boolean(firstValue) && (firstValue === expectedFirst || firstValue === 'date');
+  const headers = hasHeader
+    ? firstCells.map(getCellValue)
+    : cols.map((col, index) => String(col?.label || col?.id || FINANCE_SHEET_SCHEMAS[sheetName]?.[index] || `Column ${index + 1}`).trim());
+  return rows.slice(hasHeader ? 1 : 0).map((row, index) => {
+    const values = row?.c || [];
+    if (!values.some(cell => getCellValue(cell) !== '')) return null;
+    const fields = {};
+    headers.forEach((header, colIndex) => {
+      if (header) fields[header] = getCellValue(values[colIndex]);
+    });
+    const idHeader = FINANCE_SHEET_SCHEMAS[sheetName]?.[0];
+    return {
+      id: fields[idHeader] || `${sheetName.toLowerCase()}-${index + 2}`,
+      sheetName,
+      sheetRowNumber: index + 2,
+      fields,
+    };
+  }).filter(Boolean);
+}
+
+/** Fetches any finance tab without mutating formula-driven cells. */
+export async function fetchGoogleSheetTab(sheetName, forceRefresh = false) {
+  if (!FINANCE_SHEET_TABS.includes(sheetName)) throw new Error(`Unsupported Sheet tab: ${sheetName}`);
+  const response = await fetch(buildGoogleSheetQueryUrl(forceRefresh ? Date.now() : Math.floor(Date.now() / 5000), sheetName), {
+    method: 'GET',
+    headers: { Accept: 'application/json, text/plain, */*', 'Cache-Control': 'no-cache, no-store, max-age=0', Pragma: 'no-cache' },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(`${sheetName} request failed: ${response.status}`);
+  const table = parseGvizResponse(await response.text());
+  return { sheetName, records: tableToRecords(table, sheetName), success: true };
+}
+
+function normalizeBillRecord(record) {
+  const f = record.fields || {};
+  const amount = value => Math.abs(parseFloat(String(value || '').replace(/[^0-9.-]+/g, '')) || 0);
+  return {
+    ...record,
+    billId: f['Bill ID'] || record.id,
+    issuer: f['Issuer / Biller'] || 'Bill',
+    billType: f['Bill Type'] || 'Bill',
+    dueDate: normalizeSheetDate(f['Due Date']),
+    billAmount: amount(f['Bill Amount']),
+    minimumDue: amount(f['Minimum Due']),
+    paidAmount: amount(f['Paid Amount']),
+    balanceDue: amount(f['Balance Due']),
+    status: f.Status || 'Open',
+    paidAt: f['Paid At'] || '',
+    updatedAt: f['Updated At'] || '',
+  };
+}
+
+/** Reads all workbook tabs as one consistent snapshot for the Sheet workspace. */
+export async function fetchGoogleFinanceWorkbook(forceRefresh = false) {
+  const transactionResult = await fetchGoogleSheetTransactions(forceRefresh);
+  const secondaryTabs = await Promise.all(FINANCE_SHEET_TABS.slice(1).map(async sheetName => {
+    try { return await fetchGoogleSheetTab(sheetName, forceRefresh); }
+    catch (error) { return { sheetName, records: [], success: false, error: error.message }; }
+  }));
+  const tabs = Object.fromEntries(secondaryTabs.map(result => [result.sheetName, result.records || []]));
+  const result = {
+    ...transactionResult,
+    tabs,
+    bills: (tabs.Bills || []).map(normalizeBillRecord),
+    alerts: tabs.Alerts || [],
+    rules: tabs.Rules || [],
+    dashboard: tabs.Dashboard || [],
+    calcData: tabs.Calc_Data || [],
+  };
+  try { localStorage.setItem('kredo_google_finance_workbook_v1', JSON.stringify(result)); } catch {}
+  return result;
+}
+
+export async function syncGoogleSheetRecord(payload) {
+  try {
+    const response = await fetch(KREDO_SHEET_SYNC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({ spreadsheetId: GOOGLE_SHEET_ID, ...payload }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.success !== true) throw new Error(result.error || `Sheet write-back failed (${response.status})`);
+    return result;
+  } catch (error) {
+    return { success: false, pending: true, error: error?.message || 'Sheet write-back failed' };
+  }
+}
+
+export function markGoogleSheetBillPaid(bill, paidAmount, paidVia = '') {
+  return syncGoogleSheetRecord({
+    action: 'markBillPaid', sheetName: 'Bills', recordId: bill.billId || bill.id,
+    paidAmount: Number(paidAmount || bill.balanceDue || bill.billAmount || 0), paidVia,
+  });
+}
+
+export function updateGoogleSheetRecord(sheetName, recordId, updates) {
+  return syncGoogleSheetRecord({ action: 'updateRecord', sheetName, recordId, updates });
+}
+
+export function createGoogleSheetRule(fields) {
+  return syncGoogleSheetRecord({ action: 'createRule', sheetName: 'Rules', fields });
+}
+
 /**
  * Writes approval state back to the Google Sheet by stable transaction identity.
  * The server verifies the Apps Script response before this is considered synced.
@@ -374,13 +504,8 @@ export async function syncGoogleSheetApproval(transaction, approved = true, note
   }
 
   try {
-    const response = await fetch(KREDO_SHEET_SYNC_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      cache: 'no-store',
-      body: JSON.stringify({
+    return await syncGoogleSheetRecord({
         action: 'updateReviewStatus',
-        spreadsheetId: GOOGLE_SHEET_ID,
         sheetName: 'Transactions',
         transactionId: transaction.transactionId || '',
         referenceId: transaction.referenceId || '',
@@ -388,14 +513,7 @@ export async function syncGoogleSheetApproval(transaction, approved = true, note
         approved: Boolean(approved),
         reviewFlag: approved ? 'Approved' : 'Yes',
         reviewReason: notes || (approved ? 'Approved in Memoir KREDO' : 'Approval removed in Memoir KREDO'),
-      }),
-    });
-
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload.success !== true) {
-      throw new Error(payload.error || `Sheet write-back failed (${response.status})`);
-    }
-    return payload;
+      });
   } catch (error) {
     return { success: false, error: error?.message || 'Sheet write-back failed' };
   }
@@ -444,7 +562,7 @@ export function notifySheetSubscribers(data) {
 export function startSheetRealtimePolling(intervalMs = 15000) {
   if (sheetPollingInterval) return;
   sheetPollingInterval = setInterval(async () => {
-    const result = await fetchGoogleSheetTransactions();
+    const result = await fetchGoogleFinanceWorkbook();
     if (result.success) {
       notifySheetSubscribers(result);
     }

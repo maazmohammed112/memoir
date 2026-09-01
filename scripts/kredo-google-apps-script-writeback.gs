@@ -1,5 +1,9 @@
 /**
- * KREDO approval write-back extension for the existing Smart Finance Apps Script.
+ * Legacy KREDO approval-only write-back extension.
+ *
+ * New installations should deploy Smart_Finance_Intelligence_v6_1_FlexibleBills.gs,
+ * which includes approvals, safe record edits, Rules creation, bill payment,
+ * Paid At timestamps, and paid-row formatting in one authenticated handler.
  *
  * Add this guard at the very top of the deployment's existing doPost(e):
  *

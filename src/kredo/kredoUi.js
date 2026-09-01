@@ -76,6 +76,10 @@ import {
 
 import {
   fetchGoogleSheetTransactions,
+  fetchGoogleFinanceWorkbook,
+  markGoogleSheetBillPaid,
+  updateGoogleSheetRecord,
+  createGoogleSheetRule,
   syncGoogleSheetApproval,
   subscribeToSheetUpdates,
   startSheetRealtimePolling,
@@ -155,6 +159,12 @@ export class KredoController {
       activeTab: 'ledger', // 'ledger' | 'cards' | 'sheet' | 'categories' | 'insights' | 'ai'
       dataSource: 'kredo', // 'kredo' (Email/Manual) | 'sheet' (Google Sheet)
       sheetTransactions: [],
+      sheetView: 'Transactions',
+      sheetBills: [],
+      sheetAlerts: [],
+      sheetRules: [],
+      sheetDashboard: [],
+      sheetCalcData: [],
       isSheetLoading: false,
       lastSheetSync: null,
       sheetError: null,
@@ -175,6 +185,7 @@ export class KredoController {
     // Auto-poll Google Sheet every 10s for real-time live sync
     this.sheetUnsubscribe = subscribeToSheetUpdates((data) => {
       this.state.sheetTransactions = data.transactions || [];
+      this.applyWorkbookState(data);
       this.state.lastSheetSync = data.lastSync;
       // Do not re-render if a modal is open to avoid glitching/flickering
       if (!this.state.activeModal && (this.state.activeTab === 'sheet' || this.state.dataSource === 'sheet' || this.state.activeTab === 'insights')) {
@@ -193,12 +204,13 @@ export class KredoController {
       const [txs, cards, sheetRes] = await Promise.all([
         getKredoTransactions(),
         getCreditCards(),
-        fetchGoogleSheetTransactions(true),
+        fetchGoogleFinanceWorkbook(true),
       ]);
       this.state.transactions = txs;
       this.state.cards = cards;
       if (sheetRes && sheetRes.transactions) {
         this.state.sheetTransactions = sheetRes.transactions;
+        this.applyWorkbookState(sheetRes);
         this.state.lastSheetSync = sheetRes.lastSync;
       }
       // Keep the initial scope at All Months so fresh Sheet rows cannot be
@@ -210,6 +222,26 @@ export class KredoController {
       this.state.isLoading = false;
       this.render();
     }
+  }
+
+  applyWorkbookState(data = {}) {
+    if (data.transactions) this.state.sheetTransactions = data.transactions;
+    if (data.bills) this.state.sheetBills = data.bills;
+    if (data.alerts) this.state.sheetAlerts = data.alerts;
+    if (data.rules) this.state.sheetRules = data.rules;
+    if (data.dashboard) this.state.sheetDashboard = data.dashboard;
+    if (data.calcData) this.state.sheetCalcData = data.calcData;
+  }
+
+  async refreshSheetWorkbook(successMessage = '') {
+    const result = await fetchGoogleFinanceWorkbook(true);
+    if (result.success) {
+      this.applyWorkbookState(result);
+      this.state.lastSheetSync = result.lastSync;
+      this.render();
+      if (successMessage) this.showToast(successMessage);
+    }
+    return result;
   }
 
   showToast(message) {
@@ -514,6 +546,10 @@ export class KredoController {
   }
 
   render() {
+    const preservedScroll = {};
+    this.container.querySelectorAll?.('[data-preserve-scroll]').forEach(element => {
+      preservedScroll[element.dataset.preserveScroll] = { left: element.scrollLeft, top: element.scrollTop };
+    });
     const {
       transactions,
       sheetTransactions,
@@ -750,6 +786,44 @@ export class KredoController {
     `;
 
     this.bindEvents(filteredTxs, chartData, pendingMatches);
+    this.container.querySelectorAll?.('[data-preserve-scroll]').forEach(element => {
+      const prior = preservedScroll[element.dataset.preserveScroll];
+      if (prior) { element.scrollLeft = prior.left; element.scrollTop = prior.top; }
+    });
+  }
+
+  renderSheetTabNavigation() {
+    const icons = { Transactions: 'receipt_long', Bills: 'request_quote', Alerts: 'notification_important', Rules: 'rule', Dashboard: 'dashboard', Calc_Data: 'calculate' };
+    return `<nav class="kredo-sheet-tab-nav" aria-label="Google Sheet tabs">
+      ${Object.entries(icons).map(([name, icon]) => `<button type="button" class="kredo-sheet-tab-btn ${this.state.sheetView === name ? 'active' : ''}" data-sheet-view="${name}"><span class="material-symbols-outlined text-[16px]">${icon}</span>${name === 'Calc_Data' ? 'Calculations' : name}</button>`).join('')}
+    </nav>`;
+  }
+
+  renderSecondarySheetWorkspace() {
+    const view = this.state.sheetView;
+    const bills = this.state.sheetBills || [];
+    const alerts = this.state.sheetAlerts || [];
+    const rules = this.state.sheetRules || [];
+    const activeBills = bills.filter(bill => String(bill.status).toLowerCase() !== 'paid');
+    const outstanding = activeBills.reduce((sum, bill) => sum + Number(bill.balanceDue || 0), 0);
+    const header = `<div class="kredo-sheet-hero-card"><div style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap"><div><div class="kredo-live-badge"><span class="kredo-live-micro-dot"></span>LIVE WORKBOOK</div><h2 style="font-size:22px;margin:8px 0 3px;color:var(--kredo-secondary)">${view === 'Calc_Data' ? 'Calculations' : view}</h2><p style="font-size:12.5px;color:var(--kredo-outline);margin:0">Changes made here are written to the matching Google Sheet tab within seconds.</p></div><button class="kredo-btn-action secondary" id="kredo-sheet-refresh-btn"><span class="material-symbols-outlined text-[16px]">sync</span>Refresh workbook</button></div></div>${this.renderSheetTabNavigation()}`;
+
+    let content = '';
+    if (view === 'Bills') {
+      content = `<div class="kredo-sheet-metric-grid"><div class="kredo-card"><span class="kredo-sheet-kicker">Outstanding</span><h3>${formatINR(outstanding)}</h3><small>${activeBills.length} bill${activeBills.length === 1 ? '' : 's'} open</small></div><div class="kredo-card"><span class="kredo-sheet-kicker">Tracked bills</span><h3>${bills.length}</h3><small>Includes pay-later and card statements</small></div></div>
+      <div class="kredo-sheet-record-grid">${bills.length ? bills.map(bill => {
+        const paid = String(bill.status).toLowerCase() === 'paid' || Number(bill.balanceDue) <= 0;
+        return `<article class="kredo-sheet-record-card ${paid ? 'paid' : 'due'}"><div class="kredo-record-card-head"><div class="kredo-record-icon"><span class="material-symbols-outlined">${paid ? 'verified' : 'calendar_clock'}</span></div><div><span class="kredo-sheet-kicker">${bill.billType}</span><h3>${bill.issuer}</h3></div><span class="kredo-status-pill ${paid ? 'approved' : 'due-soon'}">${paid ? '✓ PAID' : bill.status}</span></div><div class="kredo-bill-amount">${formatINR(bill.balanceDue || bill.billAmount)}</div><div class="kredo-record-meta"><span>Due <strong>${bill.dueDate || '-'}</strong></span><span>Paid <strong>${formatINR(bill.paidAmount)}</strong></span>${bill.paidAt ? `<span>Paid at <strong>${bill.paidAt}</strong></span>` : ''}</div><div class="kredo-record-actions"><button class="kredo-btn-action secondary" data-open-bill="${bill.billId}"><span class="material-symbols-outlined text-[16px]">visibility</span>Details & edit</button>${!paid ? `<button class="kredo-btn-action" data-mark-bill-paid="${bill.billId}"><span class="material-symbols-outlined text-[16px]">payments</span>Mark as paid</button>` : ''}</div></article>`;
+      }).join('') : '<div class="kredo-sheet-empty">No bills found. New bill and statement messages will appear here automatically.</div>'}</div>`;
+    } else if (view === 'Alerts') {
+      content = `<div class="kredo-sheet-record-grid">${alerts.length ? alerts.map(record => { const f = record.fields; return `<article class="kredo-sheet-record-card due"><div class="kredo-record-card-head"><div class="kredo-record-icon"><span class="material-symbols-outlined">warning</span></div><div><span class="kredo-sheet-kicker">${f.Severity || 'Alert'}</span><h3>${f['Alert Class'] || 'Finance alert'}</h3></div><span class="kredo-status-pill flagged">${f.Status || 'Open'}</span></div><p>${f.Reason || 'Review this finance alert.'}</p><div class="kredo-record-meta"><span>${f.Date || '-'} ${f.Time || ''}</span><span>${f['Merchant / Counterparty'] || f.Bank || '-'}</span></div><div class="kredo-record-actions"><button class="kredo-btn-action secondary" data-open-sheet-record="Alerts:${record.id}">Review & edit</button></div></article>`; }).join('') : '<div class="kredo-sheet-empty">No alerts right now. That is good news—failed payments, fraud warnings and overdue reminders will appear here.</div>'}</div>`;
+    } else if (view === 'Rules') {
+      content = `<div class="kredo-explainer"><span class="material-symbols-outlined">auto_awesome</span><div><strong>What is a rule?</strong><p>A rule teaches KREDO how to classify matching future transactions—for example, merchant “Blinkit” → category “Groceries”.</p></div><button class="kredo-btn-action" id="kredo-add-rule-btn">Add rule</button></div><div class="kredo-sheet-record-grid">${rules.length ? rules.map(record => { const f = record.fields; return `<article class="kredo-sheet-record-card"><div class="kredo-record-card-head"><div class="kredo-record-icon"><span class="material-symbols-outlined">rule</span></div><div><span class="kredo-sheet-kicker">${f['Rule Type'] || 'Rule'}</span><h3>${f.Match || 'Untitled match'}</h3></div><span class="kredo-status-pill ${String(f.Active).toLowerCase() === 'false' ? 'upcoming' : 'approved'}">${String(f.Active).toLowerCase() === 'false' ? 'Paused' : 'Active'}</span></div><p>Apply <strong>${f.Value || '-'}</strong>${f.Notes ? ` · ${f.Notes}` : ''}</p><div class="kredo-record-actions"><button class="kredo-btn-action secondary" data-open-sheet-record="Rules:${record.id}">Edit rule</button></div></article>`; }).join('') : '<div class="kredo-sheet-empty">No rules yet. Add one to automate categories, merchant labels and review behavior.</div>'}</div>`;
+    } else {
+      const records = view === 'Dashboard' ? this.state.sheetDashboard : this.state.sheetCalcData;
+      content = `<div class="kredo-explainer"><span class="material-symbols-outlined">${view === 'Dashboard' ? 'insights' : 'function'}</span><div><strong>${view === 'Dashboard' ? 'Workbook dashboard' : 'System calculations'}</strong><p>${view === 'Dashboard' ? 'A compact app view of the workbook summary.' : 'Formula-generated data is visible here but intentionally read-only to protect workbook formulas.'}</p></div></div><div class="kredo-sheet-raw-card" data-preserve-scroll="sheet-${view}"><table><tbody>${records.length ? records.map(record => `<tr>${Object.entries(record.fields || {}).filter(([,value]) => value !== '').map(([key,value]) => `<td><small>${key}</small><strong>${value}</strong></td>`).join('')}</tr>`).join('') : '<tr><td>No calculated values are available yet.</td></tr>'}</tbody></table></div>`;
+    }
+    return `<div class="kredo-sheet-workspace">${header}${content}</div>`;
   }
 
   renderCanvasContent(analytics, hierarchicalWeeks, filteredTxs, availableMonths, isAllSelected, chartData, insightsAnalytics, availableCategories, availableMethods, insightsFilteredTxs = [], insightsPool = [], insightsAvailableCategories = [], insightsAvailableMethods = [], insightsAvailableBanks = [], insightsAvailableApps = [], insightsAvailableNetworks = [], insightsAvailableNatures = [], pendingMatches = [], mergedRecords = [], sheetApprovals = {}) {
@@ -1037,6 +1111,9 @@ export class KredoController {
 
     // DEDICATED GOOGLE SHEET REAL-TIME TAB
     if (activeTab === 'sheet') {
+      if (this.state.sheetView !== 'Transactions') {
+        return this.renderSecondarySheetWorkspace();
+      }
       // The Sheet workspace must consume the same decorated source used by
       // Ledger and Insights; rendering the raw poll result caused approvals
       // and merchant-memory tags to appear to revert after tab changes.
@@ -1105,6 +1182,8 @@ export class KredoController {
             </div>
           </div>
 
+          ${this.renderSheetTabNavigation()}
+
           <!-- Executive Live Metrics Strip -->
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
             <div class="kredo-card">
@@ -1149,7 +1228,7 @@ export class KredoController {
             </div>
 
             ${sheetTxs.length > 0 ? `
-              <div class="kredo-sheet-table-24-container">
+              <div class="kredo-sheet-table-24-container" data-preserve-scroll="sheet-transactions">
                 <table class="kredo-sheet-table-24">
                   <thead>
                     <tr>
@@ -2478,6 +2557,31 @@ export class KredoController {
     const { activeModal, selectedTx, selectedCard, importDraft } = this.state;
     if (!activeModal) return '';
 
+    if (activeModal === 'sheet-transaction-edit') {
+      const tx = selectedTx || {};
+      const inputs = [['Merchant', tx.merchant], ['Amount', tx.amount], ['Category', tx.category], ['Payment Method', tx.paymentMethod], ['Bank', tx.bank], ['Nature', tx.nature], ['Status', tx.status], ['Review Reason', tx.reviewReason]];
+      return `<div class="kredo-modal-backdrop" id="kredo-modal-bg"><div class="kredo-modal-sheet" style="max-width:540px"><div class="kredo-modal-title-row"><div><span class="kredo-sheet-kicker">Transaction</span><h3>Edit live Sheet record</h3></div><button class="kredo-mini-btn" id="close-modal-btn"><span class="material-symbols-outlined">close</span></button></div><div class="kredo-sheet-write-warning"><span class="material-symbols-outlined">warning</span><div><strong>This will affect Google Sheet</strong><p>The corresponding transaction row will update immediately; stable IDs remain unchanged.</p></div></div><form id="kredo-sheet-transaction-form" data-transaction-id="${tx.id}"><div class="kredo-form-grid">${inputs.map(([key,value]) => `<div><label class="kredo-form-label">${key}</label><input class="kredo-form-input" data-transaction-field="${key}" ${key === 'Amount' ? 'type="number" step="0.01"' : ''} value="${value || ''}"></div>`).join('')}</div><button class="kredo-btn-action" type="submit" style="width:100%;margin-top:16px">Save changes to Google Sheet</button></form></div></div>`;
+    }
+
+    if (activeModal === 'bill-detail' || activeModal === 'bill-payment') {
+      const bill = selectedTx || {};
+      const f = bill.fields || {};
+      const paymentMode = activeModal === 'bill-payment';
+      return `<div class="kredo-modal-backdrop" id="kredo-modal-bg"><div class="kredo-modal-sheet" style="max-width:520px"><div class="kredo-modal-title-row"><div><span class="kredo-sheet-kicker">${bill.billType || 'Bill'}</span><h3>${bill.issuer || 'Bill details'}</h3></div><button class="kredo-mini-btn" id="close-modal-btn"><span class="material-symbols-outlined">close</span></button></div><div class="kredo-sheet-write-warning"><span class="material-symbols-outlined">sync</span><div><strong>This affects Google Sheet</strong><p>Saving here immediately updates the Bills tab. The payment date and time are captured automatically.</p></div></div>
+      ${paymentMode ? `<form id="kredo-bill-payment-form"><input type="hidden" id="bill-payment-id" value="${bill.billId || bill.id}"><label class="kredo-form-label">Amount paid</label><input class="kredo-form-input" id="bill-payment-amount" type="number" min="0.01" step="0.01" value="${bill.balanceDue || bill.billAmount || 0}" required><label class="kredo-form-label">Paid using</label><input class="kredo-form-input" id="bill-payment-via" placeholder="UPI, bank transfer, card…"><button class="kredo-btn-action" type="submit" style="width:100%;margin-top:16px"><span class="material-symbols-outlined">payments</span>Confirm payment & update Sheet</button></form>` : `<div class="kredo-bill-detail-amount"><small>Balance due</small><strong>${formatINR(bill.balanceDue || 0)}</strong><span class="kredo-status-pill ${String(bill.status).toLowerCase() === 'paid' ? 'approved' : 'due-soon'}">${bill.status || 'Open'}</span></div><form id="kredo-bill-edit-form"><input type="hidden" id="bill-edit-id" value="${bill.billId || bill.id}"><div class="kredo-form-grid"><div><label class="kredo-form-label">Issuer / Biller</label><input class="kredo-form-input" id="bill-edit-issuer" value="${bill.issuer || ''}"></div><div><label class="kredo-form-label">Due date</label><input class="kredo-form-input" id="bill-edit-due" value="${f['Due Date'] || ''}"></div><div><label class="kredo-form-label">Bill amount</label><input class="kredo-form-input" id="bill-edit-amount" type="number" step="0.01" value="${bill.billAmount || 0}"></div><div><label class="kredo-form-label">Autopay</label><select class="kredo-form-input" id="bill-edit-autopay"><option ${f.Autopay === 'Yes' ? 'selected' : ''}>Yes</option><option ${f.Autopay !== 'Yes' ? 'selected' : ''}>No</option></select></div></div><div class="kredo-record-actions"><button class="kredo-btn-action secondary" type="submit">Save bill changes</button>${String(bill.status).toLowerCase() !== 'paid' ? `<button class="kredo-btn-action" type="button" data-mark-bill-paid="${bill.billId || bill.id}">Mark as paid</button>` : ''}</div></form>`}</div></div>`;
+    }
+
+    if (activeModal === 'sheet-record-edit') {
+      const record = selectedTx || {};
+      const fields = record.fields || {};
+      const editable = record.sheetName === 'Rules' ? ['Rule Type', 'Match', 'Value', 'Active', 'Notes'] : ['Alert Class', 'Severity', 'Reason', 'Suggested Action', 'Status'];
+      return `<div class="kredo-modal-backdrop" id="kredo-modal-bg"><div class="kredo-modal-sheet" style="max-width:520px"><div class="kredo-modal-title-row"><div><span class="kredo-sheet-kicker">${record.sheetName}</span><h3>Edit Google Sheet record</h3></div><button class="kredo-mini-btn" id="close-modal-btn"><span class="material-symbols-outlined">close</span></button></div><div class="kredo-sheet-write-warning"><span class="material-symbols-outlined">warning</span><div><strong>This will affect Google Sheet</strong><p>Only these approved fields will be changed; IDs and formula cells stay protected.</p></div></div><form id="kredo-sheet-record-form" data-sheet-name="${record.sheetName}" data-record-id="${record.id}">${editable.map(key => `<label class="kredo-form-label">${key}</label>${key === 'Active' ? `<select class="kredo-form-input" data-sheet-field="${key}"><option value="true" ${String(fields[key]).toLowerCase() !== 'false' ? 'selected' : ''}>Active</option><option value="false" ${String(fields[key]).toLowerCase() === 'false' ? 'selected' : ''}>Paused</option></select>` : `<input class="kredo-form-input" data-sheet-field="${key}" value="${fields[key] || ''}">`}`).join('')}<button class="kredo-btn-action" type="submit" style="width:100%;margin-top:16px">Save to Google Sheet</button></form></div></div>`;
+    }
+
+    if (activeModal === 'rule-add') {
+      return `<div class="kredo-modal-backdrop" id="kredo-modal-bg"><div class="kredo-modal-sheet" style="max-width:500px"><div class="kredo-modal-title-row"><h3>Add finance rule</h3><button class="kredo-mini-btn" id="close-modal-btn"><span class="material-symbols-outlined">close</span></button></div><div class="kredo-sheet-write-warning"><span class="material-symbols-outlined">sync</span><div><strong>This adds a row to Google Sheet</strong><p>The rule becomes available to the finance parser after the workbook refreshes.</p></div></div><form id="kredo-rule-add-form"><label class="kredo-form-label">Rule type</label><select class="kredo-form-input" id="rule-type"><option>Merchant</option><option>Category</option><option>Payment Method</option><option>Review</option></select><label class="kredo-form-label">Match</label><input class="kredo-form-input" id="rule-match" placeholder="e.g. Blinkit" required><label class="kredo-form-label">Value</label><input class="kredo-form-input" id="rule-value" placeholder="e.g. Groceries" required><label class="kredo-form-label">Notes</label><input class="kredo-form-input" id="rule-notes"><button class="kredo-btn-action" type="submit" style="width:100%;margin-top:16px">Add rule to Sheet</button></form></div></div>`;
+    }
+
     // ADD CREDIT CARD MODAL
     if (activeModal === 'add-card') {
       return `
@@ -2905,7 +3009,7 @@ export class KredoController {
               <div style="display: flex; align-items: flex-start; gap: 8px;">
                 <span class="material-symbols-outlined text-[16px]" style="color: #16a34a; flex-shrink: 0; margin-top: 1px;">info</span>
                 <p style="margin: 0; font-size: 11.5px; color: #166534; line-height: 1.4; font-weight: 500;">
-                  For any delete and edit, make changes in the Google Sheet, it will automatically reflect here.
+                  Approvals and edits made here are written to Google Sheet. You will see a clear warning before a Sheet-changing save.
                 </p>
               </div>
             </div>
@@ -3035,6 +3139,7 @@ export class KredoController {
 
             <!-- Modal Action Buttons -->
             <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+              <button type="button" class="kredo-btn-action secondary" data-edit-sheet-tx="${tx.id}" style="width:100%;justify-content:center"><span class="material-symbols-outlined text-[16px]">edit</span>Edit in app & Google Sheet</button>
               ${!finStatus.isApproved ? `
                 <button type="button" class="kredo-btn-action prominent" data-modal-approve-tx="${tx.id}" style="background: #10b981; color: #fff; width: 100%; padding: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px;">
                   <span class="material-symbols-outlined text-[18px]">check_circle</span> Mark as Approved & Sync to Insights
@@ -4417,6 +4522,103 @@ export class KredoController {
     });
 
     // Sheet Manual Refresh Button
+    this.container.querySelectorAll('[data-sheet-view]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.state.sheetView = btn.dataset.sheetView || 'Transactions';
+        this.render();
+      });
+    });
+
+    this.container.querySelectorAll('[data-open-bill]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const bill = this.state.sheetBills.find(item => item.billId === btn.dataset.openBill);
+        if (bill) this.openModal('bill-detail', bill);
+      });
+    });
+
+    this.container.querySelectorAll('[data-mark-bill-paid]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const bill = this.state.sheetBills.find(item => item.billId === btn.dataset.markBillPaid) || this.state.selectedTx;
+        if (bill) this.openModal('bill-payment', bill);
+      });
+    });
+
+    this.container.querySelectorAll('[data-open-sheet-record]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [sheetName, id] = String(btn.dataset.openSheetRecord || '').split(':');
+        const list = sheetName === 'Rules' ? this.state.sheetRules : this.state.sheetAlerts;
+        const record = list.find(item => item.id === id);
+        if (record) this.openModal('sheet-record-edit', record);
+      });
+    });
+
+    this.container.querySelector('#kredo-add-rule-btn')?.addEventListener('click', () => this.openModal('rule-add'));
+
+    this.container.querySelectorAll('[data-edit-sheet-tx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tx = this.state.sheetTransactions.find(item => item.id === btn.dataset.editSheetTx) || this.state.selectedTx;
+        if (tx) this.openModal('sheet-transaction-edit', tx);
+      });
+    });
+
+    this.container.querySelector('#kredo-bill-payment-form')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const id = this.container.querySelector('#bill-payment-id')?.value;
+      const bill = this.state.sheetBills.find(item => item.billId === id) || this.state.selectedTx;
+      const amount = Number(this.container.querySelector('#bill-payment-amount')?.value || 0);
+      const via = this.container.querySelector('#bill-payment-via')?.value?.trim() || '';
+      if (!bill || amount <= 0) return;
+      this.showToast('Recording payment in Google Sheet…');
+      const result = await markGoogleSheetBillPaid(bill, amount, via);
+      if (!result.success) return this.showToast('Payment not written: ' + (result.error || 'Sheet write-back unavailable'));
+      this.closeModal();
+      await this.refreshSheetWorkbook(`Marked ${bill.issuer} as paid`);
+    });
+
+    this.container.querySelector('#kredo-bill-edit-form')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const id = this.container.querySelector('#bill-edit-id')?.value;
+      const result = await updateGoogleSheetRecord('Bills', id, {
+        'Issuer / Biller': this.container.querySelector('#bill-edit-issuer')?.value || '',
+        'Due Date': this.container.querySelector('#bill-edit-due')?.value || '',
+        'Bill Amount': this.container.querySelector('#bill-edit-amount')?.value || '',
+        Autopay: this.container.querySelector('#bill-edit-autopay')?.value || 'No',
+      });
+      if (!result.success) return this.showToast('Bill not written: ' + (result.error || 'Sheet write-back unavailable'));
+      this.closeModal();
+      await this.refreshSheetWorkbook('Bill updated in Google Sheet');
+    });
+
+    this.container.querySelector('#kredo-sheet-record-form')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const updates = {};
+      form.querySelectorAll('[data-sheet-field]').forEach(input => { updates[input.dataset.sheetField] = input.value; });
+      const result = await updateGoogleSheetRecord(form.dataset.sheetName, form.dataset.recordId, updates);
+      if (!result.success) return this.showToast('Record not written: ' + (result.error || 'Sheet write-back unavailable'));
+      this.closeModal();
+      await this.refreshSheetWorkbook('Record updated in Google Sheet');
+    });
+
+    this.container.querySelector('#kredo-rule-add-form')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const result = await createGoogleSheetRule({ 'Rule Type': this.container.querySelector('#rule-type')?.value, Match: this.container.querySelector('#rule-match')?.value, Value: this.container.querySelector('#rule-value')?.value, Active: true, Notes: this.container.querySelector('#rule-notes')?.value || '' });
+      if (!result.success) return this.showToast('Rule not added: ' + (result.error || 'Sheet write-back unavailable'));
+      this.closeModal();
+      await this.refreshSheetWorkbook('Rule added to Google Sheet');
+    });
+
+    this.container.querySelector('#kredo-sheet-transaction-form')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const tx = this.state.sheetTransactions.find(item => item.id === event.currentTarget.dataset.transactionId) || this.state.selectedTx;
+      const updates = {};
+      event.currentTarget.querySelectorAll('[data-transaction-field]').forEach(input => { updates[input.dataset.transactionField] = input.value; });
+      const result = await updateGoogleSheetRecord('Transactions', tx?.transactionId || tx?.referenceId, updates);
+      if (!result.success) return this.showToast('Transaction not written: ' + (result.error || 'Sheet write-back unavailable'));
+      this.closeModal();
+      await this.refreshSheetWorkbook('Transaction updated in Google Sheet');
+    });
+
     this.container.querySelector('#kredo-sheet-refresh-btn')?.addEventListener('click', async () => {
       const btn = this.container.querySelector('#kredo-sheet-refresh-btn');
       if (btn) {
@@ -4425,9 +4627,9 @@ export class KredoController {
       }
       this.state.isSheetLoading = true;
       try {
-        const res = await fetchGoogleSheetTransactions(true);
+        const res = await fetchGoogleFinanceWorkbook(true);
         if (res.success) {
-          this.state.sheetTransactions = res.transactions;
+          this.applyWorkbookState(res);
           this.state.lastSheetSync = res.lastSync;
           this.showToast(`Synced ${res.transactions.length} rows from Google Sheet`);
         } else {
@@ -4907,9 +5109,9 @@ export class KredoController {
           if (syncResult.success) {
             setSheetApprovalSyncState(tx, 'synced');
             this.state.approvalSyncErrors.delete(txId);
-            const refreshed = await fetchGoogleSheetTransactions(true);
+            const refreshed = await fetchGoogleFinanceWorkbook(true);
             if (refreshed.success) {
-              this.state.sheetTransactions = refreshed.transactions;
+              this.applyWorkbookState(refreshed);
               this.state.lastSheetSync = refreshed.lastSync;
             }
             this.showToast('Approved in KREDO and written to Google Sheet');
@@ -4970,9 +5172,9 @@ export class KredoController {
           setSheetApprovalSyncState(tx, result.success ? 'synced' : 'pending', result.error || '');
         });
         if (syncedCount > 0) {
-          const refreshed = await fetchGoogleSheetTransactions(true);
+          const refreshed = await fetchGoogleFinanceWorkbook(true);
           if (refreshed.success) {
-            this.state.sheetTransactions = refreshed.transactions;
+            this.applyWorkbookState(refreshed);
             this.state.lastSheetSync = refreshed.lastSync;
           }
         }

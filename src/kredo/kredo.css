@@ -2083,6 +2083,48 @@ body.dark .kredo-app-root,
   box-shadow: 0 4px 16px rgba(0,0,0,0.02);
 }
 
+.kredo-sheet-workspace { display:flex; flex-direction:column; gap:18px; }
+.kredo-sheet-tab-nav { display:flex; gap:7px; overflow-x:auto; padding:4px; border:1px solid var(--kredo-outline-variant); border-radius:14px; background:var(--kredo-surface-container-lowest); scrollbar-width:none; }
+.kredo-sheet-tab-btn { border:0; background:transparent; color:var(--kredo-outline); border-radius:10px; padding:9px 13px; font:700 12px var(--kredo-font); display:inline-flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer; }
+.kredo-sheet-tab-btn:hover { background:var(--kredo-surface-container-low); color:var(--kredo-secondary); }
+.kredo-sheet-tab-btn.active { background:#111827; color:#fff; box-shadow:0 5px 14px rgba(17,24,39,.16); }
+.kredo-sheet-metric-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; }
+.kredo-sheet-metric-grid h3 { margin:5px 0 2px; font:800 25px var(--kredo-mono); color:var(--kredo-secondary); }
+.kredo-sheet-metric-grid small { color:var(--kredo-outline); }
+.kredo-sheet-kicker { color:var(--kredo-outline); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.75px; }
+.kredo-sheet-record-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:14px; }
+.kredo-sheet-record-card { border:1px solid var(--kredo-outline-variant); border-radius:16px; padding:17px; background:var(--kredo-surface-container-lowest); box-shadow:0 8px 24px rgba(15,23,42,.04); }
+.kredo-sheet-record-card.paid { border-color:#86efac; background:linear-gradient(145deg,#fff,#f0fdf4); }
+.kredo-sheet-record-card.due { border-color:#fed7aa; background:linear-gradient(145deg,#fff,#fffbeb); }
+.kredo-record-card-head { display:flex; align-items:center; gap:10px; }
+.kredo-record-card-head h3,.kredo-modal-title-row h3 { margin:2px 0 0; font-size:16px; color:var(--kredo-secondary); }
+.kredo-record-card-head .kredo-status-pill { margin-left:auto; }
+.kredo-record-icon { width:38px; height:38px; display:grid; place-items:center; border-radius:11px; background:rgba(79,70,229,.09); color:#4f46e5; }
+.kredo-bill-amount { margin:16px 0 10px; font:800 27px var(--kredo-mono); color:var(--kredo-secondary); }
+.kredo-record-meta { display:flex; flex-wrap:wrap; gap:8px 16px; font-size:11px; color:var(--kredo-outline); }
+.kredo-record-meta strong { color:var(--kredo-secondary); }
+.kredo-record-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; margin-top:16px; }
+.kredo-sheet-empty { grid-column:1/-1; padding:52px 24px; text-align:center; border:1px dashed var(--kredo-outline-variant); border-radius:16px; color:var(--kredo-outline); background:var(--kredo-surface-container-lowest); }
+.kredo-explainer { display:flex; align-items:center; gap:13px; border:1px solid #c7d2fe; background:#eef2ff; border-radius:15px; padding:15px 17px; color:#312e81; }
+.kredo-explainer > .material-symbols-outlined { font-size:25px; }
+.kredo-explainer p { margin:3px 0 0; font-size:12px; line-height:1.45; }
+.kredo-explainer .kredo-btn-action { margin-left:auto; flex-shrink:0; }
+.kredo-sheet-raw-card { overflow:auto; border:1px solid var(--kredo-outline-variant); border-radius:15px; background:#fff; }
+.kredo-sheet-raw-card table { border-collapse:collapse; min-width:100%; }
+.kredo-sheet-raw-card td { padding:13px; border-bottom:1px solid var(--kredo-outline-variant); min-width:170px; }
+.kredo-sheet-raw-card td small,.kredo-sheet-raw-card td strong { display:block; }
+.kredo-sheet-raw-card td small { color:var(--kredo-outline); margin-bottom:3px; }
+.kredo-modal-title-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+.kredo-sheet-write-warning { display:flex; gap:10px; padding:12px; border:1px solid #fbbf24; border-radius:11px; background:#fffbeb; color:#92400e; margin-bottom:15px; }
+.kredo-sheet-write-warning p { margin:3px 0 0; font-size:11.5px; line-height:1.4; }
+.kredo-form-label { display:block; margin:10px 0 4px; color:var(--kredo-outline); font-size:10.5px; font-weight:800; text-transform:uppercase; }
+.kredo-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+.kredo-bill-detail-amount { display:flex; align-items:center; gap:12px; padding:16px; border-radius:12px; background:var(--kredo-surface-container-low); }
+.kredo-bill-detail-amount small { color:var(--kredo-outline); }
+.kredo-bill-detail-amount strong { font:800 24px var(--kredo-mono); color:var(--kredo-secondary); }
+.kredo-bill-detail-amount .kredo-status-pill { margin-left:auto; }
+@media (max-width:600px) { .kredo-form-grid { grid-template-columns:1fr; } .kredo-explainer { align-items:flex-start; flex-wrap:wrap; } .kredo-explainer .kredo-btn-action { margin-left:0; } }
+
 .kredo-sheet-table-24 {
   width: 100%;
   border-collapse: collapse;
@@ -2822,4 +2864,3 @@ body.dark .kredo-app-root,
   padding: 8px 12px;
   text-align: center;
 }
-

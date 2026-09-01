@@ -247,6 +247,18 @@ Headless automation reads the server-encrypted mirror, not browser IndexedDB. `F
 | `/api/alexa` | POST | Secure Alexa bridge for voice lookups |
 | `/api/health` | GET | Health and diagnostic check |
 
+### KREDO Google Sheet write-back activation
+
+KREDO reads all six workbook tabs directly and writes approved, allowlisted changes through the server-only `/api/kredo-sheet` proxy. To activate production write-back:
+
+1. Replace the bound Apps Script project source with `Smart_Finance_Intelligence_v6_1_FlexibleBills.gs` and save it.
+2. In Apps Script **Project Settings → Script Properties**, add `SECRET_TOKEN` with a new private random value.
+3. Deploy a new Web App version using **Execute as: Me** and the access level required by the existing iOS ingestion flow.
+4. Configure the deployed `/exec` URL as `KREDO_SHEET_WRITEBACK_WEBAPP_URL` in Vercel Production.
+5. Configure the same private token as `KREDO_SHEET_WRITEBACK_TOKEN` in Vercel Production, then redeploy Memoir.
+
+The token is never sent to the browser or committed to Git. `Dashboard` and `Calc_Data` remain read-only; Transactions, Bills, Alerts, and Rules use header allowlists and stable IDs. Bill payments update Paid Amount, Balance Due, Status, Last Event, Updated At, and the appended Paid At column as one locked operation.
+
 ---
 
 ## 📁 Database Architecture

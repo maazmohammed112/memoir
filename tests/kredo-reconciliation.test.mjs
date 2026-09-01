@@ -314,10 +314,26 @@ await kredoSheetHandler({
 }, syncedResponse);
 assert.equal(syncedResponse.statusCode, 200);
 assert.equal(syncedResponse.body.updatedRows, 1);
+
+let paidWriteback = null;
+globalThis.fetch = async (_url, options) => {
+  paidWriteback = JSON.parse(options.body);
+  return new Response(JSON.stringify({ success: true, action: 'markBillPaid', updated: true, updatedRows: 1 }), { status: 200 });
+};
+const paidResponse = createMockResponse();
+await kredoSheetHandler({
+  method: 'POST',
+  body: { action: 'markBillPaid', sheetName: 'Bills', recordId: 'bill-lazypay-1', paidAmount: 1251.37, paidVia: 'UPI' },
+}, paidResponse);
+assert.equal(paidResponse.statusCode, 200);
+assert.equal(paidWriteback.recordId, 'bill-lazypay-1');
+assert.equal(paidWriteback.paidAmount, 1251.37);
+assert.equal(paidWriteback.paidVia, 'UPI');
 globalThis.fetch = originalFetch;
 if (originalWritebackUrl === undefined) delete process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL;
 else process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL = originalWritebackUrl;
 console.log('✓ Approval API passed: unconfigured deployments fail safely and verified Apps Script updates succeed.');
+console.log('✓ Bill payment API passed: stable Bill ID, paid amount, and payment method reach Apps Script safely.');
 
 // ----------------------------------------------------------------------------
 // 6. SMART MERCHANT ANNOTATION & AUTO-MEMORY ENGINE

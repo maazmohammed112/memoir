@@ -11,47 +11,72 @@ function cleanIdentity(value, max = 180) {
   return String(value || '').trim().slice(0, max);
 }
 
+const ACTIONS = new Set(['updateReviewStatus', 'updateRecord', 'markBillPaid', 'createRule']);
+const WRITABLE_FIELDS = {
+  Transactions: new Set(['Date', 'Time', 'Type', 'Amount', 'Category', 'Payment Method', 'Merchant', 'Account', 'Bank', 'Last 4', 'Reference ID', 'Nature', 'Currency', 'Status', 'Review Flag', 'Review Reason', 'Linked Bill ID', 'Payment App', 'Card Network']),
+  Bills: new Set(['Bill Type', 'Issuer / Biller', 'Bank', 'Account', 'Last 4', 'Statement Date', 'Statement Period', 'Due Date', 'Bill Amount', 'Minimum Due', 'Paid Amount', 'Balance Due', 'Status', 'Autopay', 'Last Event', 'Reference ID']),
+  Alerts: new Set(['Alert Class', 'Severity', 'Reason', 'Suggested Action', 'Status']),
+  Rules: new Set(['Rule Type', 'Match', 'Value', 'Active', 'Notes']),
+};
+
+function cleanFields(value, allowed) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => allowed?.has(key))
+    .map(([key, fieldValue]) => [key, typeof fieldValue === 'boolean' ? fieldValue : cleanIdentity(fieldValue, 1000)]));
+}
+
 export default async function kredoSheetHandler(req, res) {
   if (req.method !== 'POST') {
     return sendJson(res, 405, { success: false, error: 'Method not allowed' });
   }
 
   const body = req.body && typeof req.body === 'object' ? req.body : {};
-  if (body.action !== 'updateReviewStatus') {
+  if (!ACTIONS.has(body.action)) {
     return sendJson(res, 400, { success: false, error: 'Unsupported Sheet action' });
   }
   if (body.spreadsheetId && body.spreadsheetId !== SHEET_ID) {
     return sendJson(res, 403, { success: false, error: 'Spreadsheet is outside the KREDO allowlist' });
   }
 
+  const sheetName = cleanIdentity(body.sheetName || (body.action === 'updateReviewStatus' ? 'Transactions' : ''));
+  if (!WRITABLE_FIELDS[sheetName]) return sendJson(res, 400, { success: false, error: 'Sheet tab is not writable' });
   const transactionId = cleanIdentity(body.transactionId);
   const referenceId = cleanIdentity(body.referenceId);
   const appTransactionId = cleanIdentity(body.appTransactionId);
-  if (!transactionId && !referenceId && !appTransactionId) {
-    return sendJson(res, 400, { success: false, error: 'A stable transaction identity is required' });
+  const recordId = cleanIdentity(body.recordId);
+  if (body.action !== 'createRule' && !recordId && !transactionId && !referenceId && !appTransactionId) {
+    return sendJson(res, 400, { success: false, error: 'A stable record identity is required' });
   }
 
-  const writebackUrl = process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL;
+  const writebackUrl = process.env.KREDO_SHEET_WRITEBACK_WEBAPP_URL || process.env.KREDO_SHEET_APPROVAL_WEBAPP_URL;
   if (!writebackUrl) {
     return sendJson(res, 503, {
       success: false,
       pending: true,
-      error: 'KREDO Sheet approval write-back is not configured',
+      error: 'KREDO Sheet write-back is not configured',
     });
   }
-  const approvalPayload = {
-    action: 'updateReviewStatus',
+  const requestPayload = {
+    action: body.action,
     spreadsheetId: SHEET_ID,
-    sheetName: 'Transactions',
+    sheetName,
     transactionId,
     referenceId,
     appTransactionId,
+    recordId,
     approved: body.approved !== false,
     reviewFlag: body.approved === false ? 'Yes' : 'Approved',
     reviewReason: cleanIdentity(body.reviewReason, 500) || 'Approved in Memoir KREDO',
+    updates: cleanFields(body.updates, WRITABLE_FIELDS[sheetName]),
+    fields: cleanFields(body.fields, WRITABLE_FIELDS.Rules),
+    paidAmount: Math.max(0, Number(body.paidAmount || 0)),
+    paidVia: cleanIdentity(body.paidVia, 120),
     source: 'Memoir KREDO',
     requestedAt: new Date().toISOString(),
   };
+  const writebackToken = process.env.KREDO_SHEET_WRITEBACK_TOKEN;
+  if (writebackToken) requestPayload.token = writebackToken;
 
   try {
     const upstream = await fetch(writebackUrl, {
@@ -59,7 +84,7 @@ export default async function kredoSheetHandler(req, res) {
       headers: { 'Content-Type': 'text/plain;charset=utf-8', 'Accept': 'application/json' },
       cache: 'no-store',
       signal: AbortSignal.timeout(12000),
-      body: JSON.stringify(approvalPayload),
+      body: JSON.stringify(requestPayload),
     });
     const upstreamText = await upstream.text();
     let upstreamPayload = {};
@@ -69,14 +94,14 @@ export default async function kredoSheetHandler(req, res) {
     const verifiedUpdate = upstream.ok && upstreamPayload.success === true && (
       upstreamPayload.updated === true ||
       updatedRows > 0 ||
-      upstreamPayload.action === 'updateReviewStatus'
+      upstreamPayload.action === body.action
     );
 
     if (!verifiedUpdate) {
       return sendJson(res, 502, {
         success: false,
         pending: true,
-        error: upstreamPayload.error || 'The Google Apps Script deployment has not enabled KREDO approval write-back yet',
+        error: upstreamPayload.error || 'The Google Apps Script deployment has not enabled KREDO write-back yet',
       });
     }
 
@@ -85,7 +110,9 @@ export default async function kredoSheetHandler(req, res) {
       updated: true,
       updatedRows: updatedRows || 1,
       transactionId,
-      reviewFlag: approvalPayload.reviewFlag,
+      recordId,
+      action: body.action,
+      reviewFlag: upstreamPayload.reviewFlag || requestPayload.reviewFlag,
       syncedAt: new Date().toISOString(),
     });
   } catch (error) {
