@@ -2122,3 +2122,581 @@ body.dark .kredo-app-root,
 .kredo-sheet-table-24 tr.kredo-row-flagged td {
   background: rgba(245, 158, 11, 0.04);
 }
+
+/* ==========================================================================
+   SMART INTELLIGENCE RECONCILIATION AGENT (Email + Google Sheet Cross-Stream)
+   ========================================================================== */
+
+.kredo-reconcile-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+  animation: kredoFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.kredo-reconcile-card {
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 255, 0.04);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.kredo-reconcile-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0000ff 0%, #3b82f6 50%, #00c853 100%);
+}
+
+.kredo-reconcile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.kredo-reconcile-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kredo-reconcile-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(0, 0, 255, 0.08) 0%, rgba(59, 130, 246, 0.15) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0000ff;
+}
+
+.kredo-reconcile-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--kredo-secondary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kredo-reconcile-sub {
+  font-size: 12px;
+  color: var(--kredo-outline);
+  margin: 2px 0 0 0;
+}
+
+.kredo-reconcile-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0, 0, 255, 0.08);
+  color: #0000ff;
+  border: 1px solid rgba(0, 0, 255, 0.18);
+  padding: 4px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kredo-reconcile-pair-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #edf2f7;
+}
+
+.kredo-reconcile-pair-item {
+  background: #f8fafc;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kredo-reconcile-pair-item:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.kredo-reconcile-pair-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 14px;
+  align-items: stretch;
+}
+
+@media (max-width: 640px) {
+  .kredo-reconcile-pair-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+.kredo-reconcile-side-card {
+  background: #ffffff;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.kredo-reconcile-side-card.email-side {
+  border-left: 3px solid #2563eb;
+}
+
+.kredo-reconcile-side-card.sheet-side {
+  border-left: 3px solid #0f9d58;
+}
+
+.kredo-reconcile-side-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.kredo-stream-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.kredo-stream-tag.email {
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+}
+
+.kredo-stream-tag.sheet {
+  background: rgba(15, 157, 88, 0.08);
+  color: #0f9d58;
+  border: 1px solid rgba(15, 157, 88, 0.2);
+}
+
+.kredo-stream-tag.unified {
+  background: rgba(124, 58, 237, 0.08);
+  color: #7c3aed;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+}
+
+.kredo-reconcile-side-amount {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--kredo-mono);
+  color: var(--kredo-secondary);
+}
+
+.kredo-reconcile-side-merchant {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--kredo-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kredo-reconcile-side-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--kredo-outline);
+}
+
+.kredo-reconcile-center-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.kredo-confidence-tag {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.kredo-reasons-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+}
+
+.kredo-reason-pill {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.kredo-reconcile-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.kredo-merge-btn {
+  background: #0000ff;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 255, 0.2);
+}
+
+.kredo-merge-btn:hover {
+  background: #0000d6;
+  transform: translateY(-1px);
+}
+
+.kredo-dismiss-btn {
+  background: transparent;
+  color: var(--kredo-outline);
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.kredo-dismiss-btn:hover {
+  background: #f1f5f9;
+  color: var(--kredo-secondary);
+}
+
+/* Recently Merged Active Undo Section */
+.kredo-merged-active-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #edf2f7;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kredo-merged-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kredo-secondary);
+}
+
+.kredo-merged-card {
+  background: #ffffff;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  box-shadow: 0 2px 8px rgba(0, 200, 83, 0.04);
+}
+
+.kredo-merged-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.kredo-undo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--kredo-mono);
+  font-weight: 700;
+}
+
+.kredo-unmerge-btn {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.kredo-unmerge-btn:hover {
+  background: #fecaca;
+}
+
+.kredo-merged-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(124, 58, 237, 0.08);
+  color: #7c3aed;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* ==========================================================================
+   APPROVED / VERIFIED STATUS TOKENS
+   ========================================================================== */
+.kredo-status-outline-approved {
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.15) !important;
+}
+
+.kredo-status-pill.approved {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.kredo-approve-btn {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.kredo-approve-btn:hover {
+  background: #d1fae5;
+  color: #047857;
+  border-color: #6ee7b7;
+  transform: translateY(-1px);
+}
+
+.kredo-approve-btn.prominent {
+  background: #10b981;
+  color: #ffffff;
+  border: 1px solid #059669;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.kredo-approve-btn.prominent:hover {
+  background: #059669;
+}
+
+/* ==========================================================================
+   SMART MERCHANT ANNOTATIONS & TAG PILLS
+   ========================================================================== */
+.kredo-annotation-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+  background: rgba(99, 102, 241, 0.08);
+  color: #4338ca;
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  padding: 1.5px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.kredo-annotation-pill:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: #6366f1;
+}
+
+.kredo-annotation-pill.empty-add {
+  background: transparent;
+  color: var(--kredo-outline);
+  border: 1px dashed var(--kredo-outline-variant);
+  opacity: 0.8;
+}
+
+.kredo-annotation-pill.empty-add:hover {
+  opacity: 1;
+  border-color: var(--kredo-primary);
+  color: var(--kredo-primary);
+}
+
+/* ==========================================================================
+   RECONCILIATION AGENT CARDS & COMPARISON MODAL
+   ========================================================================== */
+.kredo-reconciliation-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.06);
+  margin-bottom: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kredo-reconciliation-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #6366f1 0%, #3b82f6 100%);
+}
+
+.kredo-match-candidate-item {
+  background: #ffffff;
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.15s ease;
+}
+
+.kredo-match-candidate-item:hover {
+  border-color: #a5b4fc;
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.08);
+}
+
+.kredo-confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.kredo-compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 14px 0;
+}
+
+@media (max-width: 640px) {
+  .kredo-compare-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kredo-compare-column {
+  background: var(--kredo-surface-container-low);
+  border: 1px solid var(--kredo-outline-variant);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.kredo-compare-column.email {
+  border-top: 3px solid #2563eb;
+}
+
+.kredo-compare-column.sheet {
+  border-top: 3px solid #0f9d58;
+}
+
+.kredo-timer-pill-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--kredo-mono);
+  font-weight: 700;
+}
+
+.kredo-timer-dot-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2563eb;
+  animation: kredoDotPulse 1.5s infinite;
+}
+

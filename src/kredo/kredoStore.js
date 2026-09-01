@@ -907,3 +907,30 @@ export function saveKredoSettings(updates) {
   }
   return next;
 }
+
+export {
+  getReconciliationStore,
+  saveReconciliationStore,
+  findPendingReconciliationMatches,
+  mergeTransactions,
+  unmergeTransactions,
+  isUndoAvailable,
+  getUndoRemainingSeconds,
+  formatRemainingTime,
+  dismissMatch,
+  buildUnifiedReconciledTransactionList,
+  getSheetApprovals,
+  setSheetApproval,
+  batchSetSheetApprovals,
+  RECONCILIATION_DATE_THRESHOLD,
+  UNDO_WINDOW_SECONDS,
+} from './kredoReconciliation.js';
+
+export {
+  getMerchantAnnotations,
+  setMerchantAnnotation,
+  removeMerchantAnnotation,
+  resolveTransactionAnnotation,
+  attachAnnotationsToTransactions,
+} from './kredoAnnotations.js';
+

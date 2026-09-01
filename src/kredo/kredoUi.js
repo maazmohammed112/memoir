@@ -47,6 +47,30 @@ import {
 } from './kredoCardStore.js';
 
 import {
+  findPendingReconciliationMatches,
+  mergeTransactions,
+  unmergeTransactions,
+  isUndoAvailable,
+  getUndoRemainingSeconds,
+  formatRemainingTime,
+  dismissMatch,
+  getReconciliationStore,
+  buildUnifiedReconciledTransactionList,
+  getSheetApprovals,
+  setSheetApproval,
+  batchSetSheetApprovals,
+} from './kredoReconciliation.js';
+
+import {
+  getMerchantAnnotations,
+  setMerchantAnnotation,
+  removeMerchantAnnotation,
+  setTransactionAnnotationOverride,
+  resolveTransactionAnnotation,
+  attachAnnotationsToTransactions,
+} from './kredoAnnotations.js';
+
+import {
   fetchGoogleSheetTransactions,
   subscribeToSheetUpdates,
   startSheetRealtimePolling,
@@ -499,11 +523,38 @@ export class KredoController {
       activeTab,
       selectedTxIds,
       selectedCardIdFilter,
-      dataSource, // 'kredo' | 'sheet'
+      dataSource, // 'kredo' | 'sheet' | 'unified'
     } = this.state;
 
-    // Isolate data: strictly Kredo Email or Google Sheet (never merged)
-    const rawPool = dataSource === 'sheet' ? sheetTransactions : transactions;
+    // Decorate Email and Google Sheet transactions with merchant auto-annotations and approvals
+    const sheetApprovals = getSheetApprovals();
+    const decoratedEmailTxs = attachAnnotationsToTransactions(transactions || []);
+    const decoratedSheetTxs = attachAnnotationsToTransactions((sheetTransactions || []).map(t => {
+      if (sheetApprovals[t.id] && sheetApprovals[t.id].approved) {
+        return {
+          ...t,
+          isApproved: true,
+          reviewFlag: 'Approved',
+          reviewReason: sheetApprovals[t.id].notes || 'Verified & Approved',
+        };
+      }
+      return t;
+    }));
+
+    // Find pending reconciliation matches from Aug 31, 2026 onwards
+    const pendingMatches = findPendingReconciliationMatches(decoratedEmailTxs, decoratedSheetTxs);
+    const reconStore = getReconciliationStore();
+    const mergedRecords = reconStore.mergedRecords || [];
+
+    // Isolate data or build unified reconciled stream
+    let rawPool = [];
+    if (dataSource === 'sheet') {
+      rawPool = decoratedSheetTxs;
+    } else if (dataSource === 'unified') {
+      rawPool = buildUnifiedReconciledTransactionList(decoratedEmailTxs, decoratedSheetTxs);
+    } else {
+      rawPool = decoratedEmailTxs;
+    }
 
     // Filter transactions using multi-filter engine
     let filteredTxs = filterTransactions(rawPool, {
@@ -529,7 +580,7 @@ export class KredoController {
     // Hierarchical Week & Day grouping
     const hierarchicalWeeks = groupTransactionsHierarchically(filteredTxs);
 
-    // Extract unique available categories & payment methods from active isolated pool
+    // Extract unique available categories & payment methods from active pool
     const availableCategories = Array.from(new Set(rawPool.map(t => t.category).filter(Boolean))).sort();
     const availableMethods = Array.from(new Set(rawPool.map(t => t.paymentMethod).filter(Boolean))).sort();
 
@@ -537,11 +588,11 @@ export class KredoController {
     let insightsPool = [];
     const insSrc = this.state.insightsSource || this.state.dataSource;
     if (insSrc === 'sheet') {
-      insightsPool = sheetTransactions;
+      insightsPool = decoratedSheetTxs;
     } else if (insSrc === 'kredo') {
-      insightsPool = transactions;
-    } else if (insSrc === 'all') {
-      insightsPool = [...transactions, ...sheetTransactions];
+      insightsPool = decoratedEmailTxs;
+    } else if (insSrc === 'all' || insSrc === 'unified') {
+      insightsPool = buildUnifiedReconciledTransactionList(decoratedEmailTxs, decoratedSheetTxs);
     } else {
       insightsPool = rawPool;
     }
@@ -572,7 +623,7 @@ export class KredoController {
     const insightsAvailableNetworks = Array.from(new Set(insightsPool.map(t => t.cardNetwork).filter(Boolean))).sort();
     const insightsAvailableNatures = Array.from(new Set(insightsPool.map(t => t.nature).filter(Boolean))).sort();
 
-    // Compute Executive Analytics on isolated data pool for Ledger & Overview
+    // Compute Executive Analytics on active data pool for Ledger & Overview
     const analytics = computeKredoAnalytics(rawPool, filteredTxs);
 
     // Real-Time Dynamic Chart Data
@@ -602,7 +653,7 @@ export class KredoController {
 
             <div class="kredo-header-actions">
               <!-- Sleek Segmented Source Switcher -->
-              <div class="kredo-source-segmented" role="tablist" title="Data Stream: Email Vault vs Live Google Sheet">
+              <div class="kredo-source-segmented" role="tablist" title="Data Stream: Email Vault vs Live Google Sheet vs Reconciled Unified">
                 <button type="button" class="kredo-source-seg-btn ${dataSource === 'kredo' ? 'active' : ''}" data-source="kredo" title="Kredo Email & Local Ledger">
                   <span class="material-symbols-outlined text-[15px]">mail</span>
                   <span class="kredo-seg-text">Email Vault</span>
@@ -611,6 +662,10 @@ export class KredoController {
                   <span class="material-symbols-outlined text-[15px]">table_chart</span>
                   <span class="kredo-seg-text">Google Sheet</span>
                   <span class="kredo-live-micro-dot"></span>
+                </button>
+                <button type="button" class="kredo-source-seg-btn ${dataSource === 'unified' ? 'active' : ''}" data-source="unified" title="Unified Deduplicated Stream">
+                  <span class="material-symbols-outlined text-[15px]">sync_alt</span>
+                  <span class="kredo-seg-text">Unified</span>
                 </button>
               </div>
 
@@ -640,7 +695,7 @@ export class KredoController {
 
           <!-- Main Canvas Content (Responsive Grid Layout) -->
           <main class="kredo-main-canvas">
-            ${this.renderCanvasContent(analytics, hierarchicalWeeks, filteredTxs, availableMonths, isAllSelected, chartData, insightsAnalytics, availableCategories, availableMethods, insightsFilteredTxs, insightsPool, insightsAvailableCategories, insightsAvailableMethods, insightsAvailableBanks, insightsAvailableApps, insightsAvailableNetworks, insightsAvailableNatures)}
+            ${this.renderCanvasContent(analytics, hierarchicalWeeks, filteredTxs, availableMonths, isAllSelected, chartData, insightsAnalytics, availableCategories, availableMethods, insightsFilteredTxs, insightsPool, insightsAvailableCategories, insightsAvailableMethods, insightsAvailableBanks, insightsAvailableApps, insightsAvailableNetworks, insightsAvailableNatures, pendingMatches, mergedRecords, sheetApprovals)}
           </main>
 
           <!-- Floating Bottom Navigation Pill Shell (Mobile Only - 4 Clean Tabs + Center Action Button) -->
@@ -673,6 +728,9 @@ export class KredoController {
               <span style="font-size: 13px; font-weight: 700;">
                 ${selectedCount} selected
               </span>
+              <button type="button" id="batch-approve-btn" class="kredo-approve-btn prominent" style="padding: 5px 12px; font-size: 11.5px;">
+                <span class="material-symbols-outlined text-[14px]">check_circle</span> Approve (${selectedCount})
+              </button>
               <button type="button" id="batch-clear-btn" style="background: rgba(255,255,255,0.15); border: none; color: #fff; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
                 Deselect
               </button>
@@ -689,10 +747,10 @@ export class KredoController {
       </div>
     `;
 
-    this.bindEvents(filteredTxs, chartData);
+    this.bindEvents(filteredTxs, chartData, pendingMatches);
   }
 
-  renderCanvasContent(analytics, hierarchicalWeeks, filteredTxs, availableMonths, isAllSelected, chartData, insightsAnalytics, availableCategories, availableMethods, insightsFilteredTxs = [], insightsPool = [], insightsAvailableCategories = [], insightsAvailableMethods = [], insightsAvailableBanks = [], insightsAvailableApps = [], insightsAvailableNetworks = [], insightsAvailableNatures = []) {
+  renderCanvasContent(analytics, hierarchicalWeeks, filteredTxs, availableMonths, isAllSelected, chartData, insightsAnalytics, availableCategories, availableMethods, insightsFilteredTxs = [], insightsPool = [], insightsAvailableCategories = [], insightsAvailableMethods = [], insightsAvailableBanks = [], insightsAvailableApps = [], insightsAvailableNetworks = [], insightsAvailableNatures = [], pendingMatches = [], mergedRecords = [], sheetApprovals = {}) {
     const { 
       isLoading, 
       activeTab, 
@@ -1190,9 +1248,15 @@ export class KredoController {
                             ${tx.nature ? `<span class="kredo-nature-tag">${tx.nature}</span>` : '<span style="color:var(--kredo-outline);">-</span>'}
                           </td>
                           <td>
-                            <span class="kredo-status-pill ${finStatus.tier}">
-                              ${finStatus.badgeLabel}
-                            </span>
+                            ${finStatus.isApproved ? `
+                              <span class="kredo-status-pill approved" title="Approved & verified for Insights">
+                                <span class="material-symbols-outlined text-[10px]">check_circle</span> APPROVED
+                              </span>
+                            ` : `
+                              <span class="kredo-status-pill ${finStatus.tier}">
+                                ${finStatus.badgeLabel}
+                              </span>
+                            `}
                           </td>
                           <td>
                             ${isFlagged ? `
@@ -1203,6 +1267,17 @@ export class KredoController {
                           </td>
                           <td style="font-size: 11px; color: ${isFlagged ? '#b45309' : 'var(--kredo-outline)'};">
                             ${tx.reviewReason || '-'}
+                          </td>
+                          <td>
+                            ${tx.annotation ? `
+                              <span class="kredo-annotation-pill" data-edit-annotation="${tx.id}" title="Merchant Annotation">
+                                <span class="material-symbols-outlined text-[10px]">label</span> ${tx.annotation}
+                              </span>
+                            ` : `
+                              <button type="button" class="kredo-annotation-pill empty-add" data-add-annotation="${tx.id}" title="Add tag">
+                                <span class="material-symbols-outlined text-[10px]">add</span>Tag
+                              </button>
+                            `}
                           </td>
                           <td>
                             ${tx.linkedBillId ? `<span class="kredo-bill-chip"><span class="material-symbols-outlined text-[11px]">link</span>${tx.linkedBillId}</span>` : '<span style="color:var(--kredo-outline);">-</span>'}
@@ -1220,7 +1295,12 @@ export class KredoController {
                             ${tx.rawMessage || '-'}
                           </td>
                           <td style="text-align: center; position: sticky; right: 0; background: var(--kredo-surface-container-lowest);">
-                            <div class="kredo-sheet-actions">
+                            <div class="kredo-sheet-actions" style="display: flex; align-items: center; justify-content: center; gap: 4px;">
+                              ${!finStatus.isApproved ? `
+                                <button type="button" class="kredo-approve-btn" data-quick-approve="${tx.id}" title="Mark as approved and sync to Insights">
+                                  <span class="material-symbols-outlined text-[12px]">check_circle</span>
+                                </button>
+                              ` : ''}
                               <button type="button" class="kredo-sheet-action-btn" data-sheet-info="${tx.id}" title="Inspect All 24 Fields">
                                 <span class="material-symbols-outlined text-[15px]">info</span>
                               </button>
@@ -1398,6 +1478,105 @@ export class KredoController {
               </div>
             </section>
 
+            <!-- SMART INTELLIGENCE RECONCILIATION AGENT & MERGE SECTION -->
+            ${pendingMatches && pendingMatches.length > 0 ? `
+              <div class="kredo-reconciliation-card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 3px;">
+                      <span class="material-symbols-outlined text-[18px]" style="color: #6366f1;">hub</span>
+                      <strong style="font-size: 14px; color: var(--kredo-secondary);">Smart Reconciliation Agent</strong>
+                      <span class="kredo-confidence-badge">${pendingMatches.length} Pending Match${pendingMatches.length === 1 ? '' : 'es'} (Aug 31+)</span>
+                    </div>
+                    <p style="font-size: 11.5px; color: var(--kredo-outline); margin: 0;">
+                      Identified cross-stream duplicate transactions between Email Vault and Google Sheet. Review and 1-click merge with a 5-minute reversible undo window.
+                    </p>
+                  </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  ${pendingMatches.slice(0, 3).map((match, idx) => `
+                    <div class="kredo-match-candidate-item">
+                      <div style="min-width: 0; flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;">
+                          <strong style="font-size: 13px; color: var(--kredo-secondary);">${match.emailTx.merchant}</strong>
+                          <span style="font-size: 11px; font-family: var(--kredo-mono); font-weight: 700; color: var(--kredo-primary);">${formatINR(match.emailTx.amount)}</span>
+                          <span class="kredo-confidence-badge" style="font-size: 10px;">${match.confidence}% Confidence</span>
+                        </div>
+                        <div style="font-size: 11px; color: var(--kredo-outline); display: flex; gap: 6px; flex-wrap: wrap;">
+                          <span>Email (${match.emailTx.date})</span>
+                          <span>&bull;</span>
+                          <span>Sheet (${match.sheetTx.date})</span>
+                          ${match.reasons && match.reasons.length > 0 ? `<span>&bull; ${match.reasons[0]}</span>` : ''}
+                        </div>
+                      </div>
+
+                      <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                        <button type="button" class="kredo-btn-action" data-reconcile-compare="${idx}" style="font-size: 11px; padding: 5px 10px; background: #6366f1; color: #fff;">
+                          <span class="material-symbols-outlined text-[13px]">compare</span> Compare
+                        </button>
+                        <button type="button" class="kredo-btn-action secondary" data-quick-merge="${idx}" style="font-size: 11px; padding: 5px 10px;">
+                          <span class="material-symbols-outlined text-[13px]">merge</span> Merge
+                        </button>
+                        <button type="button" class="kredo-mini-btn" data-dismiss-match="${match.pairKey}" title="Dismiss match suggestion" style="width: 26px; height: 26px;">
+                          <span class="material-symbols-outlined text-[14px]">close</span>
+                        </button>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- RECENTLY MERGED & 5-MINUTE ACTIVE UNDO CARDS -->
+            ${mergedRecords && mergedRecords.length > 0 ? `
+              <div style="background: #ffffff; border: 1px solid var(--kredo-outline-variant); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: flex; align-items: center; gap: 4px;">
+                    <span class="material-symbols-outlined text-[14px]">history</span> Recently Merged Cross-Stream Records
+                  </span>
+                  <span style="font-size: 11px; color: var(--kredo-outline);">${mergedRecords.length} Merged Pair${mergedRecords.length === 1 ? '' : 's'}</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  ${mergedRecords.map(m => {
+                    const remainingSec = getUndoRemainingSeconds(m);
+                    const canUndo = remainingSec > 0;
+                    return `
+                      <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: var(--kredo-surface-container-low); border-radius: 8px; font-size: 12px; gap: 10px;">
+                        <div>
+                          <div style="display: flex; align-items: center; gap: 6px;">
+                            <span class="kredo-merged-badge-pill">Unified</span>
+                            <strong style="color: var(--kredo-secondary);">${m.unifiedTx.merchant}</strong>
+                            <span style="font-family: var(--kredo-mono); font-weight: 700;">${formatINR(m.unifiedTx.amount)}</span>
+                          </div>
+                          <div style="font-size: 10.5px; color: var(--kredo-outline); margin-top: 2px;">
+                            Merged Email (${m.emailTx?.date || '-'}) + Sheet (${m.sheetTx?.date || '-'})
+                          </div>
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                          ${canUndo ? `
+                            <span class="kredo-timer-pill-live" title="5-minute instant reversible unmerge active">
+                              <span class="kredo-timer-dot-pulse"></span> Undo: ${formatRemainingTime(remainingSec)}
+                            </span>
+                            <button type="button" class="kredo-unmerge-btn" data-unmerge="${m.mergeId}" title="Reversible unmerge back to original Email and Sheet rows">
+                              <span class="material-symbols-outlined text-[13px]">undo</span> Undo
+                            </button>
+                          ` : `
+                            <span class="kredo-undo-pill" style="opacity: 0.7;">Permanent</span>
+                            <button type="button" class="kredo-unmerge-btn" data-unmerge="${m.mergeId}" style="opacity: 0.85;" title="Unmerge pair">
+                              <span class="material-symbols-outlined text-[13px]">undo</span> Unmerge
+                            </button>
+                          `}
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
+
             <!-- Hierarchical Week & Day Ledger Cards -->
             <section class="kredo-hierarchical-ledger">
               ${hierarchicalWeeks && hierarchicalWeeks.length > 0 ? 
@@ -1439,6 +1618,23 @@ export class KredoController {
                                     <span class="kredo-status-pill flagged" style="font-size: 9.5px;">
                                       <span class="material-symbols-outlined text-[10px]">flag</span> ${tx.reviewFlag}
                                     </span>
+                                  ` : ''}
+                                  ${tx.isMerged ? `
+                                    <span class="kredo-merged-badge-pill" style="font-size: 9.5px;">Unified</span>
+                                  ` : ''}
+                                  ${tx.annotation ? `
+                                    <span class="kredo-annotation-pill" data-edit-annotation="${tx.id}" title="Merchant Annotation (Auto-remembered)">
+                                      <span class="material-symbols-outlined text-[11px]">label</span>${tx.annotation}
+                                    </span>
+                                  ` : `
+                                    <button type="button" class="kredo-annotation-pill empty-add" data-add-annotation="${tx.id}" title="Add merchant annotation">
+                                      <span class="material-symbols-outlined text-[11px]">add</span>Tag
+                                    </button>
+                                  `}
+                                  ${!finStatus.isApproved && (tx.source?.includes('Sheet') || tx.isGoogleSheet || finStatus.isFlagged) ? `
+                                    <button type="button" class="kredo-approve-btn" data-quick-approve="${tx.id}" title="Approve & sync to Insights">
+                                      <span class="material-symbols-outlined text-[13px]">check_circle</span> Approve
+                                    </button>
                                   ` : ''}
                                   ${tx.linkedBillId ? `
                                     <span class="kredo-bill-chip" style="font-size: 9px; padding: 1px 4px;">
@@ -1633,8 +1829,9 @@ export class KredoController {
                 <!-- Review Flag Slicer Dropdown -->
                 <select class="kredo-month-select" id="kredo-insights-review-select" style="flex: 1 1 100px; min-width: 0; font-size: 12px;" title="Filter by Review Status">
                   <option value="all" ${insightsReviewFilter === 'all' ? 'selected' : ''}>All Flags</option>
+                  <option value="approved" ${insightsReviewFilter === 'approved' ? 'selected' : ''}>✓ Approved Only</option>
                   <option value="flagged" ${insightsReviewFilter === 'flagged' ? 'selected' : ''}>⚠️ Flagged Only</option>
-                  <option value="clear" ${insightsReviewFilter === 'clear' ? 'selected' : ''}>✓ Clear Only</option>
+                  <option value="clear" ${insightsReviewFilter === 'clear' ? 'selected' : ''}>Clear Only</option>
                 </select>
               </div>
 
@@ -2466,13 +2663,27 @@ export class KredoController {
               </div>
             </div>
 
-            <div style="display: flex; gap: 8px; margin-top: 14px;">
-              <button class="kredo-btn-action secondary" id="close-modal-btn-2" style="flex: 1; padding: 10px;">
-                Close
-              </button>
-              <button class="kredo-btn-action" data-modal-edit-tx="${tx.id}" style="flex: 1; padding: 10px;">
-                Edit Entry
-              </button>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+              ${!finStatus.isApproved ? `
+                <button type="button" class="kredo-btn-action" data-modal-approve-tx="${tx.id}" style="background: #10b981; color: #fff; width: 100%; padding: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                  <span class="material-symbols-outlined text-[17px]">check_circle</span> Mark as Approved & Sync to Insights
+                </button>
+              ` : `
+                <div style="text-align: center; padding: 6px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; color: #047857; font-size: 12px; font-weight: 700;">
+                  ✓ Approved & Synchronized with Insights
+                </div>
+              `}
+              <div style="display: flex; gap: 8px;">
+                <button class="kredo-btn-action secondary" id="close-modal-btn-2" style="flex: 1; padding: 10px;">
+                  Close
+                </button>
+                <button class="kredo-btn-action" data-modal-tag-tx="${tx.id}" style="flex: 1; padding: 10px; background: #4f46e5; color: #fff;">
+                  <span class="material-symbols-outlined text-[15px]">label</span> Tag
+                </button>
+                <button class="kredo-btn-action" data-modal-edit-tx="${tx.id}" style="flex: 1; padding: 10px;">
+                  Edit Entry
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2643,13 +2854,27 @@ export class KredoController {
             ` : ''}
 
             <!-- Modal Action Buttons -->
-            <div style="display: flex; gap: 10px; margin-top: 14px;">
-              <button type="button" class="kredo-btn-action secondary" id="close-modal-btn-2" style="flex: 1; padding: 11px;">
-                Close
-              </button>
-              <a href="${GOOGLE_SHEET_URL}" target="_blank" rel="noopener noreferrer" class="kredo-btn-action" style="flex: 2; text-decoration: none; padding: 11px; background: #0f9d58; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
-                <span class="material-symbols-outlined text-[17px]">open_in_new</span> Open Google Sheet
-              </a>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+              ${!finStatus.isApproved ? `
+                <button type="button" class="kredo-btn-action prominent" data-modal-approve-tx="${tx.id}" style="background: #10b981; color: #fff; width: 100%; padding: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                  <span class="material-symbols-outlined text-[18px]">check_circle</span> Mark as Approved & Sync to Insights
+                </button>
+              ` : `
+                <div style="text-align: center; padding: 6px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; color: #047857; font-size: 12px; font-weight: 700;">
+                  ✓ Approved & Synchronized with Insights
+                </div>
+              `}
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="kredo-btn-action secondary" id="close-modal-btn-2" style="flex: 1; padding: 10px;">
+                  Close
+                </button>
+                <button type="button" class="kredo-btn-action" data-modal-tag-tx="${tx.id}" style="flex: 1; padding: 10px; background: #4f46e5; color: #fff;">
+                  <span class="material-symbols-outlined text-[15px]">label</span> Merchant Tag
+                </button>
+                <a href="${GOOGLE_SHEET_URL}" target="_blank" rel="noopener noreferrer" class="kredo-btn-action" style="flex: 1.5; text-decoration: none; padding: 10px; background: #0f9d58; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                  <span class="material-symbols-outlined text-[16px]">open_in_new</span> Sheet
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -2776,6 +3001,193 @@ export class KredoController {
       `;
     }
 
+    // SIDE-BY-SIDE RECONCILIATION COMPARISON MODAL
+    if (activeModal === 'reconcile-compare' && this.state.activeCandidateMatch) {
+      const match = this.state.activeCandidateMatch;
+      const emailTx = match.emailTx || {};
+      const sheetTx = match.sheetTx || {};
+
+      return `
+        <div class="kredo-modal-backdrop" id="kredo-modal-bg">
+          <div class="kredo-modal-sheet" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; position: sticky; top: 0; background: var(--kredo-surface-container-lowest); padding-bottom: 8px; z-index: 10; border-bottom: 1px solid var(--kredo-outline-variant);">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(99, 102, 241, 0.12); color: #6366f1; display: flex; align-items: center; justify-content: center;">
+                  <span class="material-symbols-outlined text-[20px]">compare</span>
+                </div>
+                <div>
+                  <h3 style="font-size: 16px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Cross-Stream Side-by-Side Comparison</h3>
+                  <span class="kredo-confidence-badge">${match.confidence}% Match Confidence</span>
+                </div>
+              </div>
+              <button class="kredo-mini-btn" id="close-modal-btn">
+                <span class="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <p style="font-size: 12px; color: var(--kredo-outline); margin-bottom: 14px;">
+              Reconciliation agent detected that this Email Vault entry and Google Sheet entry correspond to the same real-world financial transaction. Merging will preserve the best attributes and deduplicate your insights.
+            </p>
+
+            <div class="kredo-compare-grid">
+              <!-- Email Column -->
+              <div class="kredo-compare-column email">
+                <div style="font-size: 12px; font-weight: 800; color: #2563eb; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
+                  <span class="material-symbols-outlined text-[16px]">mail</span> Email Vault Record
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">MERCHANT</span><div style="font-weight: 700;">${emailTx.merchant}</div></div>
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">AMOUNT</span><div style="font-weight: 700; font-family: var(--kredo-mono);">${formatINR(emailTx.amount)}</div></div>
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">DATE & TIME</span><div>${emailTx.date} &bull; ${emailTx.time || '-'}</div></div>
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">CATEGORY / METHOD</span><div>${emailTx.category} &bull; ${emailTx.paymentMethod}</div></div>
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">CARD / BANK</span><div>${emailTx.bank || '-'} (••${emailTx.cardLast4 || 'N/A'})</div></div>
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">REFERENCE ID</span><div style="font-family: var(--kredo-mono); font-size: 11px;">${emailTx.referenceId || '-'}</div></div>
+                </div>
+              </div>
+
+              <!-- Sheet Column -->
+              <div class="kredo-compare-column sheet">
+                <div style="font-size: 12px; font-weight: 800; color: #0f9d58; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
+                  <span class="material-symbols-outlined text-[16px]">table_chart</span> Google Sheet Record
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">MERCHANT</span><div style="font-weight: 700;">${sheetTx.merchant}</div></div>
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">AMOUNT</span><div style="font-weight: 700; font-family: var(--kredo-mono);">${formatINR(sheetTx.amount)}</div></div>
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">DATE & TIME</span><div>${sheetTx.date} &bull; ${sheetTx.time || '-'}</div></div>
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">CATEGORY / METHOD</span><div>${sheetTx.category} &bull; ${sheetTx.paymentMethod}</div></div>
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">CARD / BANK</span><div>${sheetTx.bank || '-'} (••${sheetTx.cardLast4 || 'N/A'})</div></div>
+                  <div><span style="color: var(--kredo-outline); font-size: 10px;">REFERENCE ID</span><div style="font-family: var(--kredo-mono); font-size: 11px;">${sheetTx.referenceId || '-'}</div></div>
+                </div>
+              </div>
+            </div>
+
+            <div style="background: #f8faff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; font-size: 12px;">
+              <strong style="color: #4338ca; display: block; margin-bottom: 4px;">Matching Evidence:</strong>
+              <ul style="margin: 0; padding-left: 18px; color: #3730a3;">
+                ${(match.reasons || []).map(r => `<li>${r}</li>`).join('')}
+              </ul>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+              <button type="button" class="kredo-btn-action secondary" id="modal-dismiss-match-btn" data-pair-key="${match.pairKey}" style="flex: 1;">
+                Dismiss Suggestion
+              </button>
+              <button type="button" class="kredo-btn-action" id="modal-merge-confirm-btn" style="flex: 2; background: #6366f1;">
+                <span class="material-symbols-outlined text-[16px]">merge</span> Merge (5-Min Reversible Undo)
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // EDIT MERCHANT ANNOTATION MODAL
+    if (activeModal === 'edit-annotation' && this.state.annotationTx) {
+      const tx = this.state.annotationTx;
+      const currentAnnotation = tx.annotation || '';
+
+      return `
+        <div class="kredo-modal-backdrop" id="kredo-modal-bg">
+          <div class="kredo-modal-sheet" style="max-width: 460px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="material-symbols-outlined text-[22px]" style="color: #4f46e5;">label</span>
+                <h3 style="font-size: 16px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Merchant Annotation & Memory</h3>
+              </div>
+              <button class="kredo-mini-btn" id="close-modal-btn">
+                <span class="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <p style="font-size: 12px; color: var(--kredo-outline); margin-bottom: 12px;">
+              Tag transactions from <strong>${tx.merchant}</strong> (e.g. <em>chips</em>, <em>dinner</em>, <em>office coffee</em>). The memory engine will auto-apply this tag to existing and future transactions from this merchant.
+            </p>
+
+            <form id="kredo-annotation-form">
+              <input type="hidden" id="annotation-tx-id" value="${tx.id}" />
+              <input type="hidden" id="annotation-tx-merchant" value="${tx.merchant}" />
+
+              <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--kredo-outline); display: block; margin-bottom: 6px;">Tag / Annotation</label>
+              <input type="text" class="kredo-form-input" id="annotation-input" value="${currentAnnotation}" placeholder="e.g. chips, swiggy dineout, taxi, wifi" required />
+
+              <div style="display: flex; gap: 6px; margin: 8px 0 14px 0; flex-wrap: wrap;">
+                ${['chips', 'dinner', 'groceries', 'coffee', 'taxi', 'office', 'personal', 'subscriptions'].map(chip => `
+                  <button type="button" class="kredo-annotation-pill" data-fill-annotation="${chip}">
+                    + ${chip}
+                  </button>
+                `).join('')}
+              </div>
+
+              <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--kredo-secondary); cursor: pointer; margin-bottom: 16px; background: var(--kredo-surface-container-low); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--kredo-outline-variant);">
+                <input type="checkbox" id="annotation-remember-merchant" checked style="margin-top: 2px;" />
+                <div>
+                  <strong>Remember for all transactions from "${tx.merchant}"</strong>
+                  <span style="font-size: 11px; color: var(--kredo-outline); display: block;">Automatically tags any future import from ${tx.merchant}.</span>
+                </div>
+              </label>
+
+              <div style="display: flex; gap: 10px;">
+                <button type="button" class="kredo-btn-action secondary" id="close-modal-btn-2" style="flex: 1;">Cancel</button>
+                <button type="submit" class="kredo-btn-action" style="flex: 2;">Save Annotation</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    // MANAGE ALL MERCHANT ANNOTATIONS MODAL
+    if (activeModal === 'manage-annotations') {
+      const annotations = getMerchantAnnotations();
+      const entries = Object.entries(annotations);
+
+      return `
+        <div class="kredo-modal-backdrop" id="kredo-modal-bg">
+          <div class="kredo-modal-sheet" style="max-width: 520px; max-height: 85vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="material-symbols-outlined text-[22px]" style="color: #4f46e5;">psychology</span>
+                <h3 style="font-size: 16px; font-weight: 700; margin: 0; color: var(--kredo-secondary);">Merchant Memory Rules</h3>
+              </div>
+              <button class="kredo-mini-btn" id="close-modal-btn">
+                <span class="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <p style="font-size: 12px; color: var(--kredo-outline); margin-bottom: 14px;">
+              These tags are automatically attached across all transaction views and insights whenever a merchant is recognized.
+            </p>
+
+            ${entries.length > 0 ? `
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+                ${entries.map(([merchant, tag]) => `
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--kredo-surface-container-low); border: 1px solid var(--kredo-outline-variant); border-radius: 8px;">
+                    <div>
+                      <strong style="font-size: 13px; color: var(--kredo-secondary);">${merchant}</strong>
+                      <div style="margin-top: 2px;">
+                        <span class="kredo-annotation-pill"><span class="material-symbols-outlined text-[10px]">label</span> ${tag}</span>
+                      </div>
+                    </div>
+                    <button type="button" class="kredo-mini-btn danger" data-delete-annotation-merchant="${merchant}" title="Delete memory rule" style="width: 28px; height: 28px;">
+                      <span class="material-symbols-outlined text-[15px]">delete</span>
+                    </button>
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <div style="text-align: center; padding: 24px; color: var(--kredo-outline); font-size: 12px;">
+                No merchant rules configured yet. Click "Tag" on any transaction row to teach KREDO's memory engine.
+              </div>
+            `}
+
+            <button type="button" class="kredo-btn-action" id="close-modal-btn-2" style="width: 100%;">
+              Done
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
     // QUICK ACTION MENU (Replaces the awkward overlapping floating buttons!)
     if (activeModal === 'action-menu') {
       return `
@@ -2806,6 +3218,16 @@ export class KredoController {
                 <div>
                   <strong style="font-size: 14px; display: block; color: var(--kredo-secondary);">Add Credit Card</strong>
                   <span style="font-size: 12px; color: var(--kredo-outline);">Track limit, utilization, and due dates</span>
+                </div>
+              </button>
+
+              <button class="kredo-quick-action-btn" id="quick-action-annotations-btn">
+                <div style="width: 38px; height: 38px; border-radius: 10px; background: #ede9fe; color: #6d28d9; display: flex; align-items: center; justify-content: center;">
+                  <span class="material-symbols-outlined text-[20px]">psychology</span>
+                </div>
+                <div>
+                  <strong style="font-size: 14px; display: block; color: var(--kredo-secondary);">Merchant Memory & Tags</strong>
+                  <span style="font-size: 12px; color: var(--kredo-outline);">Manage auto-annotation tags (e.g. chips)</span>
                 </div>
               </button>
 
@@ -4239,6 +4661,204 @@ export class KredoController {
         if (inputEl) inputEl.disabled = false;
         alert('Statement parsing error: ' + (err.message || 'Unknown error. Please check formatting.'));
       }
+    });
+
+    // Quick Approve & Mark as Approved
+    this.container.querySelectorAll('[data-quick-approve], [data-modal-approve-tx]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const txId = btn.dataset.quickApprove || btn.dataset.modalApproveTx;
+        if (!txId) return;
+
+        setSheetApproval(txId, true, 'Approved & Synced to Insights');
+
+        // Update local memory
+        const updateInList = (list) => list.map(t => {
+          if (t.id === txId) {
+            return {
+              ...t,
+              isApproved: true,
+              reviewFlag: 'Approved',
+              reviewReason: 'Verified & Approved',
+            };
+          }
+          return t;
+        });
+
+        this.state.transactions = updateInList(this.state.transactions);
+        this.state.sheetTransactions = updateInList(this.state.sheetTransactions);
+
+        if (this.state.selectedTx && this.state.selectedTx.id === txId) {
+          this.state.selectedTx.isApproved = true;
+          this.state.selectedTx.reviewFlag = 'Approved';
+        }
+
+        // Also persist if it's an email/local transaction
+        const localTx = this.state.transactions.find(t => t.id === txId);
+        if (localTx) {
+          await updateKredoTransaction(txId, {
+            ...localTx,
+            isApproved: true,
+            reviewFlag: 'Approved',
+            reviewReason: 'Verified & Approved',
+          });
+        }
+
+        this.showToast('Transaction approved and synced to Insights!');
+        this.render();
+      });
+    });
+
+    // Batch Approve
+    this.container.querySelector('#batch-approve-btn')?.addEventListener('click', async () => {
+      const selectedIds = Array.from(this.state.selectedTxIds);
+      if (selectedIds.length === 0) return;
+
+      batchSetSheetApprovals(selectedIds, true);
+
+      const updateInList = (list) => list.map(t => {
+        if (selectedIds.includes(t.id)) {
+          return {
+            ...t,
+            isApproved: true,
+            reviewFlag: 'Approved',
+            reviewReason: 'Verified & Approved',
+          };
+        }
+        return t;
+      });
+
+      this.state.transactions = updateInList(this.state.transactions);
+      this.state.sheetTransactions = updateInList(this.state.sheetTransactions);
+
+      this.clearSelection();
+      this.showToast(`Approved ${selectedIds.length} transactions and synced to Insights!`);
+      this.render();
+    });
+
+    // Reconciliation Compare Side-by-Side
+    this.container.querySelectorAll('[data-reconcile-compare]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.reconcileCompare, 10);
+        if (pendingMatches && pendingMatches[idx]) {
+          this.state.activeCandidateMatch = pendingMatches[idx];
+          this.openModal('reconcile-compare');
+        }
+      });
+    });
+
+    // Reconciliation Quick Merge
+    this.container.querySelectorAll('[data-quick-merge]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.quickMerge, 10);
+        if (pendingMatches && pendingMatches[idx]) {
+          const match = pendingMatches[idx];
+          mergeTransactions(match.emailTx, match.sheetTx, match.confidence);
+          this.showToast('Transactions merged into unified record with 5-minute undo!');
+          this.render();
+        }
+      });
+    });
+
+    // Reconcile Modal Confirm Merge
+    this.container.querySelector('#modal-merge-confirm-btn')?.addEventListener('click', () => {
+      if (this.state.activeCandidateMatch) {
+        const match = this.state.activeCandidateMatch;
+        mergeTransactions(match.emailTx, match.sheetTx, match.confidence);
+        this.closeModal();
+        this.showToast('Transactions merged into unified record with 5-minute undo!');
+        this.render();
+      }
+    });
+
+    // Reconcile Dismiss Match Suggestion
+    this.container.querySelectorAll('[data-dismiss-match], #modal-dismiss-match-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const key = btn.dataset.dismissMatch || btn.dataset.pairKey;
+        if (key) {
+          dismissMatch(key);
+          this.closeModal();
+          this.showToast('Match suggestion dismissed');
+          this.render();
+        }
+      });
+    });
+
+    // Reconcile Unmerge / Undo
+    this.container.querySelectorAll('[data-unmerge]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const mergeId = btn.dataset.unmerge;
+        if (mergeId) {
+          unmergeTransactions(mergeId);
+          this.showToast('Transactions restored to original individual states!');
+          this.render();
+        }
+      });
+    });
+
+    // Open Annotation Tag Modal
+    this.container.querySelectorAll('[data-add-annotation], [data-edit-annotation], [data-modal-tag-tx]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const txId = btn.dataset.addAnnotation || btn.dataset.editAnnotation || btn.dataset.modalTagTx;
+        const tx = activePool.find(t => t.id === txId) || this.state.transactions.find(t => t.id === txId) || this.state.sheetTransactions.find(t => t.id === txId) || this.state.selectedTx;
+        if (tx) {
+          this.state.annotationTx = tx;
+          this.openModal('edit-annotation');
+        }
+      });
+    });
+
+    // Quick tag chips in Annotation modal
+    this.container.querySelectorAll('[data-fill-annotation]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = this.container.querySelector('#annotation-input');
+        if (input) input.value = btn.dataset.fillAnnotation;
+      });
+    });
+
+    // Save Annotation Form Submit
+    this.container.querySelector('#kredo-annotation-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const txId = this.container.querySelector('#annotation-tx-id')?.value;
+      const merchant = this.container.querySelector('#annotation-tx-merchant')?.value;
+      const tag = this.container.querySelector('#annotation-input')?.value?.trim();
+      const remember = this.container.querySelector('#annotation-remember-merchant')?.checked;
+
+      if (!tag) return;
+
+      if (remember && merchant) {
+        setMerchantAnnotation(merchant, tag);
+      }
+      if (txId) {
+        setTransactionAnnotationOverride(txId, tag);
+      }
+
+      this.closeModal();
+      this.showToast(`Saved annotation "${tag}" for ${merchant || 'transaction'}!`);
+      this.render();
+    });
+
+    // Open Manage Annotations Modal
+    this.container.querySelector('#quick-action-annotations-btn')?.addEventListener('click', () => {
+      this.openModal('manage-annotations');
+    });
+
+    // Delete Annotation Memory Rule
+    this.container.querySelectorAll('[data-delete-annotation-merchant]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const merchant = btn.dataset.deleteAnnotationMerchant;
+        if (merchant) {
+          removeMerchantAnnotation(merchant);
+          this.showToast(`Deleted memory rule for ${merchant}`);
+          this.render();
+        }
+      });
     });
   }
 }

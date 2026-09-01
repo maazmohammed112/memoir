@@ -72,6 +72,7 @@ export function resolveFinancialStatus(item = {}, options = {}) {
     isDueSoon: false,
     isUpcoming: false,
     isCompleted: true,
+    isApproved: false,
     isFlagged: false,
     reviewFlag: '',
     reviewReason: '',
@@ -88,7 +89,24 @@ export function resolveFinancialStatus(item = {}, options = {}) {
   const catLower = rawCat.toLowerCase();
   const rawFlag = String(item.reviewFlag || '').trim();
   const flagLower = rawFlag.toLowerCase();
-  const isFlagged = Boolean(rawFlag && flagLower !== 'no' && flagLower !== 'false' && flagLower !== 'clear' && flagLower !== 'verified' && flagLower !== 'none');
+  
+  const isApproved = Boolean(
+    item.isApproved ||
+    flagLower === 'approved' ||
+    flagLower === 'verified' ||
+    statusLower === 'approved' ||
+    statusLower === 'verified'
+  );
+
+  const isFlagged = !isApproved && Boolean(
+    rawFlag && 
+    flagLower !== 'no' && 
+    flagLower !== 'false' && 
+    flagLower !== 'clear' && 
+    flagLower !== 'verified' && 
+    flagLower !== 'approved' &&
+    flagLower !== 'none'
+  );
   const reviewReason = String(item.reviewReason || '').trim();
 
   // Extract / Calculate Due Date & Days to Due
@@ -166,8 +184,15 @@ export function resolveFinancialStatus(item = {}, options = {}) {
 
   const formattedDate = item.date || (parsedDueDateObj ? parsedDueDateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
-  // 1. Check for OVERDUE
-  if (!isCompletedExplicit && (isOverdueExplicit || (daysToDue !== null && daysToDue < 0))) {
+  // 1. Check for APPROVED / VERIFIED
+  if (isApproved) {
+    tier = 'approved';
+    badgeLabel = 'APPROVED';
+    outlineClass = 'kredo-status-outline-approved';
+    highlightReason = 'Approved & Verified: Transaction confirmed and synchronized with Insights.';
+  }
+  // 2. Check for OVERDUE
+  else if (!isCompletedExplicit && (isOverdueExplicit || (daysToDue !== null && daysToDue < 0))) {
     tier = 'overdue';
     isOverdue = true;
     const absDays = daysToDue !== null ? Math.abs(daysToDue) : 0;
@@ -177,7 +202,7 @@ export function resolveFinancialStatus(item = {}, options = {}) {
       ? `Overdue: Payment deadline passed ${absDays > 0 ? `${absDays} day${absDays === 1 ? '' : 's'} ago` : ''} on ${dueDateStr || parsedDueDateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}. Immediate settlement required.`
       : 'Overdue: Payment deadline has elapsed. Please verify settlement.';
   }
-  // 2. Check for DUE TODAY
+  // 3. Check for DUE TODAY
   else if (!isCompletedExplicit && (isDueTodayExplicit || (daysToDue !== null && daysToDue === 0))) {
     tier = 'due-today';
     isDueToday = true;
@@ -185,7 +210,7 @@ export function resolveFinancialStatus(item = {}, options = {}) {
     outlineClass = 'kredo-status-outline-due-today';
     highlightReason = 'Due Today: Payment is due before 11:59 PM today. Settle now to avoid late charges.';
   }
-  // 3. Check for DUE SOON (1 to 3 days)
+  // 4. Check for DUE SOON (1 to 3 days)
   else if (!isCompletedExplicit && (isDueSoonExplicit || (daysToDue !== null && daysToDue > 0 && daysToDue <= 3))) {
     tier = 'due-soon';
     isDueSoon = true;
@@ -194,7 +219,7 @@ export function resolveFinancialStatus(item = {}, options = {}) {
     outlineClass = 'kredo-status-outline-due-soon';
     highlightReason = `Due Soon: Payment deadline in ${dayCount} day${dayCount === 1 ? '' : 's'}${dueDateStr ? ` on ${dueDateStr}` : ''}.`;
   }
-  // 4. Check for UPCOMING BILL / SCHEDULED ITEM (>3 days or pending/scheduled bill)
+  // 5. Check for UPCOMING BILL / SCHEDULED ITEM (>3 days or pending/scheduled bill)
   else if (!isCompletedExplicit && (isUpcomingExplicit || (daysToDue !== null && daysToDue > 3) || isBillObligation)) {
     tier = 'upcoming';
     isUpcoming = true;
@@ -208,7 +233,7 @@ export function resolveFinancialStatus(item = {}, options = {}) {
       highlightReason = 'Upcoming Bill: Scheduled regular payment obligation.';
     }
   }
-  // 5. Normal COMPLETED / SETTLED (Default)
+  // 6. Normal COMPLETED / SETTLED (Default)
   else {
     tier = 'completed';
     badgeLabel = statusLower === 'settled' ? 'SETTLED' : 'COMPLETED';
@@ -239,12 +264,13 @@ export function resolveFinancialStatus(item = {}, options = {}) {
     isDueToday,
     isDueSoon,
     isUpcoming,
-    isCompleted: tier === 'completed',
+    isCompleted: tier === 'completed' || isApproved,
+    isApproved,
     isFlagged,
-    reviewFlag: rawFlag,
+    reviewFlag: isApproved ? 'Approved' : rawFlag,
     reviewReason,
     linkedBillId: item.linkedBillId || '',
-    status: rawStatus || (tier === 'completed' ? 'Completed' : tier === 'overdue' ? 'Overdue' : tier === 'due-today' ? 'Due Today' : tier === 'due-soon' ? 'Due Soon' : 'Upcoming'),
+    status: isApproved ? 'Approved' : (rawStatus || (tier === 'completed' ? 'Completed' : tier === 'overdue' ? 'Overdue' : tier === 'due-today' ? 'Due Today' : tier === 'due-soon' ? 'Due Soon' : 'Upcoming')),
   };
 }
 
@@ -435,11 +461,15 @@ export function filterTransactions(transactions = [], filters = {}) {
       }
     }
 
-    // 11. Review Flag filter
+    // 11. Review Flag & Approval filter
     if (reviewFlag !== 'all') {
       const rFlag = String(tx.reviewFlag || '').toLowerCase();
-      const isFlagged = Boolean(rFlag && rFlag !== 'no' && rFlag !== 'false' && rFlag !== 'clear' && rFlag !== 'verified');
-      if (reviewFlag === 'flagged' || reviewFlag === 'needs review') {
+      const isApproved = Boolean(tx.isApproved || rFlag === 'approved' || rFlag === 'verified' || tx.status?.toLowerCase() === 'approved');
+      const isFlagged = !isApproved && Boolean(rFlag && rFlag !== 'no' && rFlag !== 'false' && rFlag !== 'clear' && rFlag !== 'verified' && rFlag !== 'approved');
+
+      if (reviewFlag === 'approved') {
+        if (!isApproved) return false;
+      } else if (reviewFlag === 'flagged' || reviewFlag === 'needs review') {
         if (!isFlagged) return false;
       } else if (reviewFlag === 'clear' || reviewFlag === 'verified') {
         if (isFlagged) return false;
@@ -453,11 +483,12 @@ export function filterTransactions(transactions = [], filters = {}) {
       if (linkedBill === 'unlinked' && hasBill) return false;
     }
 
-    // 13. Query search across all 24 columns
+    // 13. Query search across all 24 columns + annotations
     if (normalizedQuery) {
       const matchMerchant = String(tx.merchant || '').toLowerCase().includes(normalizedQuery);
       const matchSub = String(tx.displaySub || '').toLowerCase().includes(normalizedQuery);
       const matchNotes = String(tx.notes || '').toLowerCase().includes(normalizedQuery);
+      const matchAnnotation = String(tx.annotation || '').toLowerCase().includes(normalizedQuery);
       const matchRef = String(tx.referenceId || '').toLowerCase().includes(normalizedQuery);
       const matchTxId = String(tx.transactionId || '').toLowerCase().includes(normalizedQuery);
       const matchCategory = String(tx.category || '').toLowerCase().includes(normalizedQuery);
@@ -475,7 +506,7 @@ export function filterTransactions(transactions = [], filters = {}) {
       const matchSource = String(tx.source || '').toLowerCase().includes(normalizedQuery);
 
       if (
-        !matchMerchant && !matchSub && !matchNotes && !matchRef && !matchTxId &&
+        !matchMerchant && !matchSub && !matchNotes && !matchAnnotation && !matchRef && !matchTxId &&
         !matchCategory && !matchMethod && !matchBank && !matchApp && !matchNet &&
         !matchNature && !matchReviewReason && !matchBillId && !matchAccount &&
         !matchLast4 && !matchAmount && !matchRawMsg && !matchSource
